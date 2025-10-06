@@ -1,0 +1,61 @@
+SKU,Name,UnitPrice
+M2P,Mach 2 Pro - Portable,300.00
+M2IG, Mach 2 Pro - In Ground, 300.00
+M5STD,Mach 5 Standard,525.00
+M5P,Mach 5 Portable,525.00
+M5NF,Mach 5 No Frills,495.00
+M7STD,Mach 7 Standard,575.00
+M7P,Mach 7 Portable,575.00
+M7NF,Mach 7 No Frills,545.00
+MXSTD,Mach X Standard,625.00
+MXNF,Mach X No Frills,595.00
+MXP,Mach X Portable,625.00
+CD,Course Discount,-100.00
+NP,Number Plate - Stock,35.00
+PC-Stock,Powder Coat Fee - Stock,90.00
+PC-Custom,Powder Coat Fee - Custom,120.00
+AA,Anchor,30.00
+CO,Collar,20.00
+IGK,In Ground Install kit,45.00
+M2Collar,Mach 2 Collar,25.00
+STDPole,Standard Pole,45.00
+PPole,Portable Pole,40.00
+PE,Pole Extension,60.00
+PBase,Portable Base - Wheel,60.00
+CNP,Number Plate - Custom,55.00
+CW,Mach 7 Wrap - Custom,35.00
+BCTS,Tee Sign - 5"x10",55.00
+CTS9x12,Tee Sign - 9"x12",89.00
+CTS12x18,Tee Sign - 12"x18",115.00
+CTS8x11,Tee Sign - 8"x11",79.00
+CM9,Course Map - 9 Hole,700.00
+CM18,Course Map - 18 Hole,1250.00
+UFO,UFO Course Sign,45.00
+CRS12x18,Color Rules Sign - 12"x18",69.00
+FCRS,Framed Color Rules Sign - 8"x11",80.00
+BFS,Basket Flag - Standard Plug,30.00
+BFNP,Basket Flag - Number Plate Plug,30.00
+ADD,Additional Discount,
+BCTSRP,Tee Sign - 5"x10" Reprint,49.50
+FPM7,Focal Point - Mach 7,7.00
+M7CO,Mach 7 Collar Only,545.00
+FPM5,Focal Point - Mach 5,7.00
+CHM5,Chain Holder - Mach 5,250.00
+M5CO,Mach 5 Collar Only,495.00
+MXCO,Mach X Collar Only,595.00
+CustPrem,Custom Premium Disc,11.00
+MLP,Mach Lite Portable,144.99
+MM,Mini Marker,3.00
+Sticker,DGA Sticker,0.50
+SmBan,Small Banner,20.00
+LrgBan,Large Banner,40.00
+CustBase,Custom Baseline Disc,7.00
+TRVRS Color,TRVRS LT Bag (Color),54.99
+TRVRS Pattern,TRVRS LT Bag (Pattern),59.99
+StartBag,Starter Bag,19.99
+TB-2,Trapper Basket 2,180.00
+TB-1,Trapper Basket 1,170.00
+MS,Mach Shift,150.00
+CM9,Course Map 9 Hole,700.00
+CM18, Course Map 18 Hole,1250.00
+
