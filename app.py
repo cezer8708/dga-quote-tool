@@ -14,13 +14,6 @@ import streamlit as st
 
 st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
-# PDF libs
-from reportlab.lib.pagesizes import letter
-from reportlab.lib.units import inch
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-
 
 # =============================================================================
 # 0) Configuration & Environment
@@ -86,8 +79,12 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         "UnitPrice": [499.00, 399.00, 35.00, 55.00]
     }
     try:
-        # --- MODIFICATION: Explicitly set encoding and separator for robustness ---
+        # Explicitly set encoding and separator for robustness
         df = pd.read_csv(path, encoding='utf-8', sep=',')
+
+        # --- CRITICAL FIX: Strip whitespace from ALL column names ---
+        df.columns = [c.strip() for c in df.columns]
+        # --- END CRITICAL FIX ---
 
         # Normalize headers
         df.columns = [c.strip() for c in df.columns]
