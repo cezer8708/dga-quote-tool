@@ -10,7 +10,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
-import gspread  # <--- NEW IMPORT
+import gspread
 
 st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
@@ -80,11 +80,18 @@ def get_gsheet_client():
         if "gcp_service_account" in st.secrets:
             creds_data = st.secrets["gcp_service_account"]
 
-            # --- FIX: Check if Streamlit parsed it as a dictionary (new TOML format) ---
+            # --- 1. DIRECT DICTIONARY CHECK (Expected when parsing TOML structure) ---
             if isinstance(creds_data, dict) and creds_data.get('type') == 'service_account':
                 return gspread.service_account_from_dict(creds_data)
 
-            # Fallback check: If it was read as a single string (old format or escaping error)
+            # --- 2. FIX: CHECK FOR NESTED DICTIONARY WRAPPER (Common Streamlit behavior) ---
+            if isinstance(creds_data, dict) and "gcp_service_account" in creds_data and \
+                    isinstance(creds_data["gcp_service_account"], dict) and \
+                    creds_data["gcp_service_account"].get('type') == 'service_account':
+                # Use the nested dictionary for the connection
+                return gspread.service_account_from_dict(creds_data["gcp_service_account"])
+
+            # --- 3. Fallback check for string (old format or error) ---
             elif isinstance(creds_data, str):
                 try:
                     return gspread.service_account_from_dict(json.loads(creds_data))
@@ -92,12 +99,12 @@ def get_gsheet_client():
                     st.error("Secret format error: gcp_service_account secret is a string but not valid JSON.")
                     return None
             else:
-                # This captures the case where it's read as a dictionary, but not a valid service account type
+                # This captures the failure case for non-service account dictionaries
                 st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
                 return None
 
         else:
-            # Fallback for local testing (can be removed if testing only deployed)
+            # Fallback for local testing
             if os.path.exists("service_account.json"):
                 return gspread.service_account(filename="service_account.json")
             st.error("Google Sheets Service Account not configured.")
@@ -925,7 +932,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             ["Additional Anchor - Pin Positions", fmt_money(30.00)],
             ["Basic Color Tee Sign", fmt_money(55.00)],
             ["12\"x18\" Color Rules Sign", fmt_money(69.00)],
-            ["Pole Extension - New Product", fmt_money(60.00)],
+            ["Pole Extension - New Product", fmt.money(60.00)],
             ["Basket Flag - New Product", fmt_money(30.00)],
             [Paragraph("<b>*Per Unit Pricing</b>",
                        ParagraphStyle('ACCfTR', parent=styles['Normal'], fontSize=8, alignment=1,
