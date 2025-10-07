@@ -75,40 +75,47 @@ def fmt_money(value: float) -> str:
 # =============================================================================
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
-    """Initializes and caches the gspread client."""
+    """Initializes and caches the gspread client, robustly handling nested secrets."""
     try:
-        if "gcp_service_account" in st.secrets:
-            creds_data = st.secrets["gcp_service_account"]
-
-            # --- 1. DIRECT DICTIONARY CHECK (Expected when parsing TOML structure) ---
-            if isinstance(creds_data, dict) and creds_data.get('type') == 'service_account':
-                return gspread.service_account_from_dict(creds_data)
-
-            # --- 2. FIX: CHECK FOR NESTED DICTIONARY WRAPPER (Common Streamlit behavior) ---
-            if isinstance(creds_data, dict) and "gcp_service_account" in creds_data and \
-                    isinstance(creds_data["gcp_service_account"], dict) and \
-                    creds_data["gcp_service_account"].get('type') == 'service_account':
-                # Use the nested dictionary for the connection
-                return gspread.service_account_from_dict(creds_data["gcp_service_account"])
-
-            # --- 3. Fallback check for string (old format or error) ---
-            elif isinstance(creds_data, str):
-                try:
-                    return gspread.service_account_from_dict(json.loads(creds_data))
-                except json.JSONDecodeError:
-                    st.error("Secret format error: gcp_service_account secret is a string but not valid JSON.")
-                    return None
-            else:
-                # This captures the failure case for non-service account dictionaries
-                st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
-                return None
-
-        else:
+        if "gcp_service_account" not in st.secrets:
             # Fallback for local testing
             if os.path.exists("service_account.json"):
                 return gspread.service_account(filename="service_account.json")
             st.error("Google Sheets Service Account not configured.")
             return None
+
+        creds_data = st.secrets["gcp_service_account"]
+        sa_creds = None
+
+        # 1. Try treating the data as the direct dictionary (Expected in local secrets.toml)
+        if isinstance(creds_data, dict) and creds_data.get('type') == 'service_account':
+            sa_creds = creds_data
+
+        # 2. FIX: Check for the nested dictionary wrapper (Common Streamlit Cloud behavior)
+        elif isinstance(creds_data, dict) and "gcp_service_account" in creds_data:
+            nested_data = creds_data["gcp_service_account"]
+            if isinstance(nested_data, dict) and nested_data.get('type') == 'service_account':
+                sa_creds = nested_data
+
+        # 3. Fallback: Try decoding a string (for legacy/string secrets)
+        elif isinstance(creds_data, str):
+            try:
+                decoded = json.loads(creds_data)
+                if isinstance(decoded, dict) and decoded.get('type') == 'service_account':
+                    sa_creds = decoded
+            except json.JSONDecodeError:
+                st.error("Secret format error: gcp_service_account secret is a string but not valid JSON.")
+                return None
+
+        if sa_creds:
+            # Universal return point for successful credential finding
+            return gspread.service_account_from_dict(sa_creds)
+
+        else:
+            # Final failure path
+            st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
+            return None
+
     except Exception as e:
         # Catch any gspread-specific connection errors
         st.error(f"Error connecting to Google Sheets: {e}")
@@ -381,7 +388,6 @@ def pd_get_org(org_id: int | None):
 def _parse_us_address(addr: str):
     """
     Robustly parses US address string (e.g., '123 Main St, Anytown, CA 90210, USA')
-    (Function remains as previously defined)
     """
     street = city = state = postal = ""
     if not addr:
@@ -462,7 +468,6 @@ def _compose_street_from_parts(rec: dict | None) -> str:
 def pd_person_to_customer(person: dict, org: dict | None) -> dict:
     """
     Prefer PERSON address (Details). Fill any missing pieces from ORG.
-    (Function remains as previously defined)
     """
     name = _clean(person.get("name"))
     phone = _get_nested_field_value(person, "phone")
@@ -516,7 +521,6 @@ ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 
 
 def is_basket_5_7_X(item: dict) -> bool:
-    # (Function remains as previously defined)
     sku = (item.get("sku") or "").upper().strip()
     name = (item.get("name") or "").lower()
 
@@ -578,7 +582,6 @@ def ensure_course_discount(items: list[dict]) -> None:
 
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
-    # (Function remains as previously defined)
     return Paragraph(
         f"<b>Disc Golf Association (DGA)</b><br/>"
         f"73 Hangar Way<br/>"
@@ -590,7 +593,6 @@ def _company_right_block(styles):
 def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, totals: dict,
               doc_number: str, footer_notes_text: str, template: str = "quote",
               meta: dict | None = None):
-    # (Function remains as previously defined)
     meta = meta or {}
     CONTENT_WIDTH = 7.5 * inch
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=30, bottomMargin=30)
@@ -932,7 +934,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             ["Additional Anchor - Pin Positions", fmt_money(30.00)],
             ["Basic Color Tee Sign", fmt_money(55.00)],
             ["12\"x18\" Color Rules Sign", fmt_money(69.00)],
-            ["Pole Extension - New Product", fmt.money(60.00)],
+            ["Pole Extension - New Product", fmt_money(60.00)],
             ["Basket Flag - New Product", fmt_money(30.00)],
             [Paragraph("<b>*Per Unit Pricing</b>",
                        ParagraphStyle('ACCfTR', parent=styles['Normal'], fontSize=8, alignment=1,
