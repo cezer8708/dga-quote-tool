@@ -78,8 +78,24 @@ def get_gsheet_client():
     """Initializes and caches the gspread client."""
     try:
         if "gcp_service_account" in st.secrets:
-            # Connect using Streamlit Secrets for deployed app
-            return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+            creds_data = st.secrets["gcp_service_account"]
+
+            # --- FIX: Check if Streamlit parsed it as a dictionary (new TOML format) ---
+            if isinstance(creds_data, dict) and creds_data.get('type') == 'service_account':
+                return gspread.service_account_from_dict(creds_data)
+
+            # Fallback check: If it was read as a single string (old format or escaping error)
+            elif isinstance(creds_data, str):
+                try:
+                    return gspread.service_account_from_dict(json.loads(creds_data))
+                except json.JSONDecodeError:
+                    st.error("Secret format error: gcp_service_account secret is a string but not valid JSON.")
+                    return None
+            else:
+                # This captures the case where it's read as a dictionary, but not a valid service account type
+                st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
+                return None
+
         else:
             # Fallback for local testing (can be removed if testing only deployed)
             if os.path.exists("service_account.json"):
@@ -87,6 +103,7 @@ def get_gsheet_client():
             st.error("Google Sheets Service Account not configured.")
             return None
     except Exception as e:
+        # Catch any gspread-specific connection errors
         st.error(f"Error connecting to Google Sheets: {e}")
         return None
 
@@ -532,7 +549,7 @@ def ensure_course_discount(items: list[dict]) -> None:
     if qty >= 9:
         existing_notes = items[idx]["notes"] if idx != -1 else ""
         note_to_use = existing_notes if (
-                    existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
+                existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
 
         disc_line = {
             "id": items[idx]["id"] if idx != -1 else str(uuid.uuid4()),
@@ -998,7 +1015,9 @@ def main_app():
         # --- QUOTE LOOKUP CHANGE: Load from Sheet and display in Selectbox ---
         all_quotes_df = load_all_quotes()
         # Create display options: (New Quote) + all saved Quote #s
-        quote_options = ["(New Quote)"] + all_quotes_df['Quote #'].tolist()
+        # Handle case where load_all_quotes returns empty DF due to error
+        quote_options = ["(New Quote)"] + all_quotes_df['Quote #'].tolist() if 'Quote #' in all_quotes_df.columns else [
+            "(New Quote)"]
 
         selected_quote_no = st.selectbox("Select or Search for Quote #", quote_options)
 
