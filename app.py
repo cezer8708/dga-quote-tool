@@ -10,6 +10,7 @@ from typing import Any
 
 import pandas as pd
 import streamlit as st
+import gspread  # <--- NEW IMPORT
 
 st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
@@ -54,10 +55,14 @@ COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png")
 
 # Pipedrive configuration retrieval
 PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
-
-# NOTE: We define the canonical Pipedrive API base URL here,
-# overriding any potentially misconfigured environment variable set by the user.
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
+
+# --- GOOGLE SHEETS CONFIGURATION ---
+# **ENSURE THIS MATCHES THE TITLE OF THE SHEET YOU CREATED AND SHARED**
+GOOGLE_SHEET_TITLE = "DGA Quoting Database"
+
+
+# -----------------------------------
 
 
 def fmt_money(value: float) -> str:
@@ -66,7 +71,91 @@ def fmt_money(value: float) -> str:
 
 
 # =============================================================================
-# 1. Data: Local Product DB (Placeholder)
+# 1. Google Sheets Connection and Data Handling
+# =============================================================================
+@st.cache_resource(ttl=3600)
+def get_gsheet_client():
+    """Initializes and caches the gspread client."""
+    try:
+        if "gcp_service_account" in st.secrets:
+            # Connect using Streamlit Secrets for deployed app
+            return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+        else:
+            # Fallback for local testing (can be removed if testing only deployed)
+            if os.path.exists("service_account.json"):
+                return gspread.service_account(filename="service_account.json")
+            st.error("Google Sheets Service Account not configured.")
+            return None
+    except Exception as e:
+        st.error(f"Error connecting to Google Sheets: {e}")
+        return None
+
+
+@st.cache_data(ttl=300)  # Cache for 5 minutes (adjust TTL as needed)
+def load_all_quotes() -> pd.DataFrame:
+    """Loads all quote data from the Google Sheet for lookup."""
+    client = get_gsheet_client()
+    if not client:
+        return pd.DataFrame()
+
+    try:
+        sh = client.open_by_title(GOOGLE_SHEET_TITLE)
+        worksheet = sh.get_worksheet(0)
+
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+
+        if 'Quote #' not in df.columns or 'Quote JSON Payload' not in df.columns:
+            st.error("Google Sheet missing required columns: 'Quote #' and 'Quote JSON Payload'. Check row 1.")
+            return pd.DataFrame()
+
+        # Convert the JSON string column back to actual dicts
+        df['Payload'] = df['Quote JSON Payload'].apply(lambda x: json.loads(x) if x else None)
+        return df.dropna(subset=['Payload'])
+
+    except gspread.exceptions.SpreadsheetNotFound:
+        st.error(f"Google Sheet with title '{GOOGLE_SHEET_TITLE}' not found. Check title and sharing.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error loading quotes from sheet: {e}")
+        return pd.DataFrame()
+
+
+def save_quote_to_gsheet(payload: dict) -> bool:
+    """Saves a new quote to the Google Sheet."""
+    client = get_gsheet_client()
+    if not client:
+        return False
+
+    try:
+        sh = client.open_by_title(GOOGLE_SHEET_TITLE)
+        worksheet = sh.get_worksheet(0)
+
+        # Prepare the row data for the Sheet's main columns (A to G)
+        row_data = [
+            payload.get("quote_no"),
+            payload.get("date"),
+            payload["customer"].get("company", ""),
+            payload["customer"].get("name", ""),
+            payload["customer"].get("email", ""),
+            payload["totals"].get("grand_total", 0.0),
+            json.dumps(payload),  # Full payload is saved as a JSON string
+        ]
+
+        # Append the new row to the sheet
+        worksheet.append_row(row_data, value_input_option='USER_ENTERED')
+
+        # Clear the quote cache so the next load reflects the new entry
+        load_all_quotes.clear()
+
+        return True
+    except Exception as e:
+        st.error(f"Error saving quote to sheet: {e}")
+        return False
+
+
+# =============================================================================
+# 2. Data: Local Product DB (Placeholder)
 # =============================================================================
 @st.cache_data
 def load_products(path: str = "products.csv") -> pd.DataFrame:
@@ -100,7 +189,7 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
 PRODUCTS = load_products()
 
 # =============================================================================
-# 2. Session State Initialization
+# 3. Session State Initialization
 # =============================================================================
 
 # --- App State ---
@@ -115,8 +204,6 @@ if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
 
 # --- RERUN FLAG (USED FOR UNIT PRICE FIX - PREVIOUS LOGIC) ---
-# NOTE: This flag is now mostly redundant due to the new dynamic key approach
-# but is kept for compatibility with the customer autofill logic below.
 if "rerun_flag" not in st.session_state:
     st.session_state["rerun_flag"] = False
 
@@ -152,21 +239,21 @@ if "freight_notes" not in st.session_state:
 
 
 # =============================================================================
-# 3. Helper Functions (Includes Pipedrive Logic)
+# 4. Helper Functions (Includes Pipedrive Logic and PDF Builder)
 # =============================================================================
 def start_new_quote():
     for key in list(st.session_state.keys()):
         # Only clear keys created by this app
         if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
                    "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag",
-                   "customer_key_suffix"]:  # Added customer_key_suffix
+                   "customer_key_suffix"]:
             del st.session_state[key]
 
     # Re-initialize the minimum required keys
     st.session_state["quote_no"] = new_quote_number()
     if "customer" not in st.session_state: st.session_state["customer"] = {}
     st.session_state["line_items"] = []
-    st.session_state["customer_key_suffix"] = 0  # Re-initialize the suffix
+    st.session_state["customer_key_suffix"] = 0
     if "footer_notes" not in st.session_state:
         st.session_state["footer_notes"] = (
             "Pricing subject to change. Please review all details carefully.\n"
@@ -187,11 +274,9 @@ def _get_nested_field_value(data: dict, key: str) -> str:
     val = data.get(key)
     if isinstance(val, list) and val:
         first_item = val[0]
-        # Pipedrive often returns these fields as a list of dicts with a 'value' key
         if isinstance(first_item, dict):
             return _clean(first_item.get("value"))
         elif isinstance(first_item, str):
-            # Fallback for simple string lists, though rare for primary contact fields
             return _clean(first_item)
     return ""
 
@@ -199,7 +284,6 @@ def _get_nested_field_value(data: dict, key: str) -> str:
 # --- Pipedrive Helpers ---
 def _pd_request(path: str, params: dict | None = None):
     if not PIPEDRIVE_API_TOKEN:
-        # NOTE: This print is useful for console debugging in a deployed environment
         print("PIPEDRIVE_API_TOKEN is missing or empty.", file=sys.stderr)
         return None
 
@@ -207,23 +291,12 @@ def _pd_request(path: str, params: dict | None = None):
     params = params or {}
     params["api_token"] = PIPEDRIVE_API_TOKEN
 
-    # Use the canonical, global Pipedrive API endpoint
     url = f"{PIPEDRIVE_BASE_URL}/{path}"
 
     try:
         response = requests.get(url, headers=headers, params=params, timeout=10)
-
-        # Check for non-200 status codes
         if response.status_code != 200:
             print(f"Pipedrive API Error: {response.status_code} for URL: {url}", file=sys.stderr)
-            try:
-                error_data = response.json()
-                print(f"Pipedrive API Response Data: {error_data}", file=sys.stderr)
-            except json.JSONDecodeError:
-                # This catches the specific error the user is seeing when a non-JSON error page is returned
-                print(
-                    f"Pipedrive API returned non-JSON error. Status: {response.status_code}. Response text starts with: {response.text[:100]}...",
-                    file=sys.stderr)
             return None
 
         response.raise_for_status()
@@ -253,17 +326,12 @@ def pd_search_persons(term: str, limit: int = 10):
     )
 
     if not data or not data.get("data"):
-        # Log empty results if necessary for debugging
-        if data and data.get("data") == None:
-            print(f"Pipedrive search result was 'None' for term: {term}")
         return []
 
     items = data["data"].get("items", [])
     results = []
     for it in items:
         p = it.get("item", {})
-
-        # Use the new helper to get the primary email from the search result object
         email = _get_nested_field_value(p, "email")
 
         results.append({
@@ -289,6 +357,7 @@ def pd_get_org(org_id: int | None):
 def _parse_us_address(addr: str):
     """
     Robustly parses US address string (e.g., '123 Main St, Anytown, CA 90210, USA')
+    (Function remains as previously defined)
     """
     street = city = state = postal = ""
     if not addr:
@@ -369,9 +438,9 @@ def _compose_street_from_parts(rec: dict | None) -> str:
 def pd_person_to_customer(person: dict, org: dict | None) -> dict:
     """
     Prefer PERSON address (Details). Fill any missing pieces from ORG.
+    (Function remains as previously defined)
     """
     name = _clean(person.get("name"))
-    # Use the robust nested field extractor
     phone = _get_nested_field_value(person, "phone")
     email = _get_nested_field_value(person, "email")
 
@@ -419,32 +488,22 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
 
 
 # --- Course Discount helpers ---
-# Allow-list: these SKUs should ALWAYS count toward the 9+ course discount
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 
 
 def is_basket_5_7_X(item: dict) -> bool:
-    """
-    Qualifying items for the course discount:
-      - Any of the explicit course SKUs in ALLOW_COURSE_SKUS (e.g., M5CO, M7CO, MXCO)
-      - Otherwise: Mach 5 / Mach 7 / Mach X baskets (Std/Portable/No Frills),
-        but skip obvious parts/accessories (collars, chain holders, wraps, etc.)
-    """
+    # (Function remains as previously defined)
     sku = (item.get("sku") or "").upper().strip()
     name = (item.get("name") or "").lower()
 
-    # 1) Explicit allow-list hits (your M5CO / M7CO / MXCO request)
     if sku in ALLOW_COURSE_SKUS:
         return True
 
-    # 2) Existing rules for baskets (keep behavior unchanged)
     name_ok = (("mach 5" in name) or ("mach 7" in name) or ("mach x" in name)) \
               and any(k in name for k in ["standard", "portable", "no frills"])
     if name_ok:
         return True
 
-    # Previously this excluded all *CO endings*. We keep that behavior,
-    # but we already returned True above for the three course SKUs.
     if sku.startswith(("M5", "M7", "MX")) and not sku.endswith("CO"):
         bad_keywords = ["COLLAR", "CHAIN", "HOLDER", "WRAP"]
         if any(bad in sku for bad in bad_keywords):
@@ -495,7 +554,7 @@ def ensure_course_discount(items: list[dict]) -> None:
 
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
-    """Order Form Company Info (Left Aligned for alignment with Bill/Ship boxes)"""
+    # (Function remains as previously defined)
     return Paragraph(
         f"<b>Disc Golf Association (DGA)</b><br/>"
         f"73 Hangar Way<br/>"
@@ -507,6 +566,7 @@ def _company_right_block(styles):
 def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, totals: dict,
               doc_number: str, footer_notes_text: str, template: str = "quote",
               meta: dict | None = None):
+    # (Function remains as previously defined)
     meta = meta or {}
     CONTENT_WIDTH = 7.5 * inch
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=30, bottomMargin=30)
@@ -910,7 +970,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
 
 # =============================================================================
-# 4. Main Application Logic
+# 5. Main Application Logic
 # =============================================================================
 
 def main_app():
@@ -920,7 +980,6 @@ def main_app():
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
 
     # --- RERUN CHECK FOR UNIT PRICE FIX ---
-    # NOTE: This is kept for the Unit Price update logic below, even though the key change is more robust
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
         st.rerun()
@@ -936,38 +995,49 @@ def main_app():
         st.info(st.session_state["quote_no"])
 
     with lookup_col2:
-        lookup_q = st.text_input("Retrieve Quote # (YYYYMMDD-HHMM)", value="", placeholder="e.g. 20251002-1359")
+        # --- QUOTE LOOKUP CHANGE: Load from Sheet and display in Selectbox ---
+        all_quotes_df = load_all_quotes()
+        # Create display options: (New Quote) + all saved Quote #s
+        quote_options = ["(New Quote)"] + all_quotes_df['Quote #'].tolist()
+
+        selected_quote_no = st.selectbox("Select or Search for Quote #", quote_options)
 
     with lookup_col3:
-        if st.button("Retrieve", use_container_width=True):
-            qdir = os.path.join("Quotes", lookup_q)
-            qjson = os.path.join(qdir, "quote.json")
-            try:
-                with open(qjson, "r", encoding="utf-8") as f:
-                    payload = json.load(f)
-                st.session_state["quote_no"] = payload.get("quote_no", lookup_q)
-                st.session_state["customer"] = payload.get("customer", st.session_state["customer"])
-                st.session_state["line_items"] = payload.get("line_items", st.session_state["line_items"])
-                fees = payload.get("fees", {})
-                st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
-                st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
-                st.session_state["freight_notes"] = payload.get("freight_notes", "")
-                tax_meta = payload.get("tax_meta", {})
-                if "tax_rate_pct_input" in tax_meta:
-                    st.session_state["tax_rate_pct_input"] = float(tax_meta["tax_rate_pct_input"])
-                if "sc_county_checkbox" in tax_meta:
-                    st.session_state["sc_county_checkbox"] = bool(tax_meta["sc_county_checkbox"])
-                st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+        if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
+            if selected_quote_no != "(New Quote)":
+                st.session_state["quote_no"] = selected_quote_no
 
-                # CUSTOMER AUTOFILL FIX: Force key suffix change on load
-                st.session_state["customer_key_suffix"] += 1
+                # --- RETRIEVAL LOGIC CHANGE: Load from DataFrame (which came from Google Sheets) ---
+                try:
+                    # Find the row in the DataFrame corresponding to the selected Quote #
+                    target_row = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no].iloc[0]
+                    payload = target_row['Payload']  # Access the pre-parsed JSON payload
 
-                st.success(f"Loaded quote {st.session_state['quote_no']}")
-                st.rerun()
-            except FileNotFoundError:
-                st.error(f"Quote not found at {qjson}. Generate & save a quote first.")
-            except Exception as e:
-                st.error(f"Couldn't load quote: {e}")
+                    # Apply payload data to session state
+                    st.session_state["customer"] = payload.get("customer", {})
+                    st.session_state["line_items"] = payload.get("line_items", [])
+                    fees = payload.get("fees", {})
+                    st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
+                    st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
+                    st.session_state["freight_notes"] = payload.get("freight_notes", "")
+                    tax_meta = payload.get("tax_meta", {})
+                    st.session_state["tax_rate_pct_input"] = float(
+                        tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
+                    st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
+                    st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+
+                    # CUSTOMER AUTOFILL FIX: Force key suffix change on load
+                    st.session_state["customer_key_suffix"] += 1
+
+                    st.success(f"Loaded quote {st.session_state['quote_no']} from Google Sheets.")
+                    st.rerun()
+
+                except IndexError:
+                    st.error(f"Quote {selected_quote_no} not found in the loaded data.")
+                except Exception as e:
+                    st.error(f"Couldn't load quote {selected_quote_no} from Google Sheets: {e}")
+            else:
+                st.warning("Please select a quote to retrieve or click 'New Quote'.")
 
     with lookup_col4:
         if st.button("New Quote", use_container_width=True, type="secondary"):
@@ -1231,7 +1301,7 @@ def main_app():
         "date_received": order_date_received,
     }
 
-    # --- Generate and Save Quote Logic ---
+    # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
     fees = {
         "drop_ship_fee": drop_ship_fee,
         "freight": freight,
@@ -1250,8 +1320,7 @@ def main_app():
     payload = {
         "quote_no": quote_no,
         "date": datetime.now().isoformat(),
-        # Removed user_id as we don't have Firebase here
-        "customer": c,
+        "customer": st.session_state["customer"],
         "line_items": st.session_state["line_items"],
         "fees": fees,
         "totals": totals,
@@ -1263,26 +1332,16 @@ def main_app():
     # --- PDF Buttons ---
     pdf_col1, pdf_col2 = st.columns(2)
 
-    def ensure_dir(p):
-        os.makedirs(p, exist_ok=True)
-
-    if pdf_col1.button("Generate & Save Quote PDF", use_container_width=True, type="primary"):
+    if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
         pdf_buffer = io.BytesIO()
         pdf_data = build_pdf(
-            pdf_buffer, c, st.session_state["line_items"], fees, totals,
+            pdf_buffer, st.session_state["customer"], st.session_state["line_items"], fees, totals,
             quote_no, footer_notes, template="quote"
         )
 
-        try:
-            qdir = os.path.join("Quotes", quote_no)
-            ensure_dir(qdir)
-            qjson = os.path.join(qdir, "quote.json")
-            qpdf = os.path.join(qdir, f"{quote_no}_Quote.pdf")
-            with open(qjson, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4)
-            with open(qpdf, "wb") as f:
-                f.write(pdf_data)
-            st.success(f"Quote {quote_no} saved to {qdir}")
+        # --- NEW PERSISTENCE STEP: SAVE TO GOOGLE SHEET ---
+        if save_quote_to_gsheet(payload):
+            st.success(f"Quote **{quote_no}** successfully saved to **Google Sheets** and PDF generated.")
             st.download_button(
                 label="Download Quote PDF",
                 data=pdf_data,
@@ -1290,8 +1349,9 @@ def main_app():
                 mime="application/pdf",
                 key="download_quote_pdf",
             )
-        except Exception as e:
-            st.error(f"Error saving files: {e}")
+        else:
+            st.error(
+                "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
         order_doc_number = quote_no
@@ -1299,31 +1359,22 @@ def main_app():
 
         pdf_buffer_order = io.BytesIO()
         pdf_data_order = build_pdf(
-            pdf_buffer_order, c, st.session_state["line_items"], fees, totals,
+            pdf_buffer_order, st.session_state["customer"], st.session_state["line_items"], fees, totals,
             order_doc_number, footer_notes, template="order", meta=order_meta
         )
 
-        try:
-            qdir = os.path.join("Quotes", quote_no)
-            ensure_dir(qdir)
-            opdf = os.path.join(qdir, order_file_name)
-            with open(opdf, "wb") as f:
-                f.write(pdf_data_order)
-            st.success(f"Order {order_doc_number} PDF generated and saved to {qdir}")
-            st.download_button(
-                label="Download Order/PO PDF",
-                data=pdf_data_order,
-                file_name=order_file_name,
-                mime="application/pdf",
-                key="download_order_pdf",
-            )
-        except Exception as e:
-            st.error(f"Error saving Order PDF: {e}")
+        st.success(f"Order **{order_doc_number}** PDF generated.")
+        st.download_button(
+            label="Download Order/PO PDF",
+            data=pdf_data_order,
+            file_name=order_file_name,
+            mime="application/pdf",
+            key="download_order_pdf",
+        )
 
 
 # =============================================================================
-# 5. Main App Entry Point
+# 6. Main App Entry Point
 # =============================================================================
 if __name__ == '__main__':
-    # Directly run the main application logic (No login gate)
     main_app()
