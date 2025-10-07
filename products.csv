@@ -1,6 +1,6 @@
 SKU,Name,UnitPrice
 M2P,Mach 2 Pro - Portable,300.00
-M2IG, Mach 2 Pro - In Ground, 300.00
+M2IG,Mach 2 Pro - In Ground,300.00
 M5STD,Mach 5 Standard,525.00
 M5P,Mach 5 Portable,525.00
 M5NF,Mach 5 No Frills,495.00
@@ -56,5 +56,3 @@ StartBag,Starter Bag,19.99
 TB-2,Trapper Basket 2,180.00
 TB-1,Trapper Basket 1,170.00
 MS,Mach Shift,150.00
-CM9,Course Map 9 Hole,700.00
-CM18,Course Map 18 Hole,1250.00
