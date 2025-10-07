@@ -21,6 +21,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle, TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
+
 # =============================================================================
 # 0) Configuration & Environment
 # =============================================================================
@@ -43,6 +44,7 @@ def get_env(key, default=None, cast=str):
     except Exception:
         return default
 
+
 COMPANY = {
     "name": get_env("COMPANY_NAME", "Disc Golf Association, Inc."),
     "tagline": get_env("COMPANY_TAGLINE", "FIRST IN DISC GOLF"),
@@ -62,8 +64,10 @@ COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png")
 PIPEDRIVE_API_TOKEN = get_env("PIPEDRIVE_API_TOKEN")
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
+
 def fmt_money(value: float) -> str:
     return f"${value:,.2f}"
+
 
 # =============================================================================
 # 1) Data: Local Product DB
@@ -76,8 +80,14 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
     Accepts either 'UnitPrice' or 'Unit Price' and normalizes to 'UnitPrice'.
     Required final columns: SKU, Name, UnitPrice
     """
+    placeholder_data = {
+        "SKU": ["M5-ST", "M7-PT", "M14-CO", "TS-BASIC"],
+        "Name": ["Mach 5 Standard Basket", "Mach 7 Portable Basket", "Mach 14 Chain Collar", "Basic Color Tee Sign"],
+        "UnitPrice": [499.00, 399.00, 35.00, 55.00]
+    }
     try:
         df = pd.read_csv(path)
+
         # Normalize headers
         df.columns = [c.strip() for c in df.columns]
 
@@ -88,7 +98,9 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         # Final required columns
         required = {"SKU", "Name", "UnitPrice"}
         if not required.issubset(df.columns):
-            raise ValueError("products.csv must have columns: SKU, Name, UnitPrice (or 'Unit Price')")
+            st.error(
+                f"Product file at '{path}' is missing required columns: SKU, Name, UnitPrice (or 'Unit Price'). Using minimal placeholder data.")
+            return pd.DataFrame(placeholder_data)
 
         # Coerce types
         df["SKU"] = df["SKU"].astype(str).str.strip()
@@ -98,14 +110,19 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
             errors="coerce"
         ).fillna(0.0)
 
+        # DEBUG: Check if UnitPrice conversion resulted in all zeros (a common cloud issue)
+        if (df["UnitPrice"] == 0.0).all() and len(df) > 0:
+            st.warning(
+                "⚠️ UnitPrice column loaded as all $0.00. Check CSV encoding/formatting for non-numeric characters.")
+
         return df
     except FileNotFoundError:
         st.warning(f"Product file not found at '{path}'. Using minimal placeholder data.")
-        return pd.DataFrame({
-            "SKU": ["M5-ST", "M7-PT", "M14-CO", "TS-BASIC"],
-            "Name": ["Mach 5 Standard Basket", "Mach 7 Portable Basket", "Mach 14 Chain Collar", "Basic Color Tee Sign"],
-            "UnitPrice": [499.00, 399.00, 35.00, 55.00]
-        })
+        return pd.DataFrame(placeholder_data)
+    except Exception as e:
+        st.error(f"An unexpected error occurred loading product file: {e}. Using minimal placeholder data.")
+        return pd.DataFrame(placeholder_data)
+
 
 # =============================================================================
 # 2) Session State Initialization
@@ -121,8 +138,10 @@ if "customer" not in st.session_state:
 if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
 
+
 def new_quote_number():
     return datetime.now().strftime("%Y%m%d-%H%M")
+
 
 if "quote_no" not in st.session_state:
     st.session_state["quote_no"] = new_quote_number()
@@ -139,6 +158,7 @@ st.session_state.setdefault("freight_fee_input", 0.0)
 st.session_state.setdefault("tax_rate_pct_input", float(DEFAULT_TAX * 100))
 st.session_state.setdefault("sc_county_checkbox", False)
 st.session_state.setdefault("freight_notes", "")
+
 
 # =============================================================================
 # 3) Helpers (incl. Pipedrive)
@@ -159,11 +179,13 @@ def start_new_quote():
         )
     st.rerun()
 
+
 def _clean(val):
     if val is None:
         return ""
     s = str(val).strip()
     return "" if s in {"-", "—"} else s
+
 
 def _get_nested_field_value(data: dict, key: str) -> str:
     val = data.get(key)
@@ -175,9 +197,11 @@ def _get_nested_field_value(data: dict, key: str) -> str:
             return _clean(first_item)
     return ""
 
+
 # --- Pipedrive ---
 def _pd_request(path: str, params: dict | None = None):
     if not PIPEDRIVE_API_TOKEN:
+        # Debug: This is the most likely failure point for the Pipedrive search
         print("PIPEDRIVE_API_TOKEN is missing or empty.", file=sys.stderr)
         return None
     headers = {"Content-Type": "application/json"}
@@ -201,6 +225,7 @@ def _pd_request(path: str, params: dict | None = None):
         print(f"Pipedrive network request failed for {url}: {e}", file=sys.stderr)
         return None
 
+
 def _pd_scalar(v: Any):
     if v is None:
         return None
@@ -210,6 +235,7 @@ def _pd_scalar(v: Any):
                 return v[k]
         return None
     return v
+
 
 def pd_search_persons(term: str, limit: int = 10):
     if not PIPEDRIVE_API_TOKEN: return []
@@ -231,15 +257,18 @@ def pd_search_persons(term: str, limit: int = 10):
         })
     return results
 
+
 def pd_get_person(person_id: int):
     if not PIPEDRIVE_API_TOKEN: return None
     data = _pd_request(f"persons/{person_id}")
     return data.get("data") if data else None
 
+
 def pd_get_org(org_id: int | None):
     if not PIPEDRIVE_API_TOKEN or not org_id: return None
     data = _pd_request(f"organizations/{org_id}")
     return data.get("data") if data else None
+
 
 def _parse_us_address(addr: str):
     street = city = state = postal = ""
@@ -288,6 +317,7 @@ def _parse_us_address(addr: str):
             city = ", ".join(parts[1:])
     return street.strip(), city.strip(), state.strip(), postal.strip()
 
+
 def _compose_street_from_parts(rec: dict | None) -> str:
     rec = rec or {}
     street = _clean(rec.get("address_street"))
@@ -301,6 +331,7 @@ def _compose_street_from_parts(rec: dict | None) -> str:
     if sub:
         base = f"{base}, {sub}" if base else sub
     return base
+
 
 def pd_person_to_customer(person: dict, org: dict | None) -> dict:
     name = _clean(person.get("name"))
@@ -346,8 +377,10 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
         "bill_addr1": ship_addr1, "bill_city": ship_city, "bill_state": ship_state, "bill_zip": ship_zip,
     }
 
+
 # --- Course Discount helpers ---
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
+
 
 def is_basket_5_7_X(item: dict) -> bool:
     sku = (item.get("sku") or "").upper().strip()
@@ -365,8 +398,10 @@ def is_basket_5_7_X(item: dict) -> bool:
         return True
     return False
 
+
 def eligible_qty_for_discount(items: list[dict]) -> int:
     return int(sum((float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it))))
+
 
 def find_course_discount_index(items: list[dict]) -> int:
     for idx, it in enumerate(items):
@@ -374,13 +409,15 @@ def find_course_discount_index(items: list[dict]) -> int:
             return idx
     return -1
 
+
 def ensure_course_discount(items: list[dict]) -> None:
     qty = eligible_qty_for_discount(items)
     idx = find_course_discount_index(items)
     DISCOUNT_NOTE = "Auto-applied for 9+ Mach 5/7/X baskets"
     if qty >= 9:
         existing_notes = items[idx]["notes"] if idx != -1 else ""
-        note_to_use = existing_notes if (existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
+        note_to_use = existing_notes if (
+                    existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
         disc_line = {
             "id": items[idx]["id"] if idx != -1 else str(uuid.uuid4()),
             "sku": "CD",
@@ -398,6 +435,7 @@ def ensure_course_discount(items: list[dict]) -> None:
     elif idx != -1:
         items.pop(idx)
 
+
 # --- PDF bits ---
 def _company_right_block(styles):
     return Paragraph(
@@ -406,6 +444,7 @@ def _company_right_block(styles):
         f"Watsonville, CA 95076<br/>"
         f"Phone: {COMPANY['phone']}", styles['LeftInfo']
     )
+
 
 def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, totals: dict,
               doc_number: str, footer_notes_text: str, template: str = "quote",
@@ -417,11 +456,13 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     styles.add(ParagraphStyle('CenterTitle', parent=styles['Title'], alignment=TA_CENTER))
     styles.add(ParagraphStyle('LeftInfo', parent=styles['Normal'], fontSize=10, leading=12, alignment=TA_LEFT))
-    styles.add(ParagraphStyle('QuoteHeaderTitle', parent=styles['Heading2'], alignment=TA_RIGHT, fontSize=14, leading=16))
+    styles.add(
+        ParagraphStyle('QuoteHeaderTitle', parent=styles['Heading2'], alignment=TA_RIGHT, fontSize=14, leading=16))
 
     story = []
 
-    notes_style = ParagraphStyle("LineNote", parent=styles["Normal"], fontSize=8, leading=10, textColor=colors.grey, leftIndent=6)
+    notes_style = ParagraphStyle("LineNote", parent=styles["Normal"], fontSize=8, leading=10, textColor=colors.grey,
+                                 leftIndent=6)
     notes_style_2 = ParagraphStyle("LineNote2", parent=styles["Normal"], fontSize=8, leading=10, textColor=colors.black)
     addr_style = ParagraphStyle('AddrStyle', parent=styles['Normal'], fontSize=10, leading=12)
 
@@ -441,7 +482,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             hdr.hAlign = 'LEFT'
             story += [hdr, Spacer(1, 4)]
         else:
-            story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']), Spacer(1, 4)]
+            story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
+                      Spacer(1, 4)]
 
         story += [Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']), Spacer(1, 6)]
 
@@ -499,13 +541,13 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         ]))
         addr_table.hAlign = 'LEFT'
         story += [addr_table, Spacer(1, 6)]
-
         header = ["Quantity", "Product Description", "Unit Price", "Total"]
         li_cols = [0.7 * inch, 5.15 * inch, 0.825 * inch, 0.825 * inch]
         data = [header]
         for r in st.session_state["line_items"]:
             if float(r.get("qty", 0)) == 0: continue
-            desc_para = Paragraph(str(r["name"]), ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
+            desc_para = Paragraph(str(r["name"]),
+                                  ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
             data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
@@ -596,7 +638,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ]))
 
-        right_align_style = ParagraphStyle('RightAlignStyle', parent=styles['Normal'], fontSize=10, leading=12, alignment=TA_RIGHT)
+        right_align_style = ParagraphStyle('RightAlignStyle', parent=styles['Normal'], fontSize=10, leading=12,
+                                           alignment=TA_RIGHT)
         title_text = "Quotation Form<br/>Pricing Subject to Change"
         title_para = Paragraph(title_text, styles['QuoteHeaderTitle'])
         contact_info_text = f"Phone: {COMPANY['phone']}<br/>Fax: {COMPANY['fax']}<br/>Web: {COMPANY['web']}"
@@ -660,7 +703,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         data = [header]
         for r in st.session_state["line_items"]:
             if float(r.get("qty", 0)) == 0: continue
-            desc_para = Paragraph(str(r["name"]), ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
+            desc_para = Paragraph(str(r["name"]),
+                                  ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
             data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
@@ -748,6 +792,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     doc.build(story)
     return buffer.getvalue()
 
+
 # =============================================================================
 # 4) Main App
 # =============================================================================
@@ -755,6 +800,14 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 def main_app():
     st.title("DGA Quoting Tool")
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
+
+    # --- DEBUG: Environment Check (added for cloud diagnosis) ---
+    if not PIPEDRIVE_API_TOKEN:
+        st.error("🚨 Pipedrive API Token is NOT loaded from secrets. Pipedrive lookup will fail.")
+
+    if not os.path.exists("products.csv"):
+        st.warning("⚠️ products.csv file not found in the root directory. Using placeholder data.")
+    # --- END DEBUG ---
 
     # Sidebar utilities
     with st.sidebar:
@@ -917,17 +970,21 @@ def main_app():
                 format_func=sku_label
             )
 
+            # --- UnitPrice Logic (Reviewing for potential error) ---
             if sku_selected == "(custom)":
                 row["sku"] = ""
-                row["name"] = st.text_input("Custom Name (Required)", value=row.get("name", ""), key=f"name_input_{row['id']}")
+                row["name"] = st.text_input("Custom Name (Required)", value=row.get("name", ""),
+                                            key=f"name_input_{row['id']}")
                 # leave unit below
             else:
                 prod = products_df[products_df["SKU"] == sku_selected]
                 if not prod.empty:
+                    # Logic here seems correct: reads SKU, Name, and UnitPrice from the DataFrame
                     row["sku"] = sku_selected
                     row["name"] = str(prod.iloc[0]["Name"])
                     row["unit"] = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                     row["prev_sku"] = sku_selected
+                # --- End UnitPrice Logic ---
 
         with c2:
             row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
@@ -996,7 +1053,8 @@ def main_app():
     if qual_qty >= 9:
         st.success(f"Course Discount active: -$100 × {qual_qty} qualifying baskets.")
     else:
-        st.info(f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount.")
+        st.info(
+            f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount.")
 
     st.info("Note: International customers will be responsible for all duties and taxes upon delivery.")
     st.divider()
@@ -1007,7 +1065,8 @@ def main_app():
     st.subheader("Generate PDF Documents")
     quote_no = st.text_input("Quote #", value=st.session_state["quote_no"], key="quote_no_input")
     st.session_state["quote_no"] = quote_no
-    footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"], key="footer_notes_input")
+    footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
+                                key="footer_notes_input")
 
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         order_col1, order_col2 = st.columns(2)
@@ -1018,7 +1077,8 @@ def main_app():
         with order_col2:
             order_comm_to = st.text_input("Commission To", value="", key="order_comm_to_input")
             order_check_number = st.text_input("Check Number", value="", key="order_check_number_input")
-            order_date_received = st.text_input("Date Received", value=datetime.now().strftime('%m/%d/%y'), key="order_date_received_input")
+            order_date_received = st.text_input("Date Received", value=datetime.now().strftime('%m/%d/%y'),
+                                                key="order_date_received_input")
 
     order_meta = {
         "po_number": order_po_number,
@@ -1031,7 +1091,8 @@ def main_app():
 
     fees = {"drop_ship_fee": drop_ship_fee, "freight": freight}
     totals = {"subtotal": subtotal, "sales_tax": sales_tax, "grand_total": grand_total, "tax_rate_pct": tax_rate}
-    tax_meta = {"tax_rate_pct_input": st.session_state["tax_rate_pct_input"], "sc_county_checkbox": st.session_state["sc_county_checkbox"]}
+    tax_meta = {"tax_rate_pct_input": st.session_state["tax_rate_pct_input"],
+                "sc_county_checkbox": st.session_state["sc_county_checkbox"]}
 
     payload = {
         "quote_no": quote_no,
@@ -1073,7 +1134,8 @@ def main_app():
         order_doc_number = quote_no
         order_file_name = f"{order_doc_number}_Order.pdf"
         pdf_buffer_order = io.BytesIO()
-        pdf_data_order = build_pdf(pdf_buffer_order, st.session_state["customer"], st.session_state["line_items"], fees, totals,
+        pdf_data_order = build_pdf(pdf_buffer_order, st.session_state["customer"], st.session_state["line_items"], fees,
+                                   totals,
                                    order_doc_number, footer_notes, template="order", meta=order_meta)
         try:
             qdir = os.path.join("Quotes", quote_no)
@@ -1086,6 +1148,7 @@ def main_app():
                                mime="application/pdf", key="download_order_pdf")
         except Exception as e:
             st.error(f"Error saving Order PDF: {e}")
+
 
 # =============================================================================
 # 5) Entry Point
