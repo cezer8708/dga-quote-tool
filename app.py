@@ -86,7 +86,8 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         "UnitPrice": [499.00, 399.00, 35.00, 55.00]
     }
     try:
-        df = pd.read_csv(path)
+        # --- MODIFICATION: Explicitly set encoding and separator for robustness ---
+        df = pd.read_csv(path, encoding='utf-8', sep=',')
 
         # Normalize headers
         df.columns = [c.strip() for c in df.columns]
@@ -105,6 +106,9 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         # Coerce types
         df["SKU"] = df["SKU"].astype(str).str.strip()
         df["Name"] = df["Name"].astype(str).str.strip()
+
+        # Coercion to numeric
+        # This regex removes anything that isn't a digit, period, or hyphen
         df["UnitPrice"] = pd.to_numeric(
             df["UnitPrice"].astype(str).str.replace(r"[^0-9.\-]", "", regex=True),
             errors="coerce"
@@ -817,6 +821,19 @@ def main_app():
     products_df = PRODUCTS.copy()
     sku_to_name = products_df.set_index("SKU")["Name"].to_dict()
 
+    # --- NEW DEBUG SECTION START: VERIFY LOADED PRICES ---
+    with st.expander("Product Data Debug Check (UNIT PRICES)", expanded=False):
+        non_zero_products = products_df[products_df['UnitPrice'] > 0].head(5)
+        if not non_zero_products.empty:
+            st.write("Loaded Data Head (First 5 products with UnitPrice > $0.00):")
+            st.dataframe(non_zero_products[['SKU', 'Name', 'UnitPrice']], hide_index=True)
+            st.success(f"✅ Prices are loading correctly! Showing {len(non_zero_products)} products with price > $0.00.")
+        else:
+            st.error("🚨 UnitPrice column is all zeros or failed to load correctly on the cloud.")
+            st.dataframe(products_df.head(5)[['SKU', 'Name', 'UnitPrice']], hide_index=True)
+            st.info("If the table above shows $0.00 for UnitPrice, the CSV conversion is still failing.")
+    # --- NEW DEBUG SECTION END ---
+
     # Quote lookup/new
     lookup_col1, lookup_col2, lookup_col3, lookup_col4 = st.columns([1, 1.2, 0.4, 0.4])
     with lookup_col1:
@@ -912,7 +929,7 @@ def main_app():
     st.divider()
 
     # =============================================================================
-    # Line Items (fixed: select by SKU value, not by splitting label)
+    # Line Items
     # =============================================================================
     st.subheader("Line Items")
 
@@ -968,7 +985,9 @@ def main_app():
                 prod = products_df[products_df["SKU"] == sku_selected]
                 if not prod.empty:
                     row["sku"] = sku_selected
+                    # The value in products_df['Name'] is already stripped in load_products
                     row["name"] = str(prod.iloc[0]["Name"])
+                    # The value in products_df['UnitPrice'] is already coerced to float/0.0 in load_products
                     row["unit"] = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                     row["prev_sku"] = sku_selected
 
