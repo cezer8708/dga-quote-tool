@@ -114,6 +114,10 @@ if "customer" not in st.session_state:
 if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
 
+# --- RERUN FLAG FOR UNIT PRICE FIX ---
+if "rerun_flag" not in st.session_state:
+    st.session_state["rerun_flag"] = False
+
 
 def new_quote_number():
     return datetime.now().strftime("%Y%m%d-%H%M")
@@ -148,7 +152,7 @@ def start_new_quote():
     for key in list(st.session_state.keys()):
         # Only clear keys created by this app
         if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
-                   "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches"]:
+                   "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag"]:
             del st.session_state[key]
 
     # Re-initialize the minimum required keys
@@ -410,6 +414,7 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
 # Allow-list: these SKUs should ALWAYS count toward the 9+ course discount
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 
+
 def is_basket_5_7_X(item: dict) -> bool:
     """
     Qualifying items for the course discount:
@@ -459,7 +464,8 @@ def ensure_course_discount(items: list[dict]) -> None:
 
     if qty >= 9:
         existing_notes = items[idx]["notes"] if idx != -1 else ""
-        note_to_use = existing_notes if (existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
+        note_to_use = existing_notes if (
+                    existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
 
         disc_line = {
             "id": items[idx]["id"] if idx != -1 else str(uuid.uuid4()),
@@ -477,7 +483,6 @@ def ensure_course_discount(items: list[dict]) -> None:
             items[idx] = disc_line
     elif idx != -1:
         items.pop(idx)
-
 
 
 # --- PDF Builder Functions ---
@@ -906,6 +911,11 @@ def main_app():
     st.title("DGA Quoting Tool")
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
 
+    # --- RERUN CHECK FOR UNIT PRICE FIX ---
+    if st.session_state["rerun_flag"]:
+        st.session_state["rerun_flag"] = False
+        st.rerun()
+
     # (UI for Quote Lookup/New Quote)
     lookup_col1, lookup_col2, lookup_col3, lookup_col4 = st.columns([1, 1.2, 0.4, 0.4])
 
@@ -937,6 +947,8 @@ def main_app():
                     st.session_state["sc_county_checkbox"] = bool(tax_meta["sc_county_checkbox"])
                 st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
                 st.success(f"Loaded quote {st.session_state['quote_no']}")
+                # RERUN FIX: Force rerun after loading quote to update customer fields
+                st.rerun()
             except FileNotFoundError:
                 st.error(f"Quote not found at {qjson}. Generate & save a quote first.")
             except Exception as e:
@@ -986,6 +998,8 @@ def main_app():
                                 for k, v in mapped.items():
                                     cust[k] = v or cust.get(k, "")
                                 st.success("Pipedrive contact applied to form (Person details ➜ Org fallback).")
+                                # CUSTOMER AUTOFILL FIX: Force rerun to populate all text inputs immediately
+                                st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to fetch or apply contact details. Check console: {e}")
                 elif "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
@@ -1057,6 +1071,11 @@ def main_app():
             sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
                                                 key=f"sku_select_{row['id']}")
 
+            # --- UNIT PRICE AUTOFILL FIX (CORE LOGIC) ---
+            new_sku = ""
+            new_name = prod_name
+            new_unit = prod_price
+
             if sku_selected_display == "(custom)":
                 new_sku = ""
                 new_name = prod_name
@@ -1068,6 +1087,7 @@ def main_app():
                 prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
                 if not prod.empty:
                     new_name = str(prod.iloc[0]["Name"])
+                    # Unit price is the core value we are trying to autofill
                     new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                 else:
                     new_name = parts[1].strip() if len(parts) > 1 else new_sku
@@ -1078,15 +1098,21 @@ def main_app():
                 row["name"] = new_name
                 row["unit"] = new_unit
                 row["prev_sku"] = new_sku if new_sku else "(custom)"
+                # Set the flag to trigger a rerun on the next loop
+                st.session_state["rerun_flag"] = True
 
             if not row["sku"]:
                 row["name"] = st.text_input("Custom Name (Required)", value=row["name"], key=f"name_input_{row['id']}")
+            # ---------------------------------------------
 
         with c2:
             row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
                                          key=f"qty_input_{row['id']}")
 
         with c3:
+            # IMPORTANT: The value of the number input MUST read directly from the session state (row["unit"])
+            # after the update logic runs in c1, which is now guaranteed to happen before the next render cycle
+            # due to the st.rerun() flag.
             current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
             row["unit"] = st.number_input("Unit Price", min_value=-100000.0, value=current_unit, step=0.01,
                                           format="%.2f",
