@@ -82,30 +82,25 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         # Explicitly set encoding and separator for robustness
         df = pd.read_csv(path, encoding='utf-8', sep=',')
 
-        # --- CRITICAL FIX: Strip whitespace from ALL column names ---
-        df.columns = [c.strip() for c in df.columns]
-        # --- END CRITICAL FIX ---
-
-        # Normalize headers
+        # --- CRITICAL FIX 1: Strip whitespace from ALL column names (for UnitPrice) ---
         df.columns = [c.strip() for c in df.columns]
 
-        # Be tolerant of 'Unit Price' vs 'UnitPrice'
+        # Normalize headers (redundant but safe)
         if "UnitPrice" not in df.columns and "Unit Price" in df.columns:
             df = df.rename(columns={"Unit Price": "UnitPrice"})
 
-        # Final required columns
+        # Final required columns check
         required = {"SKU", "Name", "UnitPrice"}
         if not required.issubset(df.columns):
-            st.error(
-                f"Product file at '{path}' is missing required columns: SKU, Name, UnitPrice (or 'Unit Price'). Using minimal placeholder data.")
+            st.error(f"Product file at '{path}' is missing required columns. Using minimal placeholder data.")
             return pd.DataFrame(placeholder_data)
 
-        # Coerce types
-        df["SKU"] = df["SKU"].astype(str).str.strip()
+        # --- CRITICAL FIX 2: Ensure all SKUs and Names are stripped and UPPERCASE ---
+        df["SKU"] = df["SKU"].astype(str).str.strip().str.upper()
         df["Name"] = df["Name"].astype(str).str.strip()
+        # --- END CRITICAL FIX 2 ---
 
         # Coercion to numeric
-        # This regex removes anything that isn't a digit, period, or hyphen
         df["UnitPrice"] = pd.to_numeric(
             df["UnitPrice"].astype(str).str.replace(r"[^0-9.\-]", "", regex=True),
             errors="coerce"
@@ -117,7 +112,6 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
 
         return df
     except FileNotFoundError:
-        # DEBUG CHECK: File not found
         st.warning(f"Product file not found at '{path}'. Using minimal placeholder data.")
         return pd.DataFrame(placeholder_data)
     except Exception as e:
