@@ -110,13 +110,13 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
             errors="coerce"
         ).fillna(0.0)
 
-        # DEBUG: Check if UnitPrice conversion resulted in all zeros (a common cloud issue)
-        if (df["UnitPrice"] == 0.0).all() and len(df) > 0:
-            st.warning(
-                "⚠️ UnitPrice column loaded as all $0.00. Check CSV encoding/formatting for non-numeric characters.")
+        # DEBUG CHECK: UnitPrice integrity
+        if (df["UnitPrice"] == 0.0).all() and len(df) > 0 and len(df[df["SKU"] != "CD"]) > 0:
+            st.warning("⚠️ UnitPrice column loaded as all $0.00. Check CSV encoding/formatting.")
 
         return df
     except FileNotFoundError:
+        # DEBUG CHECK: File not found
         st.warning(f"Product file not found at '{path}'. Using minimal placeholder data.")
         return pd.DataFrame(placeholder_data)
     except Exception as e:
@@ -165,18 +165,23 @@ st.session_state.setdefault("freight_notes", "")
 # =============================================================================
 
 def start_new_quote():
+    # Clear all quote-specific session state variables
     for key in list(st.session_state.keys()):
         if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
                    "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches"]:
-            del st.session_state[key]
-    st.session_state["quote_no"] = new_quote_number()
-    if "customer" not in st.session_state: st.session_state["customer"] = {}
-    st.session_state["line_items"] = []
-    if "footer_notes" not in st.session_state:
-        st.session_state["footer_notes"] = (
-            "Pricing subject to change. Please review all details carefully.\n"
-            "International customers will be responsible for all duties and taxes upon delivery."
-        )
+            if key == "customer":  # Re-initialize customer to empty dict
+                st.session_state["customer"] = {}
+            elif key == "line_items":  # Re-initialize line_items to empty list
+                st.session_state["line_items"] = []
+            elif key == "quote_no":
+                st.session_state["quote_no"] = new_quote_number()
+            elif key == "footer_notes":  # Reset to default footer notes
+                st.session_state["footer_notes"] = (
+                    "Pricing subject to change. Please review all details carefully.\n"
+                    "International customers will be responsible for all duties and taxes upon delivery."
+                )
+            else:  # Delete other transient keys
+                del st.session_state[key]
     st.rerun()
 
 
@@ -201,7 +206,6 @@ def _get_nested_field_value(data: dict, key: str) -> str:
 # --- Pipedrive ---
 def _pd_request(path: str, params: dict | None = None):
     if not PIPEDRIVE_API_TOKEN:
-        # Debug: This is the most likely failure point for the Pipedrive search
         print("PIPEDRIVE_API_TOKEN is missing or empty.", file=sys.stderr)
         return None
     headers = {"Content-Type": "application/json"}
@@ -801,32 +805,17 @@ def main_app():
     st.title("DGA Quoting Tool")
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
 
-    # --- DEBUG: Environment Check (added for cloud diagnosis) ---
+    # --- IMPORTANT DEBUG CHECK (Hidden in final UI, but useful for Streamlit Cloud) ---
     if not PIPEDRIVE_API_TOKEN:
         st.error("🚨 Pipedrive API Token is NOT loaded from secrets. Pipedrive lookup will fail.")
-
     if not os.path.exists("products.csv"):
         st.warning("⚠️ products.csv file not found in the root directory. Using placeholder data.")
     # --- END DEBUG ---
-
-    # Sidebar utilities
-    with st.sidebar:
-        st.subheader("Admin")
-        if st.button("Reload products (clear cache)"):
-            load_products.clear()
-            st.success("Products cache cleared.")
-            st.rerun()
 
     # Always load (or re-load) products at runtime so cache clears take effect
     PRODUCTS = load_products()
     products_df = PRODUCTS.copy()
     sku_to_name = products_df.set_index("SKU")["Name"].to_dict()
-
-    # (Optional) Debug expander
-    with st.expander("Debug: products snapshot", False):
-        st.write(products_df.head(8))
-        st.write(products_df.dtypes)
-        st.write({"rows": len(products_df)})
 
     # Quote lookup/new
     lookup_col1, lookup_col2, lookup_col3, lookup_col4 = st.columns([1, 1.2, 0.4, 0.4])
@@ -970,7 +959,6 @@ def main_app():
                 format_func=sku_label
             )
 
-            # --- UnitPrice Logic (Reviewing for potential error) ---
             if sku_selected == "(custom)":
                 row["sku"] = ""
                 row["name"] = st.text_input("Custom Name (Required)", value=row.get("name", ""),
@@ -979,12 +967,10 @@ def main_app():
             else:
                 prod = products_df[products_df["SKU"] == sku_selected]
                 if not prod.empty:
-                    # Logic here seems correct: reads SKU, Name, and UnitPrice from the DataFrame
                     row["sku"] = sku_selected
                     row["name"] = str(prod.iloc[0]["Name"])
                     row["unit"] = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                     row["prev_sku"] = sku_selected
-                # --- End UnitPrice Logic ---
 
         with c2:
             row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
