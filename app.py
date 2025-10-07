@@ -75,49 +75,51 @@ def fmt_money(value: float) -> str:
 # =============================================================================
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
-    """Initializes and caches the gspread client, robustly handling nested secrets."""
+    """Initializes/caches gspread using a robust secrets loader."""
     try:
+        # 0) If there's no section, allow local file fallback
         if "gcp_service_account" not in st.secrets:
-            # Fallback for local testing
             if os.path.exists("service_account.json"):
                 return gspread.service_account(filename="service_account.json")
             st.error("Google Sheets Service Account not configured.")
             return None
 
         creds_data = st.secrets["gcp_service_account"]
+
+        # 1) Accept any Mapping (Streamlit's SecretDict), then coerce to dict
+        from collections.abc import Mapping
         sa_creds = None
 
-        # 1. Try treating the data as the direct dictionary (Expected in local secrets.toml)
-        if isinstance(creds_data, dict) and creds_data.get('type') == 'service_account':
-            sa_creds = creds_data
+        if isinstance(creds_data, Mapping):
+            d = dict(creds_data)
+            # Handle accidental nesting (rare, but seen in cloud UIs)
+            if "gcp_service_account" in d and isinstance(d["gcp_service_account"], Mapping):
+                d = dict(d["gcp_service_account"])
+            if d.get("type") == "service_account":
+                sa_creds = d
 
-        # 2. FIX: Check for the nested dictionary wrapper (Common Streamlit Cloud behavior)
-        elif isinstance(creds_data, dict) and "gcp_service_account" in creds_data:
-            nested_data = creds_data["gcp_service_account"]
-            if isinstance(nested_data, dict) and nested_data.get('type') == 'service_account':
-                sa_creds = nested_data
-
-        # 3. Fallback: Try decoding a string (for legacy/string secrets)
-        elif isinstance(creds_data, str):
+        # 2) If user stored JSON string for the block, parse it
+        if sa_creds is None and isinstance(creds_data, str):
             try:
                 decoded = json.loads(creds_data)
-                if isinstance(decoded, dict) and decoded.get('type') == 'service_account':
+                if isinstance(decoded, dict) and decoded.get("type") == "service_account":
                     sa_creds = decoded
             except json.JSONDecodeError:
-                st.error("Secret format error: gcp_service_account secret is a string but not valid JSON.")
+                st.error("Secret format error: gcp_service_account is a string but not valid JSON.")
                 return None
 
-        if sa_creds:
-            # Universal return point for successful credential finding
-            return gspread.service_account_from_dict(sa_creds)
-
-        else:
-            # Final failure path
+        if not sa_creds or sa_creds.get("type") != "service_account":
             st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
             return None
 
+        # 3) Normalize private key newlines
+        if "private_key" in sa_creds and isinstance(sa_creds["private_key"], str):
+            sa_creds["private_key"] = sa_creds["private_key"].replace("\\n", "\n")
+
+        # 4) Build the client
+        return gspread.service_account_from_dict(sa_creds)
+
     except Exception as e:
-        # Catch any gspread-specific connection errors
         st.error(f"Error connecting to Google Sheets: {e}")
         return None
 
@@ -977,7 +979,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
         combined_row = [[acc_tbl, t_totals]]
 
-        totals_col_width = CONTENT_WIDTH - acc_width
+        totals_col_width = 7.5 * inch - acc_width  # CONTENT_WIDTH is 7.5 * inch
 
         combined_table = Table(combined_row, colWidths=[acc_width, totals_col_width])
         combined_table.setStyle(TableStyle([
