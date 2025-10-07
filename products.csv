@@ -35,7 +35,7 @@ CRS12x18,Color Rules Sign - 12"x18",69.00
 FCRS,Framed Color Rules Sign - 8"x11",80.00
 BFS,Basket Flag - Standard Plug,30.00
 BFNP,Basket Flag - Number Plate Plug,30.00
-ADD,Additional Discount,
+ADD,Additional Discount,0.00
 BCTSRP,Tee Sign - 5"x10" Reprint,49.50
 FPM7,Focal Point - Mach 7,7.00
 M7CO,Mach 7 Collar Only,545.00
@@ -57,5 +57,5 @@ TB-2,Trapper Basket 2,180.00
 TB-1,Trapper Basket 1,170.00
 MS,Mach Shift,150.00
 CM9,Course Map 9 Hole,700.00
-CM18, Course Map 18 Hole,1250.00
+CM18,Course Map 18 Hole,1250.00
 
