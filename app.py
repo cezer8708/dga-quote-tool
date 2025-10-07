@@ -114,9 +114,15 @@ if "customer" not in st.session_state:
 if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
 
-# --- RERUN FLAG FOR UNIT PRICE FIX ---
+# --- RERUN FLAG (USED FOR UNIT PRICE FIX - PREVIOUS LOGIC) ---
+# NOTE: This flag is now mostly redundant due to the new dynamic key approach
+# but is kept for compatibility with the customer autofill logic below.
 if "rerun_flag" not in st.session_state:
     st.session_state["rerun_flag"] = False
+
+# --- CUSTOMER AUTOFILL FIX: Dynamic Key Suffix ---
+if "customer_key_suffix" not in st.session_state:
+    st.session_state["customer_key_suffix"] = 0
 
 
 def new_quote_number():
@@ -152,13 +158,15 @@ def start_new_quote():
     for key in list(st.session_state.keys()):
         # Only clear keys created by this app
         if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
-                   "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag"]:
+                   "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag",
+                   "customer_key_suffix"]:  # Added customer_key_suffix
             del st.session_state[key]
 
     # Re-initialize the minimum required keys
     st.session_state["quote_no"] = new_quote_number()
     if "customer" not in st.session_state: st.session_state["customer"] = {}
     st.session_state["line_items"] = []
+    st.session_state["customer_key_suffix"] = 0  # Re-initialize the suffix
     if "footer_notes" not in st.session_state:
         st.session_state["footer_notes"] = (
             "Pricing subject to change. Please review all details carefully.\n"
@@ -912,12 +920,16 @@ def main_app():
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
 
     # --- RERUN CHECK FOR UNIT PRICE FIX ---
+    # NOTE: This is kept for the Unit Price update logic below, even though the key change is more robust
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
     lookup_col1, lookup_col2, lookup_col3, lookup_col4 = st.columns([1, 1.2, 0.4, 0.4])
+
+    # Set the key suffix for all customer inputs
+    cust_key_suffix = st.session_state["customer_key_suffix"]
 
     with lookup_col1:
         st.markdown("**Current Quote #**")
@@ -946,8 +958,11 @@ def main_app():
                 if "sc_county_checkbox" in tax_meta:
                     st.session_state["sc_county_checkbox"] = bool(tax_meta["sc_county_checkbox"])
                 st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+
+                # CUSTOMER AUTOFILL FIX: Force key suffix change on load
+                st.session_state["customer_key_suffix"] += 1
+
                 st.success(f"Loaded quote {st.session_state['quote_no']}")
-                # RERUN FIX: Force rerun after loading quote to update customer fields
                 st.rerun()
             except FileNotFoundError:
                 st.error(f"Quote not found at {qjson}. Generate & save a quote first.")
@@ -997,8 +1012,12 @@ def main_app():
                                 cust = st.session_state["customer"]
                                 for k, v in mapped.items():
                                     cust[k] = v or cust.get(k, "")
+
+                                # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
+                                st.session_state["customer_key_suffix"] += 1
+
                                 st.success("Pipedrive contact applied to form (Person details ➜ Org fallback).")
-                                # CUSTOMER AUTOFILL FIX: Force rerun to populate all text inputs immediately
+                                # Force rerun to populate all text inputs immediately
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Failed to fetch or apply contact details. Check console: {e}")
@@ -1006,23 +1025,29 @@ def main_app():
                     st.info("No Pipedrive contacts found matching the search term.")
 
         st.subheader("Shipping Address")
-        c["company"] = st.text_input("Company", value=c.get("company", ""), key="ship_company")
-        c["name"] = st.text_input("Name", value=c.get("name", ""), key="ship_contact_name")
-        c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key="ship_phone")
-        c["email"] = st.text_input("Email", value=c.get("email", ""), key="ship_email")
-        c["ship_addr1"] = st.text_area("Address (Ship)", value=c.get("ship_addr1", ""), key="ship_addr1")
+        # NOTE: All customer keys now include the dynamic suffix
+        c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
+        c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
+        c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
+        c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
+        c["ship_addr1"] = st.text_area("Address (Ship)", value=c.get("ship_addr1", ""),
+                                       key=f"ship_addr1_{cust_key_suffix}")
         sc1, sc2, sc3 = st.columns(3)
-        c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""), key="ship_city_input")
-        c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""), key="ship_state_input")
-        c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key="ship_zip_input")
+        c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""), key=f"ship_city_input_{cust_key_suffix}")
+        c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""),
+                                         key=f"ship_state_input_{cust_key_suffix}")
+        c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
 
     with cols_top[1]:
         st.subheader("Billing Address")
-        c["bill_addr1"] = st.text_area("Address (Bill)", value=c.get("bill_addr1", ""), key="bill_addr1")
+        # NOTE: All customer keys now include the dynamic suffix
+        c["bill_addr1"] = st.text_area("Address (Bill)", value=c.get("bill_addr1", ""),
+                                       key=f"bill_addr1_{cust_key_suffix}")
         bc1, bc2, bc3 = st.columns(3)
-        c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key="bill_city_input")
-        c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""), key="bill_state_input")
-        c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key="bill_zip_input")
+        c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key=f"bill_city_input_{cust_key_suffix}")
+        c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
+                                         key=f"bill_state_input_{cust_key_suffix}")
+        c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
 
     st.divider()
 
@@ -1071,7 +1096,7 @@ def main_app():
             sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
                                                 key=f"sku_select_{row['id']}")
 
-            # --- UNIT PRICE AUTOFILL FIX (CORE LOGIC) ---
+            # --- UNIT PRICE AUTOFILL LOGIC ---
             new_sku = ""
             new_name = prod_name
             new_unit = prod_price
@@ -1087,7 +1112,6 @@ def main_app():
                 prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
                 if not prod.empty:
                     new_name = str(prod.iloc[0]["Name"])
-                    # Unit price is the core value we are trying to autofill
                     new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                 else:
                     new_name = parts[1].strip() if len(parts) > 1 else new_sku
@@ -1110,13 +1134,12 @@ def main_app():
                                          key=f"qty_input_{row['id']}")
 
         with c3:
-            # IMPORTANT: The value of the number input MUST read directly from the session state (row["unit"])
-            # after the update logic runs in c1, which is now guaranteed to happen before the next render cycle
-            # due to the st.rerun() flag.
             current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
+
+            # UNIT PRICE AUTOFILL FIX: Dynamic Key including SKU forces widget reset when SKU changes
             row["unit"] = st.number_input("Unit Price", min_value=-100000.0, value=current_unit, step=0.01,
                                           format="%.2f",
-                                          key=f"unit_input_{row['id']}")
+                                          key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}")  # <- FIX IS HERE
 
         with c4:
             row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
