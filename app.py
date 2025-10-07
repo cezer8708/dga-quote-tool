@@ -132,7 +132,8 @@ def load_all_quotes() -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        sh = client.open_by_title(GOOGLE_SHEET_TITLE)
+        # FIX: client.open_by_title(GOOGLE_SHEET_TITLE) -> client.open(GOOGLE_SHEET_TITLE)
+        sh = client.open(GOOGLE_SHEET_TITLE)
         worksheet = sh.get_worksheet(0)
 
         data = worksheet.get_all_records()
@@ -161,7 +162,8 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         return False
 
     try:
-        sh = client.open_by_title(GOOGLE_SHEET_TITLE)
+        # FIX: client.open_by_title(GOOGLE_SHEET_TITLE) -> client.open(GOOGLE_SHEET_TITLE)
+        sh = client.open(GOOGLE_SHEET_TITLE)
         worksheet = sh.get_worksheet(0)
 
         # Prepare the row data for the Sheet's main columns (A to G)
