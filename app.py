@@ -275,6 +275,24 @@ if "sc_county_checkbox" not in st.session_state:
 if "freight_notes" not in st.session_state:
     st.session_state["freight_notes"] = ""
 
+# --- NEW: Order/PO Details Session State (Persisted on Load/Save) ---
+if "order_doc_number_pdf" not in st.session_state:
+    # This will hold the specific document number for the Order PDF
+    st.session_state["order_doc_number_pdf"] = ""
+if "order_po_number" not in st.session_state:
+    st.session_state["order_po_number"] = ""
+if "order_operator" not in st.session_state:
+    st.session_state["order_operator"] = "CZ"
+if "order_terms" not in st.session_state:
+    st.session_state["order_terms"] = "NET 30"
+if "order_comm_to" not in st.session_state:
+    st.session_state["order_comm_to"] = ""
+if "order_check_number" not in st.session_state:
+    st.session_state["order_check_number"] = ""
+if "order_date_received" not in st.session_state:
+    st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+# --- END NEW ORDER STATE ---
+
 
 # =============================================================================
 # 4. Helper Functions (Includes Pipedrive Logic and PDF Builder)
@@ -284,7 +302,10 @@ def start_new_quote():
         # Only clear keys created by this app
         if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
                    "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag",
-                   "customer_key_suffix"]:
+                   "customer_key_suffix",
+                   # --- NEW KEYS FOR ORDER META ---
+                   "order_po_number", "order_operator", "order_terms", "order_comm_to",
+                   "order_check_number", "order_date_received", "order_doc_number_pdf"]:
             del st.session_state[key]
 
     # Re-initialize the minimum required keys
@@ -297,6 +318,16 @@ def start_new_quote():
             "Pricing subject to change. Please review all details carefully.\n"
             "International customers will be responsible for all duties and taxes upon delivery."
         )
+
+    # Re-initialize Order/PO fields with defaults
+    if "order_operator" not in st.session_state:
+        st.session_state["order_operator"] = "CZ"
+    if "order_terms" not in st.session_state:
+        st.session_state["order_terms"] = "NET 30"
+    if "order_date_received" not in st.session_state:
+        st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+
+
     st.rerun()
 
 
@@ -585,7 +616,6 @@ def ensure_course_discount(items: list[dict]) -> None:
     elif idx != -1:
         items.pop(idx)
 
-
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
     return Paragraph(
@@ -677,7 +707,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"{customer.get('phone', '')}<br/>"
             f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
-            f"P.O. Number: {meta.get('po_number', '')}<br/>"
+            f"P.O. Number: {meta.get('po_number', '')}<br/>" # THIS NOW USES PO NUMBER
             f"Terms: {meta.get('terms', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
@@ -715,7 +745,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         header = ["Quantity", "Product Description", "Unit Price", "Total"]
         li_cols = [0.7 * inch, 5.15 * inch, 0.825 * inch, 0.825 * inch]
         data = [header]
-        for r in st.session_state["line_items"]:
+        # Iterate over the items list passed to the function, not the session state directly
+        for r in items:
             if float(r.get("qty", 0)) == 0:
                 continue
             desc_para = Paragraph(str(r["name"]),
@@ -902,7 +933,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         header = ["Qty", "Product Description", "Unit Price", "Total"]
         li_cols = [0.7 * inch, 4.3 * inch, 1.25 * inch, 1.25 * inch]
         data = [header]
-        for r in st.session_state["line_items"]:
+        # Iterate over the items list passed to the function, not the session state directly
+        for r in items:
             if float(r.get("qty", 0)) == 0: continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
@@ -999,7 +1031,6 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     doc.build(story)
     return buffer.getvalue()
 
-
 # =============================================================================
 # 5. Main Application Logic
 # =============================================================================
@@ -1058,6 +1089,18 @@ def main_app():
                         tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
                     st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
                     st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+
+                    # --- FIX: Load Order/PO Details from Payload ---
+                    order_meta = payload.get("order_meta", {})
+                    st.session_state["order_po_number"] = order_meta.get("po_number", "")
+                    st.session_state["order_operator"] = order_meta.get("operator", "CZ")
+                    st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
+                    st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
+                    st.session_state["order_check_number"] = order_meta.get("check_number", "")
+                    st.session_state["order_date_received"] = order_meta.get("date_received", datetime.now().strftime('%m/%d/%y'))
+                    # Ensure the Order Doc number gets loaded if it was saved
+                    st.session_state["order_doc_number_pdf"] = order_meta.get("order_doc_number", st.session_state["quote_no"])
+                    # --- END FIX ---
 
                     # CUSTOMER AUTOFILL FIX: Force key suffix change on load
                     st.session_state["customer_key_suffix"] += 1
@@ -1132,8 +1175,6 @@ def main_app():
 
     # =========================================================================
     # EDIT 1: Use a container and two columns for alignment of addresses
-    # The removal of the Pipedrive expander from the left column and the removal
-    # of the dummy spacers from the right column fixes the alignment.
     # =========================================================================
     with st.container(border=True):
         cols_addr = st.columns(2)
@@ -1158,12 +1199,8 @@ def main_app():
         # --- BILLING ADDRESS (RIGHT COLUMN) ---
         with cols_addr[1]:
             st.subheader("Billing Address")
-            # Removed the four fixed-height spacers here, as Pipedrive is now outside/above
-            # and the input counts match (4 inputs + 1 textarea on the left vs 1 textarea on the right)
-            # The Billing Address section will now align vertically at the top of the container.
 
-            # Let's align the Bill Addr1 (text_area) with the Ship Addr1 (text_area) by inserting
-            # the corresponding 4 dummy inputs to match Company/Name/Phone/Email
+            # Dummy inputs for alignment
             st.text_input("Company", value="", disabled=True, label_visibility="hidden",
                           key=f"bill_dummy_comp_{cust_key_suffix}")
             st.text_input("Name", value="", disabled=True, label_visibility="hidden",
@@ -1182,8 +1219,6 @@ def main_app():
             c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
                                              key=f"bill_state_input_{cust_key_suffix}")
             c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
-
-    # Original cols_top logic has been removed and replaced by the container/columns block above.
 
     st.divider()
 
@@ -1349,30 +1384,56 @@ def main_app():
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         order_col1, order_col2 = st.columns(2)
         with order_col1:
-            # --- MODIFICATION START: NEW INPUT FIELD FOR ORDER DOCUMENT NUMBER ---
-            # This input field captures the specific PO or Order number to use on the Order PDF.
-            order_doc_number_input = st.text_input(
+            # --- MODIFICATION: Bind to session state ---
+            st.session_state["order_doc_number_pdf"] = st.text_input(
                 "Order/PO Document #",
-                value=quote_no,  # Defaults to the current quote_no
+                # Use the session state value, default to quote_no if session state is empty
+                value=st.session_state.get("order_doc_number_pdf") or quote_no,
                 key="order_doc_number_pdf_key"
             )
-            # --- MODIFICATION END ---
-            order_po_number = st.text_input("P.O. Number", value="", key="order_po_input")
-            order_operator = st.text_input("Operator", value="CZ", key="order_operator_input")
-            order_terms = st.text_input("Terms", value="NET 30", key="order_terms_input")
-        with order_col2:
-            order_comm_to = st.text_input("Commission To", value="", key="order_comm_to_input")
-            order_check_number = st.text_input("Check Number", value="", key="order_check_number_input")
-            order_date_received = st.text_input("Date Received", value=datetime.now().strftime('%m/%d/%y'),
-                                                key="order_date_received_input")
 
+            st.session_state["order_po_number"] = st.text_input(
+                "P.O. Number",
+                value=st.session_state["order_po_number"], # BOUND TO SESSION STATE
+                key="order_po_input"
+            )
+            st.session_state["order_operator"] = st.text_input(
+                "Operator",
+                value=st.session_state["order_operator"],
+                key="order_operator_input"
+            )
+            st.session_state["order_terms"] = st.text_input(
+                "Terms",
+                value=st.session_state["order_terms"],
+                key="order_terms_input"
+            )
+        with order_col2:
+            st.session_state["order_comm_to"] = st.text_input(
+                "Commission To",
+                value=st.session_state["order_comm_to"],
+                key="order_comm_to_input"
+            )
+            st.session_state["order_check_number"] = st.text_input(
+                "Check Number",
+                value=st.session_state["order_check_number"],
+                key="order_check_number_input"
+            )
+            st.session_state["order_date_received"] = st.text_input(
+                "Date Received",
+                value=st.session_state["order_date_received"],
+                key="order_date_received_input"
+            )
+    # --- END MODIFICATION: Bind to session state ---
+
+    # Re-assemble order_meta using session state values
     order_meta = {
-        "po_number": order_po_number,
-        "operator": order_operator,
-        "terms": order_terms,
-        "commission_to": order_comm_to,
-        "check_number": order_check_number,
-        "date_received": order_date_received,
+        "order_doc_number": st.session_state["order_doc_number_pdf"],
+        "po_number": st.session_state["order_po_number"],
+        "operator": st.session_state["order_operator"],
+        "terms": st.session_state["order_terms"],
+        "commission_to": st.session_state["order_comm_to"],
+        "check_number": st.session_state["order_check_number"],
+        "date_received": st.session_state["order_date_received"],
     }
 
     # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
@@ -1401,6 +1462,7 @@ def main_app():
         "tax_meta": tax_meta,
         "freight_notes": st.session_state["freight_notes"],
         "footer_notes": footer_notes,
+        "order_meta": order_meta, # --- FIX: Save Order/PO Details to Payload ---
     }
 
     # --- PDF Buttons ---
@@ -1428,8 +1490,8 @@ def main_app():
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        # --- MODIFICATION START: Use the new input value for the Order Document # ---
-        order_doc_number = order_doc_number_input
+        # --- MODIFICATION: Use the value from session state (which is bound to the input) ---
+        order_doc_number = st.session_state["order_doc_number_pdf"]
         # --- MODIFICATION END ---
         order_file_name = f"{order_doc_number}_Order.pdf"
 
