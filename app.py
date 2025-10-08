@@ -7,6 +7,7 @@ import requests
 import re
 import sys
 from typing import Any
+import pytz
 
 import pandas as pd
 import streamlit as st
@@ -230,7 +231,17 @@ PRODUCTS = load_products()
 # 3. Session State Initialization
 # =============================================================================
 
-# --- App State ---
+# --- Pacific Time Zone Helper ---
+def get_pacific_now():
+    """Returns the current datetime object localized to America/Los_Angeles."""
+    pacific_tz = pytz.timezone('America/Los_Angeles')
+    return datetime.now(pacific_tz)
+
+def new_quote_number():
+    """Generates a new quote number using the current time in the Pacific Time Zone."""
+    return get_pacific_now().strftime("%Y%m%d-%H%M")
+
+
 if "customer" not in st.session_state:
     st.session_state["customer"] = {
         "company": "", "name": "", "email": "", "phone": "",
@@ -248,10 +259,6 @@ if "rerun_flag" not in st.session_state:
 # --- CUSTOMER AUTOFILL FIX: Dynamic Key Suffix ---
 if "customer_key_suffix" not in st.session_state:
     st.session_state["customer_key_suffix"] = 0
-
-
-def new_quote_number():
-    return datetime.now().strftime("%Y%m%d-%H%M")
 
 
 if "quote_no" not in st.session_state:
@@ -290,7 +297,8 @@ if "order_comm_to" not in st.session_state:
 if "order_check_number" not in st.session_state:
     st.session_state["order_check_number"] = ""
 if "order_date_received" not in st.session_state:
-    st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+    # Use PT date for default date received
+    st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
 
 
 # --- END NEW ORDER STATE ---
@@ -321,13 +329,13 @@ def start_new_quote():
             "International customers will be responsible for all duties and taxes upon delivery."
         )
 
-    # Re-initialize Order/PO fields with defaults
+    # Re-initialize Order/PO fields with defaults (using PT date)
     if "order_operator" not in st.session_state:
         st.session_state["order_operator"] = "CZ"
     if "order_terms" not in st.session_state:
         st.session_state["order_terms"] = "NET 30"
     if "order_date_received" not in st.session_state:
-        st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+        st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
     if "order_doc_number_pdf" not in st.session_state:
         # Crucial for the fix: ensures order doc # defaults to the new quote # on a fresh start
         st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
@@ -691,14 +699,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             Spacer(1, 4)
         ]
 
-        # --- FIX: Removed "Source Quote Number" line entirely from display ---
-        # The previous attempt was to remove it from meta, but it was still being rendered from meta
-        # This line is now completely gone:
-        # story += [Paragraph(f"**Source Quote Number:** {meta.get('source_quote_number', '')}", styles['LeftInfo'])]
-        # ----------------------------------------------------
-
+        # --- PT Date for consistency ---
         grouped_info_text = (
-            f"Date: {datetime.now().strftime('%m/%d/%y')}<br/>"
+            f"Date: {get_pacific_now().strftime('%m/%d/%y')}<br/>"
             f"Operator: {meta.get('operator', '')}<br/>"
             f"Commission to: {meta.get('commission_to', '')}"
         )
@@ -902,8 +905,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         t.hAlign = 'LEFT'
         story += [t, Spacer(1, 12)]
 
+        # --- PT Date for consistency ---
         date_quote_info = (
-            f"Date: {datetime.now().strftime('%Y-%m-%d')}<br/>"
+            f"Date: {get_pacific_now().strftime('%Y-%m-%d')}<br/>"
             f"Quote #: {doc_number}"
         )
         date_quote_para = Paragraph(date_quote_info, styles['LeftInfo'])
@@ -1047,7 +1051,6 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     doc.build(story)
     return buffer.getvalue()
 
-
 # =============================================================================
 # 5. Main Application Logic
 # =============================================================================
@@ -1056,7 +1059,7 @@ def main_app():
     """Contains all the original quoting tool functionality."""
 
     st.title("DGA Quoting Tool")
-    st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • PDF export")
+    st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • Google Sheets/PDF export")
 
     # --- RERUN CHECK FOR UNIT PRICE FIX ---
     if st.session_state["rerun_flag"]:
@@ -1070,7 +1073,7 @@ def main_app():
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
     with lookup_col1:
-        st.markdown("**Current Quote #**")
+        st.markdown("**Current Quote # (PT)**")
         st.info(st.session_state["quote_no"])
 
     with lookup_col2:
@@ -1115,7 +1118,7 @@ def main_app():
                     st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
                     st.session_state["order_check_number"] = order_meta.get("check_number", "")
                     st.session_state["order_date_received"] = order_meta.get("date_received",
-                                                                             datetime.now().strftime('%m/%d/%y'))
+                                                                             get_pacific_now().strftime('%m/%d/%y'))
 
                     # Use the loaded 'order_doc_number' if available, otherwise default to the quote number
                     loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
@@ -1470,7 +1473,8 @@ def main_app():
 
     payload = {
         "quote_no": quote_no,
-        "date": datetime.now().isoformat(),
+        # Use ISO format for saving to payload/sheet (already PT via new_quote_number logic)
+        "date": get_pacific_now().isoformat(),
         "customer": st.session_state["customer"],
         "line_items": st.session_state["line_items"],
         "fees": fees,
