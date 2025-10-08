@@ -328,6 +328,9 @@ def start_new_quote():
         st.session_state["order_terms"] = "NET 30"
     if "order_date_received" not in st.session_state:
         st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+    if "order_doc_number_pdf" not in st.session_state:
+        # Crucial for the fix: ensures order doc # defaults to the new quote # on a fresh start
+        st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
 
     st.rerun()
 
@@ -1109,7 +1112,7 @@ def main_app():
                     st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
                     st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
 
-                    # --- FIX: Load Order/PO Details from Payload ---
+                    # --- FIX 1: Load Order/PO Details from Payload with robust defaulting ---
                     order_meta = payload.get("order_meta", {})
                     st.session_state["order_po_number"] = order_meta.get("po_number", "")
                     st.session_state["order_operator"] = order_meta.get("operator", "CZ")
@@ -1118,11 +1121,12 @@ def main_app():
                     st.session_state["order_check_number"] = order_meta.get("check_number", "")
                     st.session_state["order_date_received"] = order_meta.get("date_received",
                                                                              datetime.now().strftime('%m/%d/%y'))
-                    # Ensure the Order Doc number gets loaded if it was saved
-                    # FIX: Use the loaded 'order_doc_number' if available, otherwise default to the quote number
-                    st.session_state["order_doc_number_pdf"] = order_meta.get("order_doc_number",
-                                                                              st.session_state["quote_no"])
-                    # --- END FIX ---
+
+                    # Use the loaded 'order_doc_number' if available, otherwise default to the quote number
+                    loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
+                    # Ensure it defaults to the loaded quote number if blank:
+                    st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
+                    # --- END FIX 1 ---
 
                     # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
                     st.session_state["customer_key_suffix"] += 1
@@ -1403,54 +1407,52 @@ def main_app():
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
                                 key="footer_notes_input")
 
+    # =========================================================================
+    # FIX 2: Replace Order/PO Details expander block
+    # This block uses direct session state keys for the widgets, fixing the stale value issue.
+    # =========================================================================
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
+        # Seed the order doc number to the current quote if empty/missing
+        if not st.session_state.get("order_doc_number_pdf"):
+            st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+
         order_col1, order_col2 = st.columns(2)
         with order_col1:
-            # --- MODIFICATION: Bind to session state ---
-            # FIX 1: Set the initial value of the Order/PO Document # to the current Quote #
-            # This ensures that if the user loads Quote 20251007-2234, that number appears here
-            st.session_state["order_doc_number_pdf"] = st.text_input(
+            st.text_input(
                 "Order/PO Document #",
-                # Use the session state value, which defaults to quote_no on load or "New Quote"
-                # If the user changes it manually, the session state value persists.
-                value=st.session_state.get("order_doc_number_pdf") or quote_no,
-                key="order_doc_number_pdf_key"
+                key="order_doc_number_pdf", # Binds directly to the session key
             )
-
-            st.session_state["order_po_number"] = st.text_input(
+            st.text_input(
                 "P.O. Number",
-                value=st.session_state["order_po_number"],  # BOUND TO SESSION STATE
-                key="order_po_input"
+                key="order_po_number",      # Binds directly to the session key
             )
-            st.session_state["order_operator"] = st.text_input(
+            st.text_input(
                 "Operator",
-                value=st.session_state["order_operator"],
-                key="order_operator_input"
+                key="order_operator",       # Binds directly to the session key
             )
-            st.session_state["order_terms"] = st.text_input(
+            st.text_input(
                 "Terms",
-                value=st.session_state["order_terms"],
-                key="order_terms_input"
+                key="order_terms",          # Binds directly to the session key
             )
         with order_col2:
-            st.session_state["order_comm_to"] = st.text_input(
+            st.text_input(
                 "Commission To",
-                value=st.session_state["order_comm_to"],
-                key="order_comm_to_input"
+                key="order_comm_to",        # Binds directly to the session key
             )
-            st.session_state["order_check_number"] = st.text_input(
+            st.text_input(
                 "Check Number",
-                value=st.session_state["order_check_number"],
-                key="order_check_number_input"
+                key="order_check_number",   # Binds directly to the session key
             )
-            st.session_state["order_date_received"] = st.text_input(
+            st.text_input(
                 "Date Received",
-                value=st.session_state["order_date_received"],
-                key="order_date_received_input"
+                key="order_date_received",  # Binds directly to the session key
             )
-    # --- END MODIFICATION: Bind to session state ---
+    # =========================================================================
+    # END FIX 2
+    # =========================================================================
 
     # Re-assemble order_meta using session state values
+    # NOTE: This block is correct as written, now that the widget keys match the session keys.
     order_meta = {
         "order_doc_number": st.session_state["order_doc_number_pdf"],
         "po_number": st.session_state["order_po_number"],
@@ -1489,7 +1491,7 @@ def main_app():
         "tax_meta": tax_meta,
         "freight_notes": st.session_state["freight_notes"],
         "footer_notes": footer_notes,
-        "order_meta": order_meta,  # --- FIX: Save Order/PO Details to Payload ---
+        "order_meta": order_meta,  # --- Save Order/PO Details to Payload ---
     }
 
     # --- PDF Buttons ---
@@ -1516,6 +1518,9 @@ def main_app():
             st.error(
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
+    # =========================================================================
+    # FIX 3: Persist order_meta when generating the Order PDF
+    # =========================================================================
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
         # The 'order_doc_number' is the number the user wants on the file name/header (e.g., 20251008-1620)
         order_doc_number = st.session_state["order_doc_number_pdf"]
@@ -1527,8 +1532,13 @@ def main_app():
             order_doc_number, footer_notes, template="order", meta=order_meta
         )
 
+        # NEW: persist order_meta with the quote so re-loads remember it
+        payload["order_meta"] = order_meta
+        _saved = save_quote_to_gsheet(payload) # safe even if row already exists; appends a new row
+
         st.success(
-            f"Order **{order_doc_number}** PDF generated. The Source Quote Number ({order_meta['source_quote_number']}) is included in the document.")
+            f"Order **{order_doc_number}** PDF generated. The Source Quote Number ({order_meta['source_quote_number']}) is included in the document."
+        )
         st.download_button(
             label="Download Order/PO PDF",
             data=pdf_data_order,
@@ -1536,6 +1546,9 @@ def main_app():
             mime="application/pdf",
             key="download_order_pdf",
         )
+    # =========================================================================
+    # END FIX 3
+    # =========================================================================
 
 
 # =============================================================================
