@@ -1163,12 +1163,6 @@ def main_app():
             # and the input counts match (4 inputs + 1 textarea on the left vs 1 textarea on the right)
             # The Billing Address section will now align vertically at the top of the container.
 
-            # NOTE: The billing address inputs should be updated to align with the shipping inputs.
-            # To match the 4 text inputs on the left, we'll put in 4 dummy text inputs (which show nothing)
-            # or rely on the natural flow.
-            # Since the layout fix was about the Pipedrive expander throwing off vertical flow,
-            # we must ensure the Billing address fields start where the Shipping Address fields start.
-
             # Let's align the Bill Addr1 (text_area) with the Ship Addr1 (text_area) by inserting
             # the corresponding 4 dummy inputs to match Company/Name/Phone/Email
             st.text_input("Company", value="", disabled=True, label_visibility="hidden",
@@ -1356,6 +1350,13 @@ def main_app():
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         order_col1, order_col2 = st.columns(2)
         with order_col1:
+            # --- MODIFICATION START: NEW INPUT FIELD FOR ORDER DOCUMENT NUMBER ---
+            order_doc_number_input = st.text_input(
+                "Order/PO Document #",
+                value=quote_no,  # Defaults to the current quote_no (which is the loaded value)
+                key="order_doc_number_pdf_key"
+            )
+            # --- MODIFICATION END ---
             order_po_number = st.text_input("P.O. Number", value="", key="order_po_input")
             order_operator = st.text_input("Operator", value="CZ", key="order_operator_input")
             order_terms = st.text_input("Terms", value="NET 30", key="order_terms_input")
@@ -1427,7 +1428,9 @@ def main_app():
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        order_doc_number = quote_no
+        # --- MODIFICATION START: Use the new input value for the Order Document # ---
+        order_doc_number = order_doc_number_input
+        # --- MODIFICATION END ---
         order_file_name = f"{order_doc_number}_Order.pdf"
 
         pdf_buffer_order = io.BytesIO()
