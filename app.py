@@ -554,7 +554,7 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
         "email": email,
         "phone": phone,
         "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
-        "bill_addr1": ship_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
+        "bill_addr1": ship_addr1, "bill_city": ship_city, "bill_state": ship_state, "bill_zip": ship_zip,
     }
 
 
