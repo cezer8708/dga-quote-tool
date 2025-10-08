@@ -685,22 +685,12 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
                       Spacer(1, 4)]
 
-        # --- FIX IMPLEMENTATION: Display the new Order Doc # and the original Quote # ---
-        # The 'order_doc_number' is the new one (e.g., 20251008-1620)
-        # We need the 'source_quote_number' (e.g., 20251007-2234)
-        source_quote_no = meta.get("source_quote_number", "")
-
+        # --- MODIFIED: Display only the Order Document # (doc_number) ---
         story += [
             Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']),
             Spacer(1, 4)
         ]
-        if source_quote_no:
-            # THIS IS THE PRIMARY FIX: Displaying the original quote number clearly
-            story += [
-                Paragraph(f"**Source Quote Number:** {source_quote_no}", styles['Heading3']),
-                Spacer(1, 4)
-            ]
-        # --- END FIX IMPLEMENTATION ---
+        # --- END MODIFIED ---
 
         grouped_info_text = (
             f"Date: {datetime.now().strftime('%m/%d/%y')}<br/>"
@@ -728,7 +718,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"{customer.get('phone', '')}<br/>"
             f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
-            f"P.O. Number: {meta.get('po_number', '')}<br/>"  # THIS NOW USES PO NUMBER
+            f"P.O. Number: {meta.get('po_number', '')}<br/>"
             f"Terms: {meta.get('terms', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
@@ -772,7 +762,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
                 continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -959,7 +949,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             if float(r.get("qty", 0)) == 0: continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -1408,8 +1398,7 @@ def main_app():
                                 key="footer_notes_input")
 
     # =========================================================================
-    # FIX 2: Replace Order/PO Details expander block
-    # This block uses direct session state keys for the widgets, fixing the stale value issue.
+    # FIX 2: Correctly bind Order/PO inputs to session state keys
     # =========================================================================
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         # Seed the order doc number to the current quote if empty/missing
@@ -1452,7 +1441,6 @@ def main_app():
     # =========================================================================
 
     # Re-assemble order_meta using session state values
-    # NOTE: This block is correct as written, now that the widget keys match the session keys.
     order_meta = {
         "order_doc_number": st.session_state["order_doc_number_pdf"],
         "po_number": st.session_state["order_po_number"],
@@ -1461,8 +1449,7 @@ def main_app():
         "commission_to": st.session_state["order_comm_to"],
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
-        # FIX 2: Explicitly pass the original Quote # for use in the Order PDF template
-        "source_quote_number": st.session_state["quote_no"]
+        # REMOVED: source_quote_number is no longer needed/saved, the order_doc_number stands on its own.
     }
 
     # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
@@ -1519,10 +1506,10 @@ def main_app():
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
     # =========================================================================
-    # FIX 3: Persist order_meta when generating the Order PDF
+    # FIX 3: Persist order_meta when generating the Order PDF and update message
     # =========================================================================
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        # The 'order_doc_number' is the number the user wants on the file name/header (e.g., 20251008-1620)
+        # The 'order_doc_number' is the number the user wants on the file name/header
         order_doc_number = st.session_state["order_doc_number_pdf"]
         order_file_name = f"{order_doc_number}_Order.pdf"
 
@@ -1536,9 +1523,11 @@ def main_app():
         payload["order_meta"] = order_meta
         _saved = save_quote_to_gsheet(payload) # safe even if row already exists; appends a new row
 
+        # UPDATED SUCCESS MESSAGE:
         st.success(
-            f"Order **{order_doc_number}** PDF generated. The Source Quote Number ({order_meta['source_quote_number']}) is included in the document."
+            f"Order **{order_doc_number}** PDF generated, based on Quote **{st.session_state['quote_no']}**."
         )
+
         st.download_button(
             label="Download Order/PO PDF",
             data=pdf_data_order,
