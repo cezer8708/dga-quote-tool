@@ -291,6 +291,8 @@ if "order_check_number" not in st.session_state:
     st.session_state["order_check_number"] = ""
 if "order_date_received" not in st.session_state:
     st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
+
+
 # --- END NEW ORDER STATE ---
 
 
@@ -326,7 +328,6 @@ def start_new_quote():
         st.session_state["order_terms"] = "NET 30"
     if "order_date_received" not in st.session_state:
         st.session_state["order_date_received"] = datetime.now().strftime('%m/%d/%y')
-
 
     st.rerun()
 
@@ -487,6 +488,7 @@ def _parse_us_address(addr: str):
 
     return street.strip(), city.strip(), state.strip(), postal.strip()
 
+
 def _compose_street_from_parts(rec: dict | None) -> str:
     rec = rec or {}
     street = _clean(rec.get("address_street"))
@@ -616,6 +618,7 @@ def ensure_course_discount(items: list[dict]) -> None:
     elif idx != -1:
         items.pop(idx)
 
+
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
     return Paragraph(
@@ -679,7 +682,22 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
                       Spacer(1, 4)]
 
-        story += [Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']), Spacer(1, 6)]
+        # --- FIX IMPLEMENTATION: Display the new Order Doc # and the original Quote # ---
+        # The 'order_doc_number' is the new one (e.g., 20251008-1620)
+        # We need the 'source_quote_number' (e.g., 20251007-2234)
+        source_quote_no = meta.get("source_quote_number", "")
+
+        story += [
+            Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']),
+            Spacer(1, 4)
+        ]
+        if source_quote_no:
+            # THIS IS THE PRIMARY FIX: Displaying the original quote number clearly
+            story += [
+                Paragraph(f"**Source Quote Number:** {source_quote_no}", styles['Heading3']),
+                Spacer(1, 4)
+            ]
+        # --- END FIX IMPLEMENTATION ---
 
         grouped_info_text = (
             f"Date: {datetime.now().strftime('%m/%d/%y')}<br/>"
@@ -707,7 +725,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"{customer.get('phone', '')}<br/>"
             f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
-            f"P.O. Number: {meta.get('po_number', '')}<br/>" # THIS NOW USES PO NUMBER
+            f"P.O. Number: {meta.get('po_number', '')}<br/>"  # THIS NOW USES PO NUMBER
             f"Terms: {meta.get('terms', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
@@ -1031,6 +1049,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     doc.build(story)
     return buffer.getvalue()
 
+
 # =============================================================================
 # 5. Main Application Logic
 # =============================================================================
@@ -1097,12 +1116,15 @@ def main_app():
                     st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
                     st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
                     st.session_state["order_check_number"] = order_meta.get("check_number", "")
-                    st.session_state["order_date_received"] = order_meta.get("date_received", datetime.now().strftime('%m/%d/%y'))
+                    st.session_state["order_date_received"] = order_meta.get("date_received",
+                                                                             datetime.now().strftime('%m/%d/%y'))
                     # Ensure the Order Doc number gets loaded if it was saved
-                    st.session_state["order_doc_number_pdf"] = order_meta.get("order_doc_number", st.session_state["quote_no"])
+                    # FIX: Use the loaded 'order_doc_number' if available, otherwise default to the quote number
+                    st.session_state["order_doc_number_pdf"] = order_meta.get("order_doc_number",
+                                                                              st.session_state["quote_no"])
                     # --- END FIX ---
 
-                    # CUSTOMER AUTOFILL FIX: Force key suffix change on load
+                    # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
                     st.session_state["customer_key_suffix"] += 1
 
                     st.success(f"Loaded quote {st.session_state['quote_no']} from Google Sheets.")
@@ -1385,16 +1407,19 @@ def main_app():
         order_col1, order_col2 = st.columns(2)
         with order_col1:
             # --- MODIFICATION: Bind to session state ---
+            # FIX 1: Set the initial value of the Order/PO Document # to the current Quote #
+            # This ensures that if the user loads Quote 20251007-2234, that number appears here
             st.session_state["order_doc_number_pdf"] = st.text_input(
                 "Order/PO Document #",
-                # Use the session state value, default to quote_no if session state is empty
+                # Use the session state value, which defaults to quote_no on load or "New Quote"
+                # If the user changes it manually, the session state value persists.
                 value=st.session_state.get("order_doc_number_pdf") or quote_no,
                 key="order_doc_number_pdf_key"
             )
 
             st.session_state["order_po_number"] = st.text_input(
                 "P.O. Number",
-                value=st.session_state["order_po_number"], # BOUND TO SESSION STATE
+                value=st.session_state["order_po_number"],  # BOUND TO SESSION STATE
                 key="order_po_input"
             )
             st.session_state["order_operator"] = st.text_input(
@@ -1434,6 +1459,8 @@ def main_app():
         "commission_to": st.session_state["order_comm_to"],
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
+        # FIX 2: Explicitly pass the original Quote # for use in the Order PDF template
+        "source_quote_number": st.session_state["quote_no"]
     }
 
     # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
@@ -1462,7 +1489,7 @@ def main_app():
         "tax_meta": tax_meta,
         "freight_notes": st.session_state["freight_notes"],
         "footer_notes": footer_notes,
-        "order_meta": order_meta, # --- FIX: Save Order/PO Details to Payload ---
+        "order_meta": order_meta,  # --- FIX: Save Order/PO Details to Payload ---
     }
 
     # --- PDF Buttons ---
@@ -1490,9 +1517,8 @@ def main_app():
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        # --- MODIFICATION: Use the value from session state (which is bound to the input) ---
+        # The 'order_doc_number' is the number the user wants on the file name/header (e.g., 20251008-1620)
         order_doc_number = st.session_state["order_doc_number_pdf"]
-        # --- MODIFICATION END ---
         order_file_name = f"{order_doc_number}_Order.pdf"
 
         pdf_buffer_order = io.BytesIO()
@@ -1501,7 +1527,8 @@ def main_app():
             order_doc_number, footer_notes, template="order", meta=order_meta
         )
 
-        st.success(f"Order **{order_doc_number}** PDF generated.")
+        st.success(
+            f"Order **{order_doc_number}** PDF generated. The Source Quote Number ({order_meta['source_quote_number']}) is included in the document.")
         st.download_button(
             label="Download Order/PO PDF",
             data=pdf_data_order,
