@@ -685,12 +685,11 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
                       Spacer(1, 4)]
 
-        # --- MODIFIED: Display only the Order Document # (doc_number) ---
+        # Display only the Order Document # (doc_number)
         story += [
             Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']),
             Spacer(1, 4)
         ]
-        # --- END MODIFIED ---
 
         grouped_info_text = (
             f"Date: {datetime.now().strftime('%m/%d/%y')}<br/>"
@@ -762,7 +761,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
                 continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para,
+                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
+                         fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -949,7 +950,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             if float(r.get("qty", 0)) == 0: continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para,
+                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
+                         fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -1102,7 +1105,7 @@ def main_app():
                     st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
                     st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
 
-                    # --- FIX 1: Load Order/PO Details from Payload with robust defaulting ---
+                    # Load Order/PO Details from Payload with robust defaulting
                     order_meta = payload.get("order_meta", {})
                     st.session_state["order_po_number"] = order_meta.get("po_number", "")
                     st.session_state["order_operator"] = order_meta.get("operator", "CZ")
@@ -1116,7 +1119,6 @@ def main_app():
                     loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
                     # Ensure it defaults to the loaded quote number if blank:
                     st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
-                    # --- END FIX 1 ---
 
                     # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
                     st.session_state["customer_key_suffix"] += 1
@@ -1140,9 +1142,7 @@ def main_app():
 
     st.subheader("Customer Information")
 
-    # =========================================================================
-    # EDIT 2: Pipedrive Lookup moved to the top of the Customer Info section
-    # =========================================================================
+    # Pipedrive Lookup
     with st.expander("Pipedrive lookup (by email or name)", expanded=False):
         if not PIPEDRIVE_API_TOKEN:
             st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
@@ -1189,9 +1189,7 @@ def main_app():
             elif "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
                 st.info("No Pipedrive contacts found matching the search term.")
 
-    # =========================================================================
-    # EDIT 1: Use a container and two columns for alignment of addresses
-    # =========================================================================
+    # Customer Info Inputs
     with st.container(border=True):
         cols_addr = st.columns(2)
 
@@ -1392,14 +1390,20 @@ def main_app():
 
     # 4) Generate PDF Quote + Order PDF
     st.subheader("Generate PDF Documents")
-    quote_no = st.text_input("Quote #", value=st.session_state["quote_no"], key="quote_no_input")
-    st.session_state["quote_no"] = quote_no
+
+    # --- START OF FIX: REMOVE REDUNDANT QUOTE # INPUT ---
+    # The quote number is always st.session_state["quote_no"]
+    # Removed: quote_no = st.text_input("Quote #", value=st.session_state["quote_no"], key="quote_no_input")
+    # st.session_state["quote_no"] = quote_no
+
+    quote_no = st.session_state["quote_no"]  # Use the canonical value
+    st.markdown(f"**Quote #:** `{quote_no}`")
+    # --- END OF FIX ---
+
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
                                 key="footer_notes_input")
 
-    # =========================================================================
-    # FIX 2: Correctly bind Order/PO inputs to session state keys
-    # =========================================================================
+    # Order/PO Details Section
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         # Seed the order doc number to the current quote if empty/missing
         if not st.session_state.get("order_doc_number_pdf"):
@@ -1409,36 +1413,33 @@ def main_app():
         with order_col1:
             st.text_input(
                 "Order/PO Document #",
-                key="order_doc_number_pdf", # Binds directly to the session key
+                key="order_doc_number_pdf",  # Binds directly to the session key
             )
             st.text_input(
                 "P.O. Number",
-                key="order_po_number",      # Binds directly to the session key
+                key="order_po_number",  # Binds directly to the session key
             )
             st.text_input(
                 "Operator",
-                key="order_operator",       # Binds directly to the session key
+                key="order_operator",  # Binds directly to the session key
             )
             st.text_input(
                 "Terms",
-                key="order_terms",          # Binds directly to the session key
+                key="order_terms",  # Binds directly to the session key
             )
         with order_col2:
             st.text_input(
                 "Commission To",
-                key="order_comm_to",        # Binds directly to the session key
+                key="order_comm_to",  # Binds directly to the session key
             )
             st.text_input(
                 "Check Number",
-                key="order_check_number",   # Binds directly to the session key
+                key="order_check_number",  # Binds directly to the session key
             )
             st.text_input(
                 "Date Received",
                 key="order_date_received",  # Binds directly to the session key
             )
-    # =========================================================================
-    # END FIX 2
-    # =========================================================================
 
     # Re-assemble order_meta using session state values
     order_meta = {
@@ -1449,7 +1450,6 @@ def main_app():
         "commission_to": st.session_state["order_comm_to"],
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
-        # REMOVED: source_quote_number is no longer needed/saved, the order_doc_number stands on its own.
     }
 
     # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
@@ -1505,9 +1505,6 @@ def main_app():
             st.error(
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
 
-    # =========================================================================
-    # FIX 3: Persist order_meta when generating the Order PDF and update message
-    # =========================================================================
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
         # The 'order_doc_number' is the number the user wants on the file name/header
         order_doc_number = st.session_state["order_doc_number_pdf"]
@@ -1521,7 +1518,7 @@ def main_app():
 
         # NEW: persist order_meta with the quote so re-loads remember it
         payload["order_meta"] = order_meta
-        _saved = save_quote_to_gsheet(payload) # safe even if row already exists; appends a new row
+        _saved = save_quote_to_gsheet(payload)  # safe even if row already exists; appends a new row
 
         # UPDATED SUCCESS MESSAGE:
         st.success(
@@ -1535,9 +1532,6 @@ def main_app():
             mime="application/pdf",
             key="download_order_pdf",
         )
-    # =========================================================================
-    # END FIX 3
-    # =========================================================================
 
 
 # =============================================================================
