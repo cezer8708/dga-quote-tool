@@ -554,7 +554,7 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
         "email": email,
         "phone": phone,
         "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
-        "bill_addr1": ship_addr1, "bill_city": ship_city, "bill_state": ship_state, "bill_zip": ship_zip,
+        "bill_addr1": ship_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
     }
 
 
@@ -691,8 +691,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             Spacer(1, 4)
         ]
 
-        # --- FIX: REMOVED "Source Quote Number" LOGIC HERE ---
-        # The line that was removed:
+        # --- FIX: Removed "Source Quote Number" line entirely from display ---
+        # The previous attempt was to remove it from meta, but it was still being rendered from meta
+        # This line is now completely gone:
         # story += [Paragraph(f"**Source Quote Number:** {meta.get('source_quote_number', '')}", styles['LeftInfo'])]
         # ----------------------------------------------------
 
@@ -766,9 +767,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
                 continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para,
-                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
-                         fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -955,9 +954,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             if float(r.get("qty", 0)) == 0: continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para,
-                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
-                         fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -1397,7 +1394,7 @@ def main_app():
     st.subheader("Generate PDF Documents")
 
     # --- FIX: REMOVED QUOTE # INPUT FIELD ---
-    quote_no = st.session_state["quote_no"]  # Use the canonical value
+    quote_no = st.session_state["quote_no"] # Use the canonical value
     st.markdown(f"**Quote #:** `{quote_no}`")
     # ----------------------------------------
 
@@ -1414,28 +1411,28 @@ def main_app():
         with order_col1:
             st.text_input(
                 "Order/PO Document #",
-                key="order_doc_number_pdf",  # Binds directly to the session key
+                key="order_doc_number_pdf", # Binds directly to the session key
             )
             st.text_input(
                 "P.O. Number",
-                key="order_po_number",  # Binds directly to the session key
+                key="order_po_number",      # Binds directly to the session key
             )
             st.text_input(
                 "Operator",
-                key="order_operator",  # Binds directly to the session key
+                key="order_operator",       # Binds directly to the session key
             )
             st.text_input(
                 "Terms",
-                key="order_terms",  # Binds directly to the session key
+                key="order_terms",          # Binds directly to the session key
             )
         with order_col2:
             st.text_input(
                 "Commission To",
-                key="order_comm_to",  # Binds directly to the session key
+                key="order_comm_to",        # Binds directly to the session key
             )
             st.text_input(
                 "Check Number",
-                key="order_check_number",  # Binds directly to the session key
+                key="order_check_number",   # Binds directly to the session key
             )
             st.text_input(
                 "Date Received",
@@ -1521,7 +1518,7 @@ def main_app():
 
         # NEW: persist order_meta with the quote so re-loads remember it
         payload["order_meta"] = order_meta
-        _saved = save_quote_to_gsheet(payload)  # safe even if row already exists; appends a new row
+        _saved = save_quote_to_gsheet(payload) # safe even if row already exists; appends a new row
 
         # UPDATED SUCCESS MESSAGE:
         st.success(
