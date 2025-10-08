@@ -456,7 +456,6 @@ def _parse_us_address(addr: str):
 
     return street.strip(), city.strip(), state.strip(), postal.strip()
 
-
 def _compose_street_from_parts(rec: dict | None) -> str:
     rec = rec or {}
     street = _clean(rec.get("address_street"))
@@ -1351,9 +1350,10 @@ def main_app():
         order_col1, order_col2 = st.columns(2)
         with order_col1:
             # --- MODIFICATION START: NEW INPUT FIELD FOR ORDER DOCUMENT NUMBER ---
+            # This input field captures the specific PO or Order number to use on the Order PDF.
             order_doc_number_input = st.text_input(
                 "Order/PO Document #",
-                value=quote_no,  # Defaults to the current quote_no (which is the loaded value)
+                value=quote_no,  # Defaults to the current quote_no
                 key="order_doc_number_pdf_key"
             )
             # --- MODIFICATION END ---
