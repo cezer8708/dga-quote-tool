@@ -691,6 +691,11 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             Spacer(1, 4)
         ]
 
+        # --- FIX: REMOVED "Source Quote Number" LOGIC HERE ---
+        # The line that was removed:
+        # story += [Paragraph(f"**Source Quote Number:** {meta.get('source_quote_number', '')}", styles['LeftInfo'])]
+        # ----------------------------------------------------
+
         grouped_info_text = (
             f"Date: {datetime.now().strftime('%m/%d/%y')}<br/>"
             f"Operator: {meta.get('operator', '')}<br/>"
@@ -1391,14 +1396,10 @@ def main_app():
     # 4) Generate PDF Quote + Order PDF
     st.subheader("Generate PDF Documents")
 
-    # --- START OF FIX: REMOVE REDUNDANT QUOTE # INPUT ---
-    # The quote number is always st.session_state["quote_no"]
-    # Removed: quote_no = st.text_input("Quote #", value=st.session_state["quote_no"], key="quote_no_input")
-    # st.session_state["quote_no"] = quote_no
-
+    # --- FIX: REMOVED QUOTE # INPUT FIELD ---
     quote_no = st.session_state["quote_no"]  # Use the canonical value
     st.markdown(f"**Quote #:** `{quote_no}`")
-    # --- END OF FIX ---
+    # ----------------------------------------
 
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
                                 key="footer_notes_input")
@@ -1450,6 +1451,8 @@ def main_app():
         "commission_to": st.session_state["order_comm_to"],
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
+        # Crucial: Save the actual quote number used to create this order/payload
+        "source_quote_number": st.session_state["quote_no"]
     }
 
     # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
