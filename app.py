@@ -12,7 +12,10 @@ import pandas as pd
 import streamlit as st
 import gspread
 
-st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
+# =============================================================================
+# UI CHANGE 1: Set default layout to centered (NOT wide mode)
+# =============================================================================
+st.set_page_config(page_title="DGA Quoting Tool", layout="centered")
 
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
@@ -979,9 +982,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
         ]))
 
+        totals_col_width = CONTENT_WIDTH - acc_width  # CONTENT_WIDTH is 7.5 * inch
         combined_row = [[acc_tbl, t_totals]]
-
-        totals_col_width = 7.5 * inch - acc_width  # CONTENT_WIDTH is 7.5 * inch
 
         combined_table = Table(combined_row, colWidths=[acc_width, totals_col_width])
         combined_table.setStyle(TableStyle([
@@ -1077,79 +1079,118 @@ def main_app():
 
     # (UI for Customer Info)
     c = st.session_state["customer"]
-    cols_top = st.columns([1, 1])
 
-    with cols_top[0]:
-        with st.expander("Pipedrive lookup (by email or name)", expanded=False):
-            if not PIPEDRIVE_API_TOKEN:
-                st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
-            else:
-                term = st.text_input("Search term", placeholder="e.g. jane@city.gov or Jane Smith", key="pd_term")
-                if st.button("Search Pipedrive", key="pd_search_btn") and term.strip():
-                    try:
-                        st.session_state["pd_matches"] = pd_search_persons(term.strip())
-                    except Exception as e:
-                        st.error(f"Search failed due to unexpected error. Check console: {e}")
-                        st.session_state["pd_matches"] = []
+    st.subheader("Customer Information")
 
-                matches = st.session_state.get("pd_matches", [])
+    # =========================================================================
+    # EDIT 2: Pipedrive Lookup moved to the top of the Customer Info section
+    # =========================================================================
+    with st.expander("Pipedrive lookup (by email or name)", expanded=False):
+        if not PIPEDRIVE_API_TOKEN:
+            st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
+        else:
+            term = st.text_input("Search term", placeholder="e.g. jane@city.gov or Jane Smith", key="pd_term")
+            if st.button("Search Pipedrive", key="pd_search_btn") and term.strip():
+                try:
+                    st.session_state["pd_matches"] = pd_search_persons(term.strip())
+                except Exception as e:
+                    st.error(f"Search failed due to unexpected error. Check console: {e}")
+                    st.session_state["pd_matches"] = []
 
-                if matches:
-                    labels = [f"{m['name']}  <{m['email']}>" if m['email'] else m['name'] for m in matches]
-                    choice = st.selectbox("Matches", labels, key="pd_choice")
-                    idx = labels.index(choice) if choice in labels else -1
-                    if idx >= 0:
-                        sel = matches[idx]
-                        if st.button("Apply to form", key="pd_apply_btn"):
-                            try:
-                                # 1. Fetch the full Person record
-                                person = pd_get_person(sel["id"])
+            matches = st.session_state.get("pd_matches", [])
 
-                                # 2. Get associated Org ID and fetch Organization record (if available)
-                                org_id = _pd_scalar(person.get("org_id")) if person and person.get("org_id") else None
-                                org = pd_get_org(org_id) if org_id else None
+            if matches:
+                labels = [f"{m['name']}  <{m['email']}>" if m['email'] else m['name'] for m in matches]
+                choice = st.selectbox("Matches", labels, key="pd_choice")
+                idx = labels.index(choice) if choice in labels else -1
+                if idx >= 0:
+                    sel = matches[idx]
+                    if st.button("Apply to form", key="pd_apply_btn"):
+                        try:
+                            # 1. Fetch the full Person record
+                            person = pd_get_person(sel["id"])
 
-                                # 3. Map Pipedrive data to customer state
-                                mapped = pd_person_to_customer(person or {}, org)
-                                cust = st.session_state["customer"]
-                                for k, v in mapped.items():
-                                    cust[k] = v or cust.get(k, "")
+                            # 2. Get associated Org ID and fetch Organization record (if available)
+                            org_id = _pd_scalar(person.get("org_id")) if person and person.get("org_id") else None
+                            org = pd_get_org(org_id) if org_id else None
 
-                                # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
-                                st.session_state["customer_key_suffix"] += 1
+                            # 3. Map Pipedrive data to customer state
+                            mapped = pd_person_to_customer(person or {}, org)
+                            cust = st.session_state["customer"]
+                            for k, v in mapped.items():
+                                cust[k] = v or cust.get(k, "")
 
-                                st.success("Pipedrive contact applied to form (Person details ➜ Org fallback).")
-                                # Force rerun to populate all text inputs immediately
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Failed to fetch or apply contact details. Check console: {e}")
-                elif "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
-                    st.info("No Pipedrive contacts found matching the search term.")
+                            # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
+                            st.session_state["customer_key_suffix"] += 1
 
-        st.subheader("Shipping Address")
-        # NOTE: All customer keys now include the dynamic suffix
-        c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
-        c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
-        c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
-        c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
-        c["ship_addr1"] = st.text_area("Address (Ship)", value=c.get("ship_addr1", ""),
-                                       key=f"ship_addr1_{cust_key_suffix}")
-        sc1, sc2, sc3 = st.columns(3)
-        c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""), key=f"ship_city_input_{cust_key_suffix}")
-        c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""),
-                                         key=f"ship_state_input_{cust_key_suffix}")
-        c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
+                            st.success("Pipedrive contact applied to form (Person details ➜ Org fallback).")
+                            # Force rerun to populate all text inputs immediately
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to fetch or apply contact details. Check console: {e}")
+            elif "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
+                st.info("No Pipedrive contacts found matching the search term.")
 
-    with cols_top[1]:
-        st.subheader("Billing Address")
-        # NOTE: All customer keys now include the dynamic suffix
-        c["bill_addr1"] = st.text_area("Address (Bill)", value=c.get("bill_addr1", ""),
-                                       key=f"bill_addr1_{cust_key_suffix}")
-        bc1, bc2, bc3 = st.columns(3)
-        c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key=f"bill_city_input_{cust_key_suffix}")
-        c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
-                                         key=f"bill_state_input_{cust_key_suffix}")
-        c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
+    # =========================================================================
+    # EDIT 1: Use a container and two columns for alignment of addresses
+    # The removal of the Pipedrive expander from the left column and the removal
+    # of the dummy spacers from the right column fixes the alignment.
+    # =========================================================================
+    with st.container(border=True):
+        cols_addr = st.columns(2)
+
+        # --- SHIPPING ADDRESS (LEFT COLUMN) ---
+        with cols_addr[0]:
+            st.subheader("Shipping Address")
+            # NOTE: All customer keys now include the dynamic suffix
+            c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
+            c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
+            c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
+            c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
+            c["ship_addr1"] = st.text_area("Address (Ship)", value=c.get("ship_addr1", ""),
+                                           key=f"ship_addr1_{cust_key_suffix}")
+            sc1, sc2, sc3 = st.columns(3)
+            c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""),
+                                            key=f"ship_city_input_{cust_key_suffix}")
+            c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""),
+                                             key=f"ship_state_input_{cust_key_suffix}")
+            c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
+
+        # --- BILLING ADDRESS (RIGHT COLUMN) ---
+        with cols_addr[1]:
+            st.subheader("Billing Address")
+            # Removed the four fixed-height spacers here, as Pipedrive is now outside/above
+            # and the input counts match (4 inputs + 1 textarea on the left vs 1 textarea on the right)
+            # The Billing Address section will now align vertically at the top of the container.
+
+            # NOTE: The billing address inputs should be updated to align with the shipping inputs.
+            # To match the 4 text inputs on the left, we'll put in 4 dummy text inputs (which show nothing)
+            # or rely on the natural flow.
+            # Since the layout fix was about the Pipedrive expander throwing off vertical flow,
+            # we must ensure the Billing address fields start where the Shipping Address fields start.
+
+            # Let's align the Bill Addr1 (text_area) with the Ship Addr1 (text_area) by inserting
+            # the corresponding 4 dummy inputs to match Company/Name/Phone/Email
+            st.text_input("Company", value="", disabled=True, label_visibility="hidden",
+                          key=f"bill_dummy_comp_{cust_key_suffix}")
+            st.text_input("Name", value="", disabled=True, label_visibility="hidden",
+                          key=f"bill_dummy_name_{cust_key_suffix}")
+            st.text_input("Phone", value="", disabled=True, label_visibility="hidden",
+                          key=f"bill_dummy_phone_{cust_key_suffix}")
+            st.text_input("Email", value="", disabled=True, label_visibility="hidden",
+                          key=f"bill_dummy_email_{cust_key_suffix}")
+
+            # Now the main address text area should align
+            c["bill_addr1"] = st.text_area("Address (Bill)", value=c.get("bill_addr1", ""),
+                                           key=f"bill_addr1_{cust_key_suffix}")
+            bc1, bc2, bc3 = st.columns(3)
+            c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""),
+                                            key=f"bill_city_input_{cust_key_suffix}")
+            c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
+                                             key=f"bill_state_input_{cust_key_suffix}")
+            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
+
+    # Original cols_top logic has been removed and replaced by the container/columns block above.
 
     st.divider()
 
@@ -1241,7 +1282,7 @@ def main_app():
             # UNIT PRICE AUTOFILL FIX: Dynamic Key including SKU forces widget reset when SKU changes
             row["unit"] = st.number_input("Unit Price", min_value=-100000.0, value=current_unit, step=0.01,
                                           format="%.2f",
-                                          key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}")  # <- FIX IS HERE
+                                          key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}")
 
         with c4:
             row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
