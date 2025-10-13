@@ -65,6 +65,8 @@ PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 # The ID is the long string in the middle of the URL:
 # https://docs.google.com/spreadsheets/d/1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80/edit
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
+
+
 # -----------------------------------
 
 
@@ -176,7 +178,7 @@ def save_quote_to_gsheet(payload: dict) -> bool:
 
         # Prepare the row data for the Sheet's main columns (A to G)
         row_data = [
-            doc_number, # Use the doc_number which can be the quote # or a new PO #
+            doc_number,  # Use the doc_number which can be the quote # or a new PO #
             payload.get("date"),
             payload["customer"].get("company", ""),
             payload["customer"].get("name", ""),
@@ -231,6 +233,7 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
 
 PRODUCTS = load_products()
 
+
 # =============================================================================
 # 3. Session State Initialization
 # =============================================================================
@@ -240,6 +243,7 @@ def get_pacific_now():
     """Returns the current datetime object localized to America/Los_Angeles."""
     pacific_tz = pytz.timezone('America/Los_Angeles')
     return datetime.now(pacific_tz)
+
 
 def new_quote_number():
     """Generates a new quote number using the current time in the Pacific Time Zone."""
@@ -263,7 +267,6 @@ if "rerun_flag" not in st.session_state:
 # --- CUSTOMER AUTOFILL FIX: Dynamic Key Suffix ---
 if "customer_key_suffix" not in st.session_state:
     st.session_state["customer_key_suffix"] = 0
-
 
 if "quote_no" not in st.session_state:
     st.session_state["quote_no"] = new_quote_number()
@@ -369,9 +372,8 @@ def assign_new_quote_version():
             # If it's not a standard quote number format, just treat it as a new standard quote
             new_doc_no = new_quote_number()
 
-
     st.session_state["quote_no"] = new_doc_no
-    st.session_state["order_doc_number_pdf"] = new_doc_no # Ensure the Order doc also updates
+    st.session_state["order_doc_number_pdf"] = new_doc_no  # Ensure the Order doc also updates
     # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset, useful when generating new versions
     st.session_state["customer_key_suffix"] += 1
     st.rerun()
@@ -804,7 +806,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
                 continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para,
+                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
+                         fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -992,7 +996,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             if float(r.get("qty", 0)) == 0: continue
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
-            data.append([str(r["qty"]), desc_para, fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])), fmt_money(float(r['total']))])
+            data.append([str(r["qty"]), desc_para,
+                         fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
+                         fmt_money(float(r['total']))])
             note_txt = (r.get("notes") or "").strip()
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
@@ -1088,7 +1094,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
 # --- Custom Streamlit logic (MODIFIED) ---
 
-def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator, order_meta: dict | None = None):
+def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator,
+                          order_meta: dict | None = None):
     """Generates PDF, attempts save, and renders the download button."""
 
     # 1. Prepare file names
@@ -1121,7 +1128,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
             container.error(
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions."
             )
-    else: # is 'order'
+    else:  # is 'order'
         # Check if the Order Document # is the same as the Source Quote #
         source_quote_no = payload.get('source_quote_number', 'N/A')
         doc_msg = (
@@ -1135,7 +1142,6 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
             + (f" Saved to Google Sheets." if save_successful else f" **FAILED to save** to Google Sheets.")
         )
 
-
     # 5. Render the download button (ALWAYS renders after successful generation)
     container.download_button(
         label=label,
@@ -1144,7 +1150,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         mime="application/pdf",
         # Use unique keys to allow multiple download buttons on the page
         key=f"download_{template}_pdf_{doc_number}",
-        use_container_width=True # Match the original button width
+        use_container_width=True  # Match the original button width
     )
 
 
@@ -1158,14 +1164,41 @@ def main_app():
     st.title("DGA Quoting Tool")
     st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • Google Sheets/PDF export")
 
+    # <<< UI FIX START: CSS Injection and Column Adjustment >>>
+    # -------------------------------------------------------------------------
+    # UI FIX: Inject CSS to prevent button wrapping and align them properly
+    # -------------------------------------------------------------------------
+    st.markdown("""
+        <style>
+            /* Target Streamlit buttons specifically within the header columns */
+            .stButton>button {
+                white-space: nowrap !important; /* Prevent text wrap */
+                display: block; /* Ensure the button is block-level */
+                height: 100%; /* Make sure buttons align vertically */
+                font-size: 14px; /* Optional: Make font slightly smaller if needed */
+            }
+
+            /* Target the specific columns containing the buttons to align items center vertically */
+            /* This selector targets the 4th and 5th columns in the first st.columns call in the main body */
+            div[data-testid="stVerticalBlock"] > div:nth-child(1) > div > div:nth-child(4),
+            div[data-testid="stVerticalBlock"] > div:nth-child(1) > div > div:nth-child(5) {
+                display: flex;
+                align-items: center; /* Vertically center the button */
+                justify-content: flex-start; /* Align button to the left of its column */
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    # -------------------------------------------------------------------------
+
     # --- RERUN CHECK FOR UNIT PRICE FIX ---
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
-    # MODIFIED: Added one column for the "New Version" button
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1, 1.2, 0.4, 0.4, 0.4])
+    # MODIFIED: Adjusted ratios to give button columns (4 & 5) more relative space (1.0 vs original 0.4)
+    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([0.8, 1.0, 0.6, 1.0, 1.0])
+    # <<< UI FIX END >>>
 
     # Set the key suffix for all customer inputs
     cust_key_suffix = st.session_state["customer_key_suffix"]
@@ -1191,10 +1224,10 @@ def main_app():
         try:
             default_index = quote_options.index(current_quote_no)
         except ValueError:
-            default_index = 0 # Default to (New Quote)
+            default_index = 0  # Default to (New Quote)
 
-        selected_quote_no = st.selectbox("Select or Search for Doc #", quote_options, index=default_index, key="quote_select_box")
-
+        selected_quote_no = st.selectbox("Select or Search for Doc #", quote_options, index=default_index,
+                                         key="quote_select_box")
 
     with lookup_col3:
         if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
@@ -1208,10 +1241,10 @@ def main_app():
                     target_row_df = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no]
 
                     if target_row_df.empty:
-                         st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
-                         return
+                        st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
+                        return
 
-                    payload = target_row_df.iloc[-1]['Payload'] # Get the latest version
+                    payload = target_row_df.iloc[-1]['Payload']  # Get the latest version
 
                     # Apply payload data to session state
                     st.session_state["customer"] = payload.get("customer", {})
@@ -1254,9 +1287,10 @@ def main_app():
             else:
                 st.warning("Please select a document to retrieve or click 'New Quote'.")
 
-    # --- NEW VERSION BUTTON ---
+    # --- NEW VERSION BUTTON (Uses use_container_width=True, relies on CSS/columns fix) ---
     with lookup_col4:
-        if st.button("New Version", use_container_width=True, type="primary", help="Create a new version number based on the current quote."):
+        if st.button("New Version", use_container_width=True, type="primary",
+                     help="Create a new version number based on the current quote."):
             assign_new_quote_version()
 
     with lookup_col5:
@@ -1518,7 +1552,7 @@ def main_app():
     st.subheader("Generate PDF Documents")
 
     # --- FIX: REMOVED QUOTE # INPUT FIELD ---
-    quote_no = st.session_state["quote_no"] # Use the canonical value
+    quote_no = st.session_state["quote_no"]  # Use the canonical value
     st.markdown(f"**Current Quote #:** `{quote_no}`")
     # ----------------------------------------
 
@@ -1535,29 +1569,29 @@ def main_app():
         with order_col1:
             st.text_input(
                 "Order/PO Document # (Used for Order PDF Header/File Name)",
-                key="order_doc_number_pdf", # Binds directly to the session key
+                key="order_doc_number_pdf",  # Binds directly to the session key
                 value=st.session_state.get("order_doc_number_pdf", quote_no)
             )
             st.text_input(
                 "P.O. Number",
-                key="order_po_number",      # Binds directly to the session key
+                key="order_po_number",  # Binds directly to the session key
             )
             st.text_input(
                 "Operator",
-                key="order_operator",       # Binds directly to the session key
+                key="order_operator",  # Binds directly to the session key
             )
             st.text_input(
                 "Terms",
-                key="order_terms",          # Binds directly to the session key
+                key="order_terms",  # Binds directly to the session key
             )
         with order_col2:
             st.text_input(
                 "Commission To",
-                key="order_comm_to",        # Binds directly to the session key
+                key="order_comm_to",  # Binds directly to the session key
             )
             st.text_input(
                 "Check Number",
-                key="order_check_number",   # Binds directly to the session key
+                key="order_check_number",  # Binds directly to the session key
             )
             st.text_input(
                 "Date Received",
@@ -1613,7 +1647,7 @@ def main_app():
     # **MODIFIED QUOTE BUTTON LOGIC**
     if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
         # Ensure the payload includes the latest data before generation/save
-        payload["order_meta"] = order_meta # Save latest PO details even on a quote
+        payload["order_meta"] = order_meta  # Save latest PO details even on a quote
         handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
     # **MODIFIED ORDER BUTTON LOGIC**
@@ -1622,7 +1656,7 @@ def main_app():
         order_doc_number = st.session_state["order_doc_number_pdf"]
         # NEW: persist order_meta with the quote so re-loads remember it
         payload["order_meta"] = order_meta
-        payload["source_quote_number"] = quote_no # Ensure the source quote is tracked in the payload
+        payload["source_quote_number"] = quote_no  # Ensure the source quote is tracked in the payload
 
         handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
