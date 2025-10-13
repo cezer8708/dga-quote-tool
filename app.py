@@ -631,7 +631,6 @@ def ensure_course_discount(items: list[dict]) -> None:
     elif idx != -1:
         items.pop(idx)
 
-
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
     return Paragraph(
