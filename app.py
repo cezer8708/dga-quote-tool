@@ -1051,6 +1051,62 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     return buffer.getvalue()
 
 
+# --- Custom Streamlit logic (MODIFIED) ---
+
+def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator, order_meta: dict | None = None):
+    """Generates PDF, attempts save, and renders the download button."""
+
+    # 1. Prepare file names
+    is_quote = template == "quote"
+    file_prefix = f"{doc_number}_Quote" if is_quote else f"{doc_number}_Order"
+    label = f"Download Quote PDF" if is_quote else f"Download Order/PO PDF"
+
+    # 2. Generate PDF data
+    pdf_buffer = io.BytesIO()
+    pdf_data = build_pdf(
+        pdf_buffer,
+        payload["customer"],
+        payload["line_items"],
+        payload["fees"],
+        payload["totals"],
+        doc_number,
+        payload["footer_notes"],
+        template=template,
+        meta=order_meta,
+    )
+
+    # 3. Attempt to save to Google Sheets
+    # Note: For 'Order', we append to the sheet to save the latest order_meta
+    save_successful = save_quote_to_gsheet(payload)
+
+    # 4. Display status message
+    if is_quote:
+        if save_successful:
+            container.success(f"Quote **{doc_number}** successfully saved to **Google Sheets** and PDF generated.")
+        else:
+            # FIX: Your local error case. The button is now outside the `if save_successful` block.
+            container.error(
+                "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions."
+            )
+    else: # is 'order'
+        container.success(
+            f"Order **{doc_number}** PDF generated, based on Quote **{payload['source_quote_number']}**."
+            + (f" Saved to Google Sheets." if save_successful else f" **FAILED to save** to Google Sheets.")
+        )
+
+
+    # 5. Render the download button (ALWAYS renders after successful generation)
+    container.download_button(
+        label=label,
+        data=pdf_data,
+        file_name=f"{file_prefix}.pdf",
+        mime="application/pdf",
+        # Use unique keys to allow multiple download buttons on the page
+        key=f"download_{template}_pdf_{doc_number}",
+        use_container_width=True # Match the original button width
+    )
+
+
 # =============================================================================
 # 5. Main Application Logic
 # =============================================================================
@@ -1488,54 +1544,19 @@ def main_app():
     # --- PDF Buttons ---
     pdf_col1, pdf_col2 = st.columns(2)
 
+    # **MODIFIED QUOTE BUTTON LOGIC**
     if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
-        pdf_buffer = io.BytesIO()
-        pdf_data = build_pdf(
-            pdf_buffer, st.session_state["customer"], st.session_state["line_items"], fees, totals,
-            quote_no, footer_notes, template="quote"
-        )
+        handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
-        # --- NEW PERSISTENCE STEP: SAVE TO GOOGLE SHEET ---
-        if save_quote_to_gsheet(payload):
-            st.success(f"Quote **{quote_no}** successfully saved to **Google Sheets** and PDF generated.")
-            st.download_button(
-                label="Download Quote PDF",
-                data=pdf_data,
-                file_name=f"{quote_no}_Quote.pdf",
-                mime="application/pdf",
-                key="download_quote_pdf",
-            )
-        else:
-            st.error(
-                "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions.")
-
+    # **MODIFIED ORDER BUTTON LOGIC**
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
         # The 'order_doc_number' is the number the user wants on the file name/header
         order_doc_number = st.session_state["order_doc_number_pdf"]
-        order_file_name = f"{order_doc_number}_Order.pdf"
-
-        pdf_buffer_order = io.BytesIO()
-        pdf_data_order = build_pdf(
-            pdf_buffer_order, st.session_state["customer"], st.session_state["line_items"], fees, totals,
-            order_doc_number, footer_notes, template="order", meta=order_meta
-        )
-
         # NEW: persist order_meta with the quote so re-loads remember it
         payload["order_meta"] = order_meta
-        _saved = save_quote_to_gsheet(payload) # safe even if row already exists; appends a new row
+        payload["source_quote_number"] = quote_no # Ensure the source quote is tracked in the payload
 
-        # UPDATED SUCCESS MESSAGE:
-        st.success(
-            f"Order **{order_doc_number}** PDF generated, based on Quote **{st.session_state['quote_no']}**."
-        )
-
-        st.download_button(
-            label="Download Order/PO PDF",
-            data=pdf_data_order,
-            file_name=order_file_name,
-            mime="application/pdf",
-            key="download_order_pdf",
-        )
+        handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 # =============================================================================
