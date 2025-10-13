@@ -170,6 +170,8 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         worksheet = sh.get_worksheet(0)
 
         # Extract the order document number for saving if it's an order payload
+        # This number can be the original quote # (e.g., 20241013-1430) or a versioned quote (V1, V2)
+        # or a new PO/Order document number if explicitly entered in the Order/PO Details section.
         doc_number = payload["order_meta"].get("order_doc_number") or payload.get("quote_no")
 
         # Prepare the row data for the Sheet's main columns (A to G)
@@ -342,6 +344,36 @@ def start_new_quote():
         # Crucial for the fix: ensures order doc # defaults to the new quote # on a fresh start
         st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
 
+    st.rerun()
+
+
+def assign_new_quote_version():
+    """
+    Generates a new version number for the current quote (e.g., 20240101-1200 -> 20240101-1200-V1,
+    or 20240101-1200-V1 -> 20240101-1200-V2).
+    """
+    current_doc_no = st.session_state["quote_no"]
+    # Pattern to find -V# at the end of the quote number
+    match = re.search(r"-V(\d+)$", current_doc_no)
+
+    if match:
+        # Increment existing version
+        version_num = int(match.group(1))
+        new_version_num = version_num + 1
+        new_doc_no = re.sub(r"-V\d+$", f"-V{new_version_num}", current_doc_no)
+    else:
+        # Append V1. Ensure we only append if it looks like a base quote number (YYYYMMDD-HHMM)
+        if re.match(r"^\d{8}-\d{4}$", current_doc_no):
+            new_doc_no = f"{current_doc_no}-V1"
+        else:
+            # If it's not a standard quote number format, just treat it as a new standard quote
+            new_doc_no = new_quote_number()
+
+
+    st.session_state["quote_no"] = new_doc_no
+    st.session_state["order_doc_number_pdf"] = new_doc_no # Ensure the Order doc also updates
+    # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset, useful when generating new versions
+    st.session_state["customer_key_suffix"] += 1
     st.rerun()
 
 
@@ -630,6 +662,7 @@ def ensure_course_discount(items: list[dict]) -> None:
             items[idx] = disc_line
     elif idx != -1:
         items.pop(idx)
+
 
 # --- PDF Builder Functions ---
 def _company_right_block(styles):
@@ -1131,13 +1164,14 @@ def main_app():
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4 = st.columns([1, 1.2, 0.4, 0.4])
+    # MODIFIED: Added one column for the "New Version" button
+    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1, 1.2, 0.4, 0.4, 0.4])
 
     # Set the key suffix for all customer inputs
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
     with lookup_col1:
-        st.markdown("**Current Quote # (PT)**")
+        st.markdown("**Current Doc # (PT)**")
         st.info(st.session_state["quote_no"])
 
     with lookup_col2:
@@ -1145,8 +1179,9 @@ def main_app():
         all_quotes_df = load_all_quotes()
         # Create display options: (New Quote) + all saved Quote #s
         # Handle case where load_all_quotes returns empty DF due to error
-        quote_options = ["(New Quote)"] + all_quotes_df['Quote #'].tolist() if 'Quote #' in all_quotes_df.columns else [
-            "(New Quote)"]
+        quote_options = ["(New Quote)"]
+        if 'Quote #' in all_quotes_df.columns:
+            quote_options.extend(all_quotes_df['Quote #'].tolist())
 
         # Ensure the current quote number is available in the options if it exists
         current_quote_no = st.session_state["quote_no"]
@@ -1158,7 +1193,7 @@ def main_app():
         except ValueError:
             default_index = 0 # Default to (New Quote)
 
-        selected_quote_no = st.selectbox("Select or Search for Quote #", quote_options, index=default_index, key="quote_select_box")
+        selected_quote_no = st.selectbox("Select or Search for Doc #", quote_options, index=default_index, key="quote_select_box")
 
 
     with lookup_col3:
@@ -1219,7 +1254,12 @@ def main_app():
             else:
                 st.warning("Please select a document to retrieve or click 'New Quote'.")
 
+    # --- NEW VERSION BUTTON ---
     with lookup_col4:
+        if st.button("New Version", use_container_width=True, type="primary", help="Create a new version number based on the current quote."):
+            assign_new_quote_version()
+
+    with lookup_col5:
         if st.button("New Quote", use_container_width=True, type="secondary"):
             start_new_quote()
 
