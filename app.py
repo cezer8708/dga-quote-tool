@@ -345,22 +345,6 @@ def start_new_quote():
     st.rerun()
 
 
-def new_quote_version():
-    """Generates a new quote number but keeps all current session state data."""
-    new_number = new_quote_number()
-    # 1. Update quote number
-    st.session_state["quote_no"] = new_number
-    # 2. Update order document number to match the new quote number
-    st.session_state["order_doc_number_pdf"] = new_number
-    # 3. Clear Pipedrive matches and increment customer key suffix to trigger UI reset
-    st.session_state["customer_key_suffix"] += 1
-    if "pd_matches" in st.session_state:
-        del st.session_state["pd_matches"]
-
-    st.success(f"Quote data copied to new version: **{new_number}**.")
-    st.session_state["rerun_flag"] = True # Use existing rerun mechanism
-
-
 def _clean(val):
     if val is None:
         return ""
@@ -689,7 +673,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
     )
     addr_style = ParagraphStyle('AddrStyle', parent=styles['Normal'], fontSize=10, leading=12)
 
-# ==== TEMPLATE: ORDER ====
+    # ==== TEMPLATE: ORDER ====
     if template == "order":
         if COMPANY_LOGO_PATH and os.path.exists(COMPANY_LOGO_PATH):
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
@@ -857,7 +841,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         ]))
         final_wrapper.hAlign = 'LEFT'
         story += [final_wrapper]
-# ==== TEMPLATE: QUOTE ====
+    # ==== TEMPLATE: QUOTE ====
     else:
 
         company_info_text = (
@@ -1067,6 +1051,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     doc.build(story)
     return buffer.getvalue()
+
 
 # --- Custom Streamlit logic (MODIFIED) ---
 
@@ -1492,8 +1477,10 @@ def main_app():
     # 4) Generate PDF Quote + Order PDF
     st.subheader("Generate PDF Documents")
 
+    # --- FIX: REMOVED QUOTE # INPUT FIELD ---
     quote_no = st.session_state["quote_no"] # Use the canonical value
-    st.markdown(f"**Current Document #:** `{quote_no}`")
+    st.markdown(f"**Current Quote #:** `{quote_no}`")
+    # ----------------------------------------
 
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
                                 key="footer_notes_input")
@@ -1580,35 +1567,24 @@ def main_app():
         "order_meta": order_meta,  # --- Save Order/PO Details to Payload ---
     }
 
-    # --- PDF Buttons (NEW STRUCTURE) ---
+    # --- PDF Buttons ---
     pdf_col1, pdf_col2 = st.columns(2)
 
-    with pdf_col1:
-        st.markdown("**Quote Actions**")
-        # Nested columns for the quote buttons
-        q_btn1, q_btn2 = st.columns(2)
+    # **MODIFIED QUOTE BUTTON LOGIC**
+    if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+        # Ensure the payload includes the latest data before generation/save
+        payload["order_meta"] = order_meta # Save latest PO details even on a quote
+        handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
-        # 1. New Version Button (Calls the new function)
-        if q_btn1.button("Save New Version", use_container_width=True, type="primary", help="Assigns a new Quote # to the current data and reloads."):
-            new_quote_version()
+    # **MODIFIED ORDER BUTTON LOGIC**
+    if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
+        # The 'order_doc_number' is the number the user wants on the file name/header
+        order_doc_number = st.session_state["order_doc_number_pdf"]
+        # NEW: persist order_meta with the quote so re-loads remember it
+        payload["order_meta"] = order_meta
+        payload["source_quote_number"] = quote_no # Ensure the source quote is tracked in the payload
 
-        # 2. Generate/Save Quote PDF (Updates the currently displayed quote_no)
-        if q_btn2.button("Generate & Save Quote PDF", use_container_width=True, type="secondary", help="Saves the current data and document number to Google Sheets."):
-            # Ensure the payload includes the latest data before generation/save
-            payload["order_meta"] = order_meta # Save latest PO details even on a quote
-            handle_pdf_generation(payload, quote_no, "quote", q_btn2) # Use q_btn2 for placement
-
-    with pdf_col2:
-        st.markdown("**Order Actions**")
-        # 3. Process as Order / PO
-        if st.button("Process as Order / PO", use_container_width=True, type="primary", key="btn_order_po"):
-            # The 'order_doc_number' is the number the user wants on the file name/header
-            order_doc_number = st.session_state["order_doc_number_pdf"]
-            # NEW: persist order_meta with the quote so re-loads remember it
-            payload["order_meta"] = order_meta
-            payload["source_quote_number"] = quote_no # Ensure the source quote is tracked in the payload
-
-            handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
+        handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 # =============================================================================
