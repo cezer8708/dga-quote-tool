@@ -1,6 +1,38 @@
-.streamlit/secrets.toml
+# Local environment
 .env
+.streamlit/secrets.toml
+
+# Byte-compiled / cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .DS_Store
-Quotes/
+
+# Playwright / Selenium caches
+.cache_playwright/
+.playwright/
+.chromedriver/
+chromedriver/
+webdriver/
+webdriver-manager/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node / npm junk (if any)
+node_modules/
+package-lock.json
+npm-debug.log
+
+# PyCharm / VSCode / JetBrains
+.idea/
+.vscode/
+*.iml
+
+# Temporary / system files
+Thumbs.db
+logs/
+tmp/
