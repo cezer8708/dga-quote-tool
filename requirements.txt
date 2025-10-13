@@ -1,7 +1,8 @@
 streamlit
 pandas
 gspread
+google-auth
 reportlab
 python-dotenv
-requests
 pytz
+requests
