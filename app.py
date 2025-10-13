@@ -169,9 +169,12 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
 
+        # Extract the order document number for saving if it's an order payload
+        doc_number = payload["order_meta"].get("order_doc_number") or payload.get("quote_no")
+
         # Prepare the row data for the Sheet's main columns (A to G)
         row_data = [
-            payload.get("quote_no"),
+            doc_number, # Use the doc_number which can be the quote # or a new PO #
             payload.get("date"),
             payload["customer"].get("company", ""),
             payload["customer"].get("name", ""),
@@ -284,7 +287,7 @@ if "freight_notes" not in st.session_state:
 # --- NEW: Order/PO Details Session State (Persisted on Load/Save) ---
 if "order_doc_number_pdf" not in st.session_state:
     # This will hold the specific document number for the Order PDF
-    st.session_state["order_doc_number_pdf"] = ""
+    st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
 if "order_po_number" not in st.session_state:
     st.session_state["order_po_number"] = ""
 if "order_operator" not in st.session_state:
@@ -1076,7 +1079,6 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     )
 
     # 3. Attempt to save to Google Sheets
-    # Note: For 'Order', we append to the sheet to save the latest order_meta
     save_successful = save_quote_to_gsheet(payload)
 
     # 4. Display status message
@@ -1084,13 +1086,20 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         if save_successful:
             container.success(f"Quote **{doc_number}** successfully saved to **Google Sheets** and PDF generated.")
         else:
-            # FIX: Your local error case. The button is now outside the `if save_successful` block.
             container.error(
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions."
             )
     else: # is 'order'
+        # Check if the Order Document # is the same as the Source Quote #
+        source_quote_no = payload.get('source_quote_number', 'N/A')
+        doc_msg = (
+            f"Order **{doc_number}** PDF generated."
+            if doc_number == source_quote_no else
+            f"Order **{doc_number}** PDF generated (Source Quote: **{source_quote_no}**)."
+        )
+
         container.success(
-            f"Order **{doc_number}** PDF generated, based on Quote **{payload['source_quote_number']}**."
+            doc_msg
             + (f" Saved to Google Sheets." if save_successful else f" **FAILED to save** to Google Sheets.")
         )
 
@@ -1140,7 +1149,18 @@ def main_app():
         quote_options = ["(New Quote)"] + all_quotes_df['Quote #'].tolist() if 'Quote #' in all_quotes_df.columns else [
             "(New Quote)"]
 
-        selected_quote_no = st.selectbox("Select or Search for Quote #", quote_options)
+        # Ensure the current quote number is available in the options if it exists
+        current_quote_no = st.session_state["quote_no"]
+        if current_quote_no not in quote_options:
+            quote_options.append(current_quote_no)
+
+        try:
+            default_index = quote_options.index(current_quote_no)
+        except ValueError:
+            default_index = 0 # Default to (New Quote)
+
+        selected_quote_no = st.selectbox("Select or Search for Quote #", quote_options, index=default_index, key="quote_select_box")
+
 
     with lookup_col3:
         if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
@@ -1150,8 +1170,14 @@ def main_app():
                 # --- RETRIEVAL LOGIC CHANGE: Load from DataFrame (which came from Google Sheets) ---
                 try:
                     # Find the row in the DataFrame corresponding to the selected Quote #
-                    target_row = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no].iloc[0]
-                    payload = target_row['Payload']  # Access the pre-parsed JSON payload
+                    # Note: We search by the Quote # column which might contain saved Order document numbers
+                    target_row_df = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no]
+
+                    if target_row_df.empty:
+                         st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
+                         return
+
+                    payload = target_row_df.iloc[-1]['Payload'] # Get the latest version
 
                     # Apply payload data to session state
                     st.session_state["customer"] = payload.get("customer", {})
@@ -1184,15 +1210,15 @@ def main_app():
                     # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
                     st.session_state["customer_key_suffix"] += 1
 
-                    st.success(f"Loaded quote {st.session_state['quote_no']} from Google Sheets.")
+                    st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
                     st.rerun()
 
                 except IndexError:
                     st.error(f"Quote {selected_quote_no} not found in the loaded data.")
                 except Exception as e:
-                    st.error(f"Couldn't load quote {selected_quote_no} from Google Sheets: {e}")
+                    st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
             else:
-                st.warning("Please select a quote to retrieve or click 'New Quote'.")
+                st.warning("Please select a document to retrieve or click 'New Quote'.")
 
     with lookup_col4:
         if st.button("New Quote", use_container_width=True, type="secondary"):
@@ -1454,7 +1480,7 @@ def main_app():
 
     # --- FIX: REMOVED QUOTE # INPUT FIELD ---
     quote_no = st.session_state["quote_no"] # Use the canonical value
-    st.markdown(f"**Quote #:** `{quote_no}`")
+    st.markdown(f"**Current Quote #:** `{quote_no}`")
     # ----------------------------------------
 
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
@@ -1469,8 +1495,9 @@ def main_app():
         order_col1, order_col2 = st.columns(2)
         with order_col1:
             st.text_input(
-                "Order/PO Document #",
+                "Order/PO Document # (Used for Order PDF Header/File Name)",
                 key="order_doc_number_pdf", # Binds directly to the session key
+                value=st.session_state.get("order_doc_number_pdf", quote_no)
             )
             st.text_input(
                 "P.O. Number",
@@ -1546,6 +1573,8 @@ def main_app():
 
     # **MODIFIED QUOTE BUTTON LOGIC**
     if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+        # Ensure the payload includes the latest data before generation/save
+        payload["order_meta"] = order_meta # Save latest PO details even on a quote
         handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
     # **MODIFIED ORDER BUTTON LOGIC**
