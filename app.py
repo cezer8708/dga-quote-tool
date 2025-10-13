@@ -250,6 +250,47 @@ def new_quote_number():
     return get_pacific_now().strftime("%Y%m%d-%H%M")
 
 
+def start_new_quote():
+    """Resets the state to begin a new quote."""
+    st.session_state["customer"] = {
+        "company": "", "name": "", "email": "", "phone": "",
+        "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
+        "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
+    }
+    st.session_state["line_items"] = []
+    st.session_state["drop_fee_input"] = 0.0
+    st.session_state["freight_fee_input"] = 0.0
+    st.session_state["freight_notes"] = ""
+    st.session_state["tax_rate_pct_input"] = float(DEFAULT_TAX * 100)
+    st.session_state["sc_county_checkbox"] = False
+    st.session_state["footer_notes"] = (
+        "Pricing subject to change. Please review all details carefully.\n"
+        "International customers will be responsible for all duties and taxes upon delivery."
+    )
+    # Order/PO details
+    st.session_state["order_doc_number_pdf"] = ""
+    st.session_state["order_po_number"] = ""
+    st.session_state["order_operator"] = "CZ"
+    st.session_state["order_terms"] = "NET 30"
+    st.session_state["order_comm_to"] = ""
+    st.session_state["order_check_number"] = ""
+    st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
+
+    st.session_state["quote_no"] = new_quote_number()
+    # Force customer autofill to reset all fields
+    st.session_state["customer_key_suffix"] += 1
+    st.rerun()
+
+
+def assign_new_quote_version():
+    """Increments the version number of the current quote."""
+    current_quote_no = st.session_state["quote_no"]
+    base, version = re.match(r'(.+?)(?:-V(\d+))?$', current_quote_no).groups()
+    new_version = int(version or 0) + 1
+    st.session_state["quote_no"] = f"{base}-V{new_version}"
+    st.rerun()
+
+
 if "customer" not in st.session_state:
     st.session_state["customer"] = {
         "company": "", "name": "", "email": "", "phone": "",
@@ -289,10 +330,9 @@ if "sc_county_checkbox" not in st.session_state:
 if "freight_notes" not in st.session_state:
     st.session_state["freight_notes"] = ""
 
-# --- NEW: Order/PO Details Session State (Persisted on Load/Save) ---
+# Order/PO details init
 if "order_doc_number_pdf" not in st.session_state:
-    # This will hold the specific document number for the Order PDF
-    st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+    st.session_state["order_doc_number_pdf"] = ""
 if "order_po_number" not in st.session_state:
     st.session_state["order_po_number"] = ""
 if "order_operator" not in st.session_state:
@@ -304,267 +344,117 @@ if "order_comm_to" not in st.session_state:
 if "order_check_number" not in st.session_state:
     st.session_state["order_check_number"] = ""
 if "order_date_received" not in st.session_state:
-    # Use PT date for default date received
     st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
-
-
-# --- END NEW ORDER STATE ---
+if "pd_matches" not in st.session_state:
+    st.session_state["pd_matches"] = []
 
 
 # =============================================================================
-# 4. Helper Functions (Includes Pipedrive Logic and PDF Builder)
+# 4. Pipedrive Helpers
 # =============================================================================
-def start_new_quote():
-    for key in list(st.session_state.keys()):
-        # Only clear keys created by this app
-        if key in ["customer", "line_items", "quote_no", "footer_notes", "drop_fee_input", "freight_fee_input",
-                   "tax_rate_pct_input", "sc_county_checkbox", "freight_notes", "pd_matches", "rerun_flag",
-                   "customer_key_suffix",
-                   # --- NEW KEYS FOR ORDER META ---
-                   "order_po_number", "order_operator", "order_terms", "order_comm_to",
-                   "order_check_number", "order_date_received", "order_doc_number_pdf"]:
-            del st.session_state[key]
 
-    # Re-initialize the minimum required keys
-    st.session_state["quote_no"] = new_quote_number()
-    if "customer" not in st.session_state: st.session_state["customer"] = {}
-    st.session_state["line_items"] = []
-    st.session_state["customer_key_suffix"] = 0
-    if "footer_notes" not in st.session_state:
-        st.session_state["footer_notes"] = (
-            "Pricing subject to change. Please review all details carefully.\n"
-            "International customers will be responsible for all duties and taxes upon delivery."
-        )
-
-    # Re-initialize Order/PO fields with defaults (using PT date)
-    if "order_operator" not in st.session_state:
-        st.session_state["order_operator"] = "CZ"
-    if "order_terms" not in st.session_state:
-        st.session_state["order_terms"] = "NET 30"
-    if "order_date_received" not in st.session_state:
-        st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
-    if "order_doc_number_pdf" not in st.session_state:
-        # Crucial for the fix: ensures order doc # defaults to the new quote # on a fresh start
-        st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
-
-    st.rerun()
-
-
-def assign_new_quote_version():
-    """
-    Generates a new version number for the current quote (e.g., 20240101-1200 -> 20240101-1200-V1,
-    or 20240101-1200-V1 -> 20240101-1200-V2).
-    """
-    current_doc_no = st.session_state["quote_no"]
-    # Pattern to find -V# at the end of the quote number
-    match = re.search(r"-V(\d+)$", current_doc_no)
-
-    if match:
-        # Increment existing version
-        version_num = int(match.group(1))
-        new_version_num = version_num + 1
-        new_doc_no = re.sub(r"-V\d+$", f"-V{new_version_num}", current_doc_no)
-    else:
-        # Append V1. Ensure we only append if it looks like a base quote number (YYYYMMDD-HHMM)
-        if re.match(r"^\d{8}-\d{4}$", current_doc_no):
-            new_doc_no = f"{current_doc_no}-V1"
-        else:
-            # If it's not a standard quote number format, just treat it as a new standard quote
-            new_doc_no = new_quote_number()
-
-    st.session_state["quote_no"] = new_doc_no
-    st.session_state["order_doc_number_pdf"] = new_doc_no  # Ensure the Order doc also updates
-    # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset, useful when generating new versions
-    st.session_state["customer_key_suffix"] += 1
-    st.rerun()
-
-
-def _clean(val):
-    if val is None:
-        return ""
-    s = str(val).strip()
-    return "" if s in {"-", "—"} else s
-
-
-def _get_nested_field_value(data: dict, key: str) -> str:
-    """Extracts the 'value' of the first item from a Pipedrive field list (e.g., phone, email)."""
-    val = data.get(key)
-    if isinstance(val, list) and val:
-        first_item = val[0]
-        if isinstance(first_item, dict):
-            return _clean(first_item.get("value"))
-        elif isinstance(first_item, str):
-            return _clean(first_item)
-    return ""
-
-
-# --- Pipedrive Helpers ---
-def _pd_request(path: str, params: dict | None = None):
+def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
+    """Helper for Pipedrive API calls."""
     if not PIPEDRIVE_API_TOKEN:
-        print("PIPEDRIVE_API_TOKEN is missing or empty.", file=sys.stderr)
         return None
-
-    headers = {"Content-Type": "application/json"}
-    params = params or {}
-    params["api_token"] = PIPEDRIVE_API_TOKEN
-
-    url = f"{PIPEDRIVE_BASE_URL}/{path}"
-
+    url = f"{PIPEDRIVE_BASE_URL}/{endpoint}"
+    _params = {"api_token": PIPEDRIVE_API_TOKEN, "limit": 5, **(params or {})}
     try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        if response.status_code != 200:
-            print(f"Pipedrive API Error: {response.status_code} for URL: {url}", file=sys.stderr)
-            return None
-
+        response = requests.get(url, params=_params, timeout=5)
         response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Pipedrive network request failed for {url}: {e}", file=sys.stderr)
-        return None
-
-
-def _pd_scalar(v: Any):
-    if v is None:
-        return None
-    if isinstance(v, dict):
-        for k in ("value", "id", "name"):
-            if k in v and v[k] is not None:
-                return v[k]
-        return None
-    return v
-
-
-def pd_search_persons(term: str, limit: int = 10):
-    if not PIPEDRIVE_API_TOKEN: return []
-
-    data = _pd_request(
-        "persons/search",
-        {"term": term.strip(), "fields": "name,email", "exact_match": "false", "limit": limit}
-    )
-
-    if not data or not data.get("data"):
+        data = response.json()
+        return data["data"] if data and data.get("success") else []
+    except Exception as e:
+        print(f"Pipedrive API Error at {endpoint}: {e}", file=sys.stderr)
         return []
 
-    items = data["data"].get("items", [])
-    results = []
-    for it in items:
-        p = it.get("item", {})
-        email = _get_nested_field_value(p, "email")
 
-        results.append({
-            "id": p.get("id"),
-            "name": p.get("name") or "",
-            "email": email or "",
-        })
-    return results
+def _pd_scalar(data: Any) -> Any | None:
+    """Safely extracts the scalar value from a Pipedrive object/ID."""
+    if isinstance(data, dict):
+        return data.get("value")
+    return data
 
 
-def pd_get_person(person_id: int):
-    if not PIPEDRIVE_API_TOKEN: return None
-    data = _pd_request(f"persons/{person_id}")
-    return data.get("data") if data else None
+def pd_search_persons(term: str) -> list[dict]:
+    """Searches Pipedrive persons by term (name or email)."""
+    results = _pd_get("persons/search", {"term": term, "fields": "name,email", "search_by_email": 1})
+    if results and isinstance(results, dict) and "items" in results:
+        return [
+            {
+                "id": _pd_scalar(item["item"]["id"]),
+                "name": item["item"]["name"],
+                "email": item["item"]["emails"][0] if item["item"]["emails"] else "",
+            } for item in results["items"]
+        ]
+    return []
 
 
-def pd_get_org(org_id: int | None):
-    if not PIPEDRIVE_API_TOKEN or not org_id: return None
-    data = _pd_request(f"organizations/{org_id}")
-    return data.get("data") if data else None
+def pd_get_person(id: str | int) -> dict | None:
+    """Fetches a single person record."""
+    data = _pd_get(f"persons/{id}")
+    return data if isinstance(data, dict) else None
 
 
-def _parse_us_address(addr: str):
-    """
-    Robustly parses US address string (e.g., '123 Main St, Anytown, CA 90210, USA')
-    """
-    street = city = state = postal = ""
-    if not addr:
-        return street, city, state, postal
+def pd_get_org(id: str | int) -> dict | None:
+    """Fetches a single organization record."""
+    data = _pd_get(f"organizations/{id}")
+    return data if isinstance(data, dict) else None
 
-    addr = re.sub(r',\s*(USA|US|United States)$', '', addr, flags=re.IGNORECASE).strip()
-    parts = [p.strip() for p in addr.split(",") if p.strip()]
 
-    if not parts:
-        return street, city, state, postal
+def _clean(value: Any) -> str:
+    """Converts a value to a string and cleans up newlines/extra spaces."""
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        value = ", ".join([str(v) for v in value])
+    return str(value).strip()
 
-    city_state_zip_pattern = r"(.+?),\s*([A-Za-z]{2})(?:\s*(\d{5}(?:-\d{4})?))?$"
-    state_zip_pattern = r"([A-Za-z]{2})\s*(\d{5}(?:-\d{4})?)$"
 
-    if len(parts) >= 1:
-        tail = parts[-1]
-        m_csz = re.search(city_state_zip_pattern, tail)
+def _compose_street_from_parts(data: dict) -> str:
+    """Combines street address fields into one string, handling Pipedrive format."""
+    street_parts = []
+    # Pipedrive uses address_street_number, address_route, address_sublocality
+    if data.get("address_street_number"):
+        street_parts.append(data["address_street_number"])
+    if data.get("address_route"):
+        street_parts.append(data["address_route"])
+    if data.get("address_sublocality"):
+        street_parts.append(data["address_sublocality"])
 
-        if m_csz:
-            city, state, postal_match = m_csz.groups()
-            postal = postal_match or ""
-            street_remainder = tail[:m_csz.start()].strip().rstrip(',').strip()
+    # Fallback to a single street field if present
+    if not street_parts and data.get("address_street"):
+        street_parts.append(data["address_street"])
 
-            if street_remainder:
-                street = ", ".join(parts[:-1] + [street_remainder])
-            else:
-                street = ", ".join(parts[:-1])
+    return _clean(" ".join(street_parts))
 
-            if not street and len(parts) == 1 and m_csz.groups():
-                if m_csz.start() > 0:
-                    street_full = parts[0][:m_csz.start()].strip().rstrip(',').strip()
-                    if street_full:
-                        street = street_full
 
-            return street.strip(), city.strip(), state.strip(), postal.strip()
-
+def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
+    """Simple placeholder address parser (real implementation required for production)."""
+    # Placeholder: assumes the address is simple (line1, city, state, zip)
+    parts = [p.strip() for p in full_addr.split(',') if p.strip()]
     if len(parts) >= 3:
-        tail = parts[-1]
-        m_sz = re.search(state_zip_pattern, tail)
-
-        if m_sz:
-            state, postal = m_sz.groups()
-            city_part = tail[:m_sz.start()].strip().rstrip(',').strip()
-
-            if not city_part and len(parts) >= 2:
-                city = parts[-2]
-                street = ", ".join(parts[:-2])
-                return street.strip(), city.strip(), state.strip(), postal.strip()
-
-            elif city_part:
-                city = city_part
-                street = ", ".join(parts[:-1])
-                return street.strip(), city.strip(), state.strip(), postal.strip()
-
-    if len(parts) > 0:
+        # Example: '123 Main St, Anytown, CA 90210'
         street = parts[0]
-        if len(parts) > 1:
-            city = ", ".join(parts[1:])
+        city = parts[1]
+        state_zip = parts[-1].split()
+        state = state_zip[0] if len(state_zip) > 0 else ""
+        zip_code = state_zip[-1] if len(state_zip) > 1 else ""
+        return street, city, state, zip_code
 
-    return street.strip(), city.strip(), state.strip(), postal.strip()
-
-
-def _compose_street_from_parts(rec: dict | None) -> str:
-    rec = rec or {}
-    street = _clean(rec.get("address_street"))
-    if street:
-        base = street
-    else:
-        num = _clean(rec.get("address_street_number"))
-        route = _clean(rec.get("address_route"))
-        base = " ".join([p for p in [num, route] if p])
-    sub = _clean(rec.get("address_subpremise"))
-    if sub:
-        base = f"{base}, {sub}" if base else sub
-    return base
+    return "", "", "", ""
 
 
-def pd_person_to_customer(person: dict, org: dict | None) -> dict:
-    """
-    Prefer PERSON address (Details). Fill any missing pieces from ORG.
-    """
-    name = _clean(person.get("name"))
-    phone = _get_nested_field_value(person, "phone")
-    email = _get_nested_field_value(person, "email")
-
-    # Person Address Fields
+def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
+    """Maps Pipedrive Person and Organization data to the internal customer dict."""
+    # --- Person Address Fields ---
     p_street = _compose_street_from_parts(person)
     p_city = _clean(person.get("address_locality") or person.get("address_city"))
     p_state = _clean(person.get("address_admin_area_level_1") or person.get("address_state"))
     p_zip = _clean(person.get("address_postal_code") or person.get("address_zip"))
     p_addr_full = _clean(person.get("address_formatted_address") or person.get("address"))
+
+    # Parse full person address if parts are missing
     if p_addr_full and not (p_street and p_city and p_state and p_zip):
         s, c, st, z = _parse_us_address(p_addr_full)
         p_street = p_street or s
@@ -572,9 +462,15 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
         p_state = p_state or st
         p_zip = p_zip or z
 
-    # Organization Address Fields
+    # --- Person Contact Fields ---
+    name = _clean(person.get("name"))
+    # Pipedrive often returns emails/phones as lists/objects
+    email = _clean(_pd_scalar(person.get("email", [{}])[0]) if person.get("email") else "")
+    phone = _clean(_pd_scalar(person.get("phone", [{}])[0]) if person.get("phone") else "")
+
+    # --- Organization Address Fields (Fallback/Billing) ---
     company = _clean((org or {}).get("name"))
-    o_street = _compose_street_from_parts(org)
+    o_street = _compose_street_from_parts(org or {})
     o_city = _clean((org or {}).get("address_locality") or (org or {}).get("address_city"))
     o_state = _clean((org or {}).get("address_admin_area_level_1") or (org or {}).get("address_state"))
     o_zip = _clean((org or {}).get("address_postal_code") or (org or {}).get("address_zip"))
@@ -592,13 +488,26 @@ def pd_person_to_customer(person: dict, org: dict | None) -> dict:
     ship_state = p_state or o_state
     ship_zip = p_zip or o_zip
 
+    # For now, billing is the same as shipping for simplicity/default.
+    bill_addr1 = ship_addr1
+    bill_city = ship_city
+    bill_state = ship_state
+    bill_zip = ship_zip
+
+    # If organization data exists, use organization address for billing if person address was used for shipping
+    if org and (p_street or p_city or p_state or p_zip):
+        bill_addr1 = o_street
+        bill_city = o_city
+        bill_state = o_state
+        bill_zip = o_zip
+
     return {
         "company": company,
         "name": name,
         "email": email,
         "phone": phone,
         "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
-        "bill_addr1": ship_addr1, "bill_city": ship_city, "bill_state": ship_state, "bill_zip": ship_zip,
+        "bill_addr1": bill_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
     }
 
 
@@ -644,12 +553,12 @@ def ensure_course_discount(items: list[dict]) -> None:
     DISCOUNT_NOTE = "Auto-applied for 9+ Mach 5/7/X baskets"
 
     if qty >= 9:
-        existing_notes = items[idx]["notes"] if idx != -1 else ""
+        existing_notes = items[idx]["notes"] if idx != -1 and "notes" in items[idx] else ""
         note_to_use = existing_notes if (
                 existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
 
         disc_line = {
-            "id": items[idx]["id"] if idx != -1 else str(uuid.uuid4()),
+            "id": items[idx]["id"] if idx != -1 and "id" in items[idx] else str(uuid.uuid4()),
             "sku": "CD",
             "name": "Course Discount (-$100 per qualifying basket)",
             "qty": qty,
@@ -829,7 +738,10 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         t_li.hAlign = 'LEFT'
         story += [t_li]
 
-        freight_notes_txt = st.session_state.get("freight_notes", "").strip()
+        freight_notes_txt = meta.get("freight_notes", "").strip()  # Use meta/payload if available, else session
+        if not freight_notes_txt and st.session_state.get("freight_notes"):
+            freight_notes_txt = st.session_state["freight_notes"].strip()
+
         if freight_notes_txt:
             story += [Spacer(1, 4),
                       Paragraph(f"<b>Freight Notes:</b> {freight_notes_txt}", notes_style_2)]
@@ -1016,7 +928,10 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         t_li.hAlign = 'LEFT'
         story += [t_li, Spacer(1, 12)]
 
-        freight_notes_txt = st.session_state.get("freight_notes", "").strip()
+        freight_notes_txt = meta.get("freight_notes", "").strip()  # Use meta/payload if available, else session
+        if not freight_notes_txt and st.session_state.get("freight_notes"):
+            freight_notes_txt = st.session_state["freight_notes"].strip()
+
         if freight_notes_txt:
             story += [Spacer(1, 4),
                       Paragraph(f"<b>Freight Notes:</b> {freight_notes_txt}", notes_style_2)]
@@ -1166,25 +1081,25 @@ def main_app():
 
     # <<< UI FIX START: CSS Injection and Column Adjustment >>>
     # -------------------------------------------------------------------------
-    # UI FIX: Inject CSS to prevent button wrapping and align them properly
+    # UI FIX: Inject CSS to ensure buttons are vertically aligned and don't wrap.
     # -------------------------------------------------------------------------
     st.markdown("""
         <style>
-            /* Target Streamlit buttons specifically within the header columns */
+            /* Prevents the header buttons from wrapping */
             .stButton>button {
-                white-space: nowrap !important; /* Prevent text wrap */
-                display: block; /* Ensure the button is block-level */
-                height: 100%; /* Make sure buttons align vertically */
-                font-size: 14px; /* Optional: Make font slightly smaller if needed */
+                white-space: nowrap !important;
+                font-size: 14px;
+                line-height: 1.0; /* Smaller line-height for better fit */
             }
 
-            /* Target the specific columns containing the buttons to align items center vertically */
-            /* This selector targets the 4th and 5th columns in the first st.columns call in the main body */
-            div[data-testid="stVerticalBlock"] > div:nth-child(1) > div > div:nth-child(4),
-            div[data-testid="stVerticalBlock"] > div:nth-child(1) > div > div:nth-child(5) {
+            /* Targets the containers holding the buttons to apply flexbox properties for vertical centering */
+            /* This targets the column divs in the first st.columns call */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) > div:nth-child(4),
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) > div:nth-child(5) {
                 display: flex;
                 align-items: center; /* Vertically center the button */
-                justify-content: flex-start; /* Align button to the left of its column */
+                padding-top: 1.25rem; /* Add padding to match the top of the selectbox label */
+                min-height: 60px; /* Ensure a consistent minimum height for alignment */
             }
         </style>
     """, unsafe_allow_html=True)
@@ -1196,8 +1111,8 @@ def main_app():
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
-    # MODIFIED: Adjusted ratios to give button columns (4 & 5) more relative space (1.0 vs original 0.4)
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([0.8, 1.0, 0.6, 1.0, 1.0])
+    # MODIFIED: Adjusted ratios to [1.0, 1.2, 0.6, 0.7, 0.7] for better centered layout balance
+    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.2, 0.6, 0.7, 0.7])
     # <<< UI FIX END >>>
 
     # Set the key suffix for all customer inputs
