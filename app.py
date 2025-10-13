@@ -62,10 +62,9 @@ PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
 # --- GOOGLE SHEETS CONFIGURATION ---
-# **ENSURE THIS MATCHES THE TITLE OF THE SHEET YOU CREATED AND SHARED**
-GOOGLE_SHEET_TITLE = "DGA Quoting Database"
-
-
+# The ID is the long string in the middle of the URL:
+# https://docs.google.com/spreadsheets/d/1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80/edit
+GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 # -----------------------------------
 
 
@@ -136,8 +135,8 @@ def load_all_quotes() -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        # FIX: client.open_by_title(GOOGLE_SHEET_TITLE) -> client.open(GOOGLE_SHEET_TITLE)
-        sh = client.open(GOOGLE_SHEET_TITLE)
+        # FIX: Use open_by_key instead of open or open_by_title for reliability
+        sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
 
         data = worksheet.get_all_records()
@@ -152,7 +151,7 @@ def load_all_quotes() -> pd.DataFrame:
         return df.dropna(subset=['Payload'])
 
     except gspread.exceptions.SpreadsheetNotFound:
-        st.error(f"Google Sheet with title '{GOOGLE_SHEET_TITLE}' not found. Check title and sharing.")
+        st.error(f"Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and sharing.")
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Error loading quotes from sheet: {e}")
@@ -166,8 +165,8 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         return False
 
     try:
-        # FIX: client.open_by_title(GOOGLE_SHEET_TITLE) -> client.open(GOOGLE_SHEET_TITLE)
-        sh = client.open(GOOGLE_SHEET_TITLE)
+        # FIX: Use open_by_key instead of open or open_by_title for reliability
+        sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
 
         # Prepare the row data for the Sheet's main columns (A to G)
@@ -1050,6 +1049,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     doc.build(story)
     return buffer.getvalue()
+
 
 # =============================================================================
 # 5. Main Application Logic
