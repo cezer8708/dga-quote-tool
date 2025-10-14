@@ -253,8 +253,11 @@ def new_quote_number():
 def start_new_quote():
     """Resets the state to begin a new quote."""
     st.session_state["customer"] = {
+        # SHIP-TO info (usually person/org combo, but often just person)
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
+        # BILL-TO info (Org-specific)
+        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",  # <--- ADDED bill_name
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
     st.session_state["line_items"] = []
@@ -293,8 +296,11 @@ def assign_new_quote_version():
 
 if "customer" not in st.session_state:
     st.session_state["customer"] = {
+        # SHIP-TO info (These are the fields currently displayed/modified)
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
+        # BILL-TO info (Added separate fields for locked info)
+        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",  # <--- ADDED bill_name
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
 
@@ -415,15 +421,15 @@ def _compose_street_from_parts(data: dict) -> str:
     """Combines street address fields into one string, handling Pipedrive format."""
     street_parts = []
     # Pipedrive uses address_street_number, address_route, address_sublocality
-    if data.get("address_street_number"):
+    if data and data.get("address_street_number"):
         street_parts.append(data["address_street_number"])
-    if data.get("address_route"):
+    if data and data.get("address_route"):
         street_parts.append(data["address_route"])
-    if data.get("address_sublocality"):
+    if data and data.get("address_sublocality"):
         street_parts.append(data["address_sublocality"])
 
     # Fallback to a single street field if present
-    if not street_parts and data.get("address_street"):
+    if not street_parts and data and data.get("address_street"):
         street_parts.append(data["address_street"])
 
     return _clean(" ".join(street_parts))
@@ -447,6 +453,7 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
 
 def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     """Maps Pipedrive Person and Organization data to the internal customer dict."""
+
     # --- Person Address Fields ---
     p_street = _compose_street_from_parts(person)
     p_city = _clean(person.get("address_locality") or person.get("address_city"))
@@ -462,19 +469,26 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
         p_state = p_state or st
         p_zip = p_zip or z
 
-    # --- Person Contact Fields ---
+    # --- Person Contact Fields (for Shipping/Contact block) ---
     name = _clean(person.get("name"))
     # Pipedrive often returns emails/phones as lists/objects
     email = _clean(_pd_scalar(person.get("email", [{}])[0]) if person.get("email") else "")
     phone = _clean(_pd_scalar(person.get("phone", [{}])[0]) if person.get("phone") else "")
+    company = _clean((org or {}).get("name") or "")  # Use Org name as main company field
 
-    # --- Organization Address Fields (Fallback/Billing) ---
-    company = _clean((org or {}).get("name"))
+    # --- Organization Fields (for Billing/Org info) ---
+    bill_company = _clean((org or {}).get("name") or "")
+    bill_name = name  # <--- NEW: Default Bill Name to Person Name
+    bill_email = _clean(_pd_scalar((org or {}).get("email", [{}])[0]) if (org or {}).get("email") else "")
+    bill_phone = _clean(_pd_scalar((org or {}).get("phone", [{}])[0]) if (org or {}).get("phone") else "")
+
+    # --- Organization Address Fields (Billing/Fallback) ---
     o_street = _compose_street_from_parts(org or {})
     o_city = _clean((org or {}).get("address_locality") or (org or {}).get("address_city"))
     o_state = _clean((org or {}).get("address_admin_area_level_1") or (org or {}).get("address_state"))
     o_zip = _clean((org or {}).get("address_postal_code") or (org or {}).get("address_zip"))
     o_addr_full = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
+
     if o_addr_full and not (o_street and o_city and o_state and o_zip):
         s, c, st, z = _parse_us_address(o_addr_full)
         o_street = o_street or s
@@ -482,31 +496,38 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
         o_state = o_state or st
         o_zip = o_zip or z
 
-    # Map to Customer (Person address takes precedence for shipping)
+    # --- SHIPPING ADDRESS LOGIC (Prioritize Person's Address) ---
     ship_addr1 = p_street or o_street
     ship_city = p_city or o_city
     ship_state = p_state or o_state
     ship_zip = p_zip or o_zip
 
-    # For now, billing is the same as shipping for simplicity/default.
-    bill_addr1 = ship_addr1
-    bill_city = ship_city
-    bill_state = ship_state
-    bill_zip = ship_zip
-
-    # If organization data exists, use organization address for billing if person address was used for shipping
-    if org and (p_street or p_city or p_state or p_zip):
+    # --- BILLING ADDRESS LOGIC (Prioritize Organization's Address) ---
+    # If Org data exists and has an address, use it. Otherwise, fall back to the ship address.
+    if org and (o_street or o_city or o_state or o_zip):
         bill_addr1 = o_street
         bill_city = o_city
         bill_state = o_state
         bill_zip = o_zip
+    else:
+        # Fallback to shipping address if no separate organization address exists
+        bill_addr1 = ship_addr1
+        bill_city = ship_city
+        bill_state = ship_state
+        bill_zip = ship_zip
 
     return {
-        "company": company,
+        # SHIPPING/CONTACT INFO
+        "company": company,  # Company name displayed in the left block (Org name)
         "name": name,
         "email": email,
         "phone": phone,
         "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
+        # BILLING INFO (UNLOCKED/SEPARATED)
+        "bill_company": bill_company,
+        "bill_name": bill_name,  # <--- USED NEW bill_name KEY
+        "bill_email": bill_email,
+        "bill_phone": bill_phone,
         "bill_addr1": bill_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
     }
 
@@ -677,14 +698,15 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"Date Received: {meta.get('date_received', '')}"
         )
 
+        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block_order = (
             f"<b>Billing Address</b><br/>"
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
+            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"  # <--- USING bill_name
             f"{customer.get('bill_addr1', '')}<br/>"
             f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}"
+            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
+            f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
         addr_data = [
@@ -877,14 +899,15 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"{customer.get('email', '')}"
         )
 
+        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block = (
             f"<b>Billing Address</b><br/>"
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
+            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"  # <--- USING bill_name
             f"{customer.get('bill_addr1', '')}<br/>"
             f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}"
+            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
+            f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
         t = Table([
@@ -1162,6 +1185,7 @@ def main_app():
                     payload = target_row_df.iloc[-1]['Payload']  # Get the latest version
 
                     # Apply payload data to session state
+                    # NOTE: The customer dictionary now includes bill_name, bill_company, bill_email, bill_phone keys
                     st.session_state["customer"] = payload.get("customer", {})
                     st.session_state["line_items"] = payload.get("line_items", [])
                     fees = payload.get("fees", {})
@@ -1270,44 +1294,53 @@ def main_app():
 
         # --- SHIPPING ADDRESS (LEFT COLUMN) ---
         with cols_addr[0]:
-            st.subheader("Shipping Address")
+            st.subheader("Shipping Address (Contact Details)")
             # NOTE: All customer keys now include the dynamic suffix
-            c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
-            c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
-            c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
-            c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
-            c["ship_addr1"] = st.text_area("Address (Ship)", value=c.get("ship_addr1", ""),
+            c["company"] = st.text_input("Company (Ship)", value=c.get("company", ""),
+                                         key=f"ship_company_{cust_key_suffix}")
+            c["name"] = st.text_input("Name (Ship)", value=c.get("name", ""),
+                                      key=f"ship_contact_name_{cust_key_suffix}")
+            c["phone"] = st.text_input("Phone (Ship)", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
+            c["email"] = st.text_input("Email (Ship)", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
+            c["ship_addr1"] = st.text_area("Address Line 1 (Ship)", value=c.get("ship_addr1", ""),
                                            key=f"ship_addr1_{cust_key_suffix}")
             sc1, sc2, sc3 = st.columns(3)
-            c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""),
+            c["ship_city"] = sc1.text_input("City (Ship)", value=c.get("ship_city", ""),
                                             key=f"ship_city_input_{cust_key_suffix}")
-            c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""),
+            c["ship_state"] = sc2.text_input("State (Ship)", value=c.get("ship_state", ""),
                                              key=f"ship_state_input_{cust_key_suffix}")
-            c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
+            c["ship_zip"] = sc3.text_input("Zip (Ship)", value=c.get("ship_zip", ""),
+                                           key=f"ship_zip_input_{cust_key_suffix}")
 
         # --- BILLING ADDRESS (RIGHT COLUMN) ---
         with cols_addr[1]:
             st.subheader("Billing Address")
 
-            # Dummy inputs for alignment
-            st.text_input("Company", value="", disabled=True, label_visibility="hidden",
-                          key=f"bill_dummy_comp_{cust_key_suffix}")
-            st.text_input("Name", value="", disabled=True, label_visibility="hidden",
-                          key=f"bill_dummy_name_{cust_key_suffix}")
-            st.text_input("Phone", value="", disabled=True, label_visibility="hidden",
-                          key=f"bill_dummy_phone_{cust_key_suffix}")
-            st.text_input("Email", value="", disabled=True, label_visibility="hidden",
-                          key=f"bill_dummy_email_{cust_key_suffix}")
+            # FIX: Unlock Company/Phone/Email for Bill-To
+            c["bill_company"] = st.text_input("Company (Bill)", value=c.get("bill_company", c.get("company", "")),
+                                              key=f"bill_company_{cust_key_suffix}")
+
+            # FIX: UNLOCK NAME FIELD. Use a unique key and the bill_name field.
+            c["bill_name"] = st.text_input("Name (Bill)", value=c.get("bill_name", c.get("name", "")),
+                                           # Use bill_name key
+                                           key=f"bill_name_input_{cust_key_suffix}",  # New key for editable input
+                                           help="This is the contact person for billing.")
+
+            c["bill_phone"] = st.text_input("Phone (Bill)", value=c.get("bill_phone", c.get("phone", "")),
+                                            key=f"bill_phone_{cust_key_suffix}")
+            c["bill_email"] = st.text_input("Email (Bill)", value=c.get("bill_email", c.get("email", "")),
+                                            key=f"bill_email_{cust_key_suffix}")
 
             # Now the main address text area should align
-            c["bill_addr1"] = st.text_area("Address (Bill)", value=c.get("bill_addr1", ""),
+            c["bill_addr1"] = st.text_area("Address Line 1 (Bill)", value=c.get("bill_addr1", ""),
                                            key=f"bill_addr1_{cust_key_suffix}")
             bc1, bc2, bc3 = st.columns(3)
-            c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""),
+            c["bill_city"] = bc1.text_input("City (Bill)", value=c.get("bill_city", ""),
                                             key=f"bill_city_input_{cust_key_suffix}")
-            c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
+            c["bill_state"] = bc2.text_input("State (Bill)", value=c.get("bill_state", ""),
                                              key=f"bill_state_input_{cust_key_suffix}")
-            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
+            c["bill_zip"] = bc3.text_input("Zip (Bill)", value=c.get("bill_zip", ""),
+                                           key=f"bill_zip_input_{cust_key_suffix}")
 
     st.divider()
 
