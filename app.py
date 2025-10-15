@@ -8,7 +8,7 @@ import re
 import sys
 from typing import Any
 import pytz
-import html.parser  # <-- NEW: Added html.parser for robust HTML tag parsing
+import html.parser
 
 import pandas as pd
 import streamlit as st
@@ -354,7 +354,7 @@ if "pd_matches" not in st.session_state:
 
 
 # =============================================================================
-# 4. Pipedrive Helpers (FINAL, ROBUST ADDRESS EXTRACTION FIX v3)
+# 4. Pipedrive Helpers
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -421,7 +421,7 @@ def _clean(value: Any) -> str:
     return str(value).strip()
 
 
-# --- START: HTML Parser Class and Extractor Function (Working) ---
+# --- START: HTML Parser Class and Extractor Function (FIXED for JSON and undefined name) ---
 
 class _ATagTextExtractor(html.parser.HTMLParser):
     """A minimal parser to extract text from the first <a> tag it finds."""
@@ -447,36 +447,121 @@ class _ATagTextExtractor(html.parser.HTMLParser):
 
 
 def _extract_text_from_a_tag(html_string: str) -> str:
-    """Uses the HTML parser to extract content from the <a> tag reliably."""
-    if not html_string or '<a' not in html_string.lower():
+    """Helper to parse the Pipedrive HTML links using the custom class."""
+    if not html_string or "<a" not in html_string.lower():
         return ""
-
     parser = _ATagTextExtractor()
     try:
         parser.feed(html_string)
         parser.close()
-        # Ensure we only return data if a tag was actually found
-        return parser.data if parser.found else ""
+        return parser.data
     except Exception:
-        # Fallback if parsing fails
+        # Ignore any parsing errors and return nothing if it fails
         return ""
 
 
-def _extract_address_from_html(html_string: str) -> str:
+def _extract_address_from_html(raw_input: Any) -> str:
     """
-    Extracts the address text from Pipedrive's address field,
-    prioritizing text inside the <a> tag if HTML is present.
+    Robustly extracts the address from Pipedrive, handling:
+    1. A raw string that is actually a JSON object containing address details (most common fix).
+    2. A raw string containing HTML (with optional <a> tag).
+    3. A simple string.
     """
-    clean_addr = _extract_text_from_a_tag(html_string)
 
+    # Ensure raw_input is a string for cleaning/parsing checks
+    if raw_input is None:
+        return ""
+
+    html_string = _clean(raw_input)
+
+    # --- 1. JSON Parsing Check (For complex address objects) ---
+    if html_string.startswith("{") and html_string.endswith("}"):
+        try:
+            addr_obj = json.loads(html_string)
+            # The most common Pipedrive key for the full address string is 'formatted_address'
+            if isinstance(addr_obj, dict) and addr_obj.get("formatted_address"):
+                return _clean(addr_obj["formatted_address"])
+            # Fallback for address field which sometimes just contains the street in a key like 'label'
+            return _clean(addr_obj.get("label", ""))
+        except json.JSONDecodeError:
+            pass  # Not a valid JSON string, proceed to HTML/string parsing
+
+    # --- 2. HTML Parsing Check (For Pipedrive's internal <a> tag formatting) ---
+    # This now correctly calls the defined helper function:
+    clean_addr = _extract_text_from_a_tag(html_string)
     if clean_addr:
         return _clean(clean_addr)
 
-    # Fallback to the original clean method if no <a> tag was found or extraction failed.
-    return _clean(html_string)
+    # --- 3. Simple String Fallback ---
+    return html_string
 
 
 # --- END: HTML Parser Class and Extractor Function ---
+
+# --- START: Robust Address Builder for Components ---
+def _get_address_from_components(entity: dict, addr_type: str) -> str:
+    """
+    Constructs a full address string from individual Pipedrive address components
+    if the main formatted address field is empty.
+    addr_type should be 'address' (for person) or 'org_address' (for organization)
+    """
+    parts = []
+
+    # 1. Street / Line 1
+    # Pipedrive's 'address' object contains sub-keys like 'street_number', 'route', 'sublocality'
+    # Fallback to the individual address component fields which are often populated:
+    street_parts = []
+    # Check common Pipedrive component fields for street information
+    for key in ['street_number', 'route', 'sublocality', 'address_line_1']:
+        if entity.get(f"{addr_type}_{key}"):
+            street_parts.append(_clean(entity[f"{addr_type}_{key}"]))
+
+    # If standard components are missing, check the original top-level address fields
+    if not street_parts and entity.get(f"{addr_type}_street"):
+        street_parts.append(_clean(entity[f"{addr_type}_street"]))
+
+    if street_parts:
+        parts.append(" ".join(street_parts))
+
+    # 2. City
+    if entity.get(f"{addr_type}_locality"):
+        parts.append(_clean(entity[f"{addr_type}_locality"]))
+    elif entity.get(f"{addr_type}_city"):
+        parts.append(_clean(entity[f"{addr_type}_city"]))
+
+    # 3. State and Postal Code
+    state_zip = []
+
+    # State/Region (admin_area_level_1)
+    state = None
+    if entity.get(f"{addr_type}_admin_area_level_1"):
+        state = _clean(entity[f"{addr_type}_admin_area_level_1"])
+    elif entity.get(f"{addr_type}_state"):
+        state = _clean(entity[f"{addr_type}_state"])
+
+    # Zip/Postal Code
+    zip_code = None
+    if entity.get(f"{addr_type}_postal_code"):
+        zip_code = _clean(entity[f"{addr_type}_postal_code"])
+    elif entity.get(f"{addr_type}_zip"):
+        zip_code = _clean(entity[f"{addr_type}_zip"])
+
+    # Combine State and Zip if they exist, then add to parts
+    if state and zip_code:
+        parts.append(f"{state} {zip_code}")
+    elif state:
+        parts.append(state)
+    elif zip_code:
+        parts.append(zip_code)
+
+    # 4. Country (optional, but helpful for parsing)
+    if entity.get(f"{addr_type}_country_code"):
+        parts.append(_clean(entity[f"{addr_type}_country_code"]))
+
+    return ", ".join(parts)
+
+
+# --- END: Robust Address Builder for Components ---
 
 
 def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
@@ -488,8 +573,7 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
     if not full_addr:
         return "", "", "", ""
 
-    # Split the address by commas. Example:
-    # '102 North Broadway Street, Lewistown, IL, USA' -> ['102 North Broadway Street', 'Lewistown', 'IL', 'USA']
+    # Example: '102 North Broadway Street, Lewistown, IL 61477, USA'
     parts = [p.strip() for p in full_addr.split(',') if p.strip()]
 
     street = ""
@@ -497,45 +581,44 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
     state = ""
     zip_code = ""
 
-    # Must have at least street, city, and state/zip components
-    if len(parts) >= 3:
+    if len(parts) >= 1:
         street = parts[0]
+
+    if len(parts) >= 2:
         city = parts[1]
 
-        # The third part usually contains State and Zip, potentially with extra text like Country.
-        state_zip_part = parts[2]
+    if len(parts) >= 3:
+        # The third part usually contains State and Zip
+        state_zip_part = parts[2].upper()
 
         # Simple split by space to get State and Zip
-        sz_parts = [p.strip().upper() for p in state_zip_part.split() if p.strip()]
+        sz_parts = [p.strip() for p in state_zip_part.split() if p.strip()]
 
-        if sz_parts:
-            # Assume the first non-numeric part is the State code
-            for part in sz_parts:
-                if len(part) == 2 and part.isalpha():
-                    state = part
-                elif part.isdigit() and len(part) >= 5 and not zip_code:
-                    # Take the first 5-digit or longer numeric string as the zip
-                    zip_code = part
+        for part in sz_parts:
+            # 2-letter state code
+            if len(part) == 2 and part.isalpha() and not state:
+                state = part
+            # 5-digit or longer numeric string as the zip
+            elif part.isdigit() and len(part) >= 5 and not zip_code:
+                zip_code = part
 
-                # If we've found both, we can stop processing this part
-                if state and zip_code:
-                    break
+            # Stop if both are found
+            if state and zip_code:
+                break
 
-        # If State wasn't found (e.g., 'IL 61477'), try to infer from the structure
-        if not state and len(sz_parts) >= 1 and len(sz_parts[0]) == 2 and sz_parts[0].isalpha():
-            state = sz_parts[0]
-
-        # If Zip wasn't found (e.g., 'IL' and nothing else), try to get it from the last element if it looks like a zip
-        if not zip_code and len(sz_parts) > 1 and sz_parts[-1].isdigit() and len(sz_parts[-1]) >= 5:
-            zip_code = sz_parts[-1]
+        # Final cleanup/fallback for state/zip if they are in the third part but not space-separated
+        if not state and len(state_zip_part) == 2 and state_zip_part.isalpha():
+            state = state_zip_part
+        if not zip_code and len(state_zip_part) >= 5 and state_zip_part.isdigit():
+            zip_code = state_zip_part
 
     return _clean(street), _clean(city), _clean(state), _clean(zip_code)
 
 
 def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     """
-    Maps Pipedrive Person and Organization data to the internal customer dict.
-    Restored reliable extraction of Name, Email, Phone, and Org Name.
+    Maps Pipedrive Person and Organization data to the internal customer dict,
+    now with robust fallbacks for blank formatted address fields.
     """
 
     # --- 1. CORE CONTACT FIELDS (from Person object) ---
@@ -544,30 +627,35 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     phone = _clean(_pd_scalar(person.get("phone")))
 
     # --- 2. ORGANIZATION/COMPANY FIELDS (from Org object) ---
-    company = _clean((org or {}).get("name") or "")  # Use Org name as main company field
+    company = _clean((org or {}).get("name") or "")
     bill_company = company
-
-    # Billing contact info (use Person as fallback for bill-to contact)
     bill_name = name
     bill_phone = phone
     bill_email = email
 
-    # Use Org's contact info if available (often blank/unreliable, but follow Pipedrive structure)
     if org:
         org_email = _clean(_pd_scalar(org.get("email")))
         org_phone = _clean(_pd_scalar(org.get("phone")))
         bill_email = org_email or bill_email
         bill_phone = org_phone or bill_phone
 
-    # --- 3. ADDRESS FIELDS ---
-    p_addr_raw = _clean(person.get("address_formatted_address") or person.get("address"))
-    o_addr_raw = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
+    # --- 3. ADDRESS FIELDS (ROBUST EXTRACTION) ---
+    p_addr_formatted = _clean(person.get("address_formatted_address") or person.get("address"))
+    o_addr_formatted = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
 
-    st.error(f"RAW Pipedrive Address (Person): {p_addr_raw}")
-    st.error(f"RAW Pipedrive Address (Org): {o_addr_raw}")
+    # 1. Try formatted address and clean the raw input (NEW: handles JSON and HTML)
+    p_addr_full = _extract_address_from_html(p_addr_formatted)
+    o_addr_full = _extract_address_from_html(o_addr_formatted)
 
-    p_addr_full = _extract_address_from_html(p_addr_raw)
-    o_addr_full = _extract_address_from_html(o_addr_raw)
+    # 2. If still empty, construct from components (Fallback)
+    if not p_addr_full:
+        p_addr_full = _get_address_from_components(person, 'address')
+    if not o_addr_full and org:
+        o_addr_full = _get_address_from_components(org, 'org_address')
+
+    # Optional debug print for the final string fed to the parser:
+    # print(f"\n[DEBUG] FINAL Address (Person): {p_addr_full}")
+    # print(f"[DEBUG] FINAL Address (Org): {o_addr_full}\n")
 
     p_street, p_city, p_state, p_zip = _parse_us_address(p_addr_full)
     o_street, o_city, o_state, o_zip = _parse_us_address(o_addr_full)
@@ -719,9 +807,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
             logo.hAlign = 'LEFT'
             company_info_block = _company_right_block(styles)
-            left_block = [logo, Spacer(1, 4), company_info_block]
+            left_logo_block = [logo, Spacer(1, 4), company_info_block]
 
-            hdr = Table([[left_block, ""]], colWidths=[3.75 * inch, 3.75 * inch])
+            hdr = Table([[left_logo_block, ""]], colWidths=[3.75 * inch, 3.75 * inch])
             hdr.setStyle(TableStyle([
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                 ('LEFTPADDING', (0, 0), (-1, -1), 0),
