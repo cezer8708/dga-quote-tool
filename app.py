@@ -1296,20 +1296,20 @@ def main_app():
         with cols_addr[0]:
             st.subheader("Shipping Address")
             # NOTE: All customer keys now include the dynamic suffix
-            c["company"] = st.text_input("Company (Ship)", value=c.get("company", ""),
+            c["company"] = st.text_input("Company", value=c.get("company", ""),
                                          key=f"ship_company_{cust_key_suffix}")
-            c["name"] = st.text_input("Name (Ship)", value=c.get("name", ""),
+            c["name"] = st.text_input("Name", value=c.get("name", ""),
                                       key=f"ship_contact_name_{cust_key_suffix}")
-            c["phone"] = st.text_input("Phone (Ship)", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
-            c["email"] = st.text_input("Email (Ship)", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
-            c["ship_addr1"] = st.text_area("Address Line 1 (Ship)", value=c.get("ship_addr1", ""),
+            c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
+            c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
+            c["ship_addr1"] = st.text_area("Address Line 1", value=c.get("ship_addr1", ""),
                                            key=f"ship_addr1_{cust_key_suffix}")
             sc1, sc2, sc3 = st.columns(3)
-            c["ship_city"] = sc1.text_input("City (Ship)", value=c.get("ship_city", ""),
+            c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""),
                                             key=f"ship_city_input_{cust_key_suffix}")
-            c["ship_state"] = sc2.text_input("State (Ship)", value=c.get("ship_state", ""),
+            c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""),
                                              key=f"ship_state_input_{cust_key_suffix}")
-            c["ship_zip"] = sc3.text_input("Zip (Ship)", value=c.get("ship_zip", ""),
+            c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""),
                                            key=f"ship_zip_input_{cust_key_suffix}")
 
         # --- BILLING ADDRESS (RIGHT COLUMN) ---
@@ -1317,29 +1317,29 @@ def main_app():
             st.subheader("Billing Address")
 
             # FIX: Unlock Company/Phone/Email for Bill-To
-            c["bill_company"] = st.text_input("Company (Bill)", value=c.get("bill_company", c.get("company", "")),
+            c["bill_company"] = st.text_input("Company", value=c.get("bill_company", c.get("company", "")),
                                               key=f"bill_company_{cust_key_suffix}")
 
             # FIX: UNLOCK NAME FIELD. Use a unique key and the bill_name field.
-            c["bill_name"] = st.text_input("Name (Bill)", value=c.get("bill_name", c.get("name", "")),
+            c["bill_name"] = st.text_input("Name", value=c.get("bill_name", c.get("name", "")),
                                            # Use bill_name key
                                            key=f"bill_name_input_{cust_key_suffix}",  # New key for editable input
                                            help="This is the contact person for billing.")
 
-            c["bill_phone"] = st.text_input("Phone (Bill)", value=c.get("bill_phone", c.get("phone", "")),
+            c["bill_phone"] = st.text_input("Phone", value=c.get("bill_phone", c.get("phone", "")),
                                             key=f"bill_phone_{cust_key_suffix}")
-            c["bill_email"] = st.text_input("Email (Bill)", value=c.get("bill_email", c.get("email", "")),
+            c["bill_email"] = st.text_input("Email", value=c.get("bill_email", c.get("email", "")),
                                             key=f"bill_email_{cust_key_suffix}")
 
             # Now the main address text area should align
-            c["bill_addr1"] = st.text_area("Address Line 1 (Bill)", value=c.get("bill_addr1", ""),
+            c["bill_addr1"] = st.text_area("Address Line 1 ", value=c.get("bill_addr1", ""),
                                            key=f"bill_addr1_{cust_key_suffix}")
             bc1, bc2, bc3 = st.columns(3)
-            c["bill_city"] = bc1.text_input("City (Bill)", value=c.get("bill_city", ""),
+            c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""),
                                             key=f"bill_city_input_{cust_key_suffix}")
-            c["bill_state"] = bc2.text_input("State (Bill)", value=c.get("bill_state", ""),
+            c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
                                              key=f"bill_state_input_{cust_key_suffix}")
-            c["bill_zip"] = bc3.text_input("Zip (Bill)", value=c.get("bill_zip", ""),
+            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""),
                                            key=f"bill_zip_input_{cust_key_suffix}")
 
     st.divider()
