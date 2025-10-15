@@ -1294,7 +1294,7 @@ def main_app():
 
         # --- SHIPPING ADDRESS (LEFT COLUMN) ---
         with cols_addr[0]:
-            st.subheader("Shipping Address (Contact Details)")
+            st.subheader("Shipping Address")
             # NOTE: All customer keys now include the dynamic suffix
             c["company"] = st.text_input("Company (Ship)", value=c.get("company", ""),
                                          key=f"ship_company_{cust_key_suffix}")
