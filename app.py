@@ -62,8 +62,6 @@ PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
 # --- GOOGLE SHEETS CONFIGURATION ---
-# The ID is the long string in the middle of the URL:
-# https://docs.google.com/spreadsheets/d/1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80/edit
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 
 
@@ -172,8 +170,6 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         worksheet = sh.get_worksheet(0)
 
         # Extract the order document number for saving if it's an order payload
-        # This number can be the original quote # (e.g., 20241013-1430) or a versioned quote (V1, V2)
-        # or a new PO/Order document number if explicitly entered in the Order/PO Details section.
         doc_number = payload["order_meta"].get("order_doc_number") or payload.get("quote_no")
 
         # Prepare the row data for the Sheet's main columns (A to G)
@@ -257,7 +253,7 @@ def start_new_quote():
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
         # BILL-TO info (Org-specific)
-        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",  # <--- ADDED bill_name
+        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
     st.session_state["line_items"] = []
@@ -300,7 +296,7 @@ if "customer" not in st.session_state:
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
         # BILL-TO info (Added separate fields for locked info)
-        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",  # <--- ADDED bill_name
+        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
 
@@ -356,7 +352,7 @@ if "pd_matches" not in st.session_state:
 
 
 # =============================================================================
-# 4. Pipedrive Helpers
+# 4. Pipedrive Helpers (FINAL, ROBUST ADDRESS EXTRACTION FIX v2)
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -371,14 +367,19 @@ def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
         data = response.json()
         return data["data"] if data and data.get("success") else []
     except Exception as e:
+        # NOTE: Logging to stderr as stdout is captured by Streamlit
         print(f"Pipedrive API Error at {endpoint}: {e}", file=sys.stderr)
         return []
 
 
 def _pd_scalar(data: Any) -> Any | None:
-    """Safely extracts the scalar value from a Pipedrive object/ID."""
+    """Safely extracts the scalar value from a Pipedrive object/ID or list of values."""
     if isinstance(data, dict):
         return data.get("value")
+    # Handle Pipedrive lists like emails/phones: takes the first one
+    if isinstance(data, list) and data:
+        first_item = data[0]
+        return first_item.get("value") if isinstance(first_item, dict) else first_item
     return data
 
 
@@ -386,9 +387,10 @@ def pd_search_persons(term: str) -> list[dict]:
     """Searches Pipedrive persons by term (name or email)."""
     results = _pd_get("persons/search", {"term": term, "fields": "name,email", "search_by_email": 1})
     if results and isinstance(results, dict) and "items" in results:
+        # Simplified extraction from the search API response format
         return [
             {
-                "id": _pd_scalar(item["item"]["id"]),
+                "id": item["item"]["id"],
                 "name": item["item"]["name"],
                 "email": item["item"]["emails"][0] if item["item"]["emails"] else "",
             } for item in results["items"]
@@ -398,7 +400,7 @@ def pd_search_persons(term: str) -> list[dict]:
 
 def pd_get_person(id: str | int) -> dict | None:
     """Fetches a single person record."""
-    data = _pd_get(f"persons/{id}")
+    data = _pd_get(f"persons/{id}")  # Corrected to the general GET endpoint
     return data if isinstance(data, dict) else None
 
 
@@ -417,94 +419,112 @@ def _clean(value: Any) -> str:
     return str(value).strip()
 
 
-def _compose_street_from_parts(data: dict) -> str:
-    """Combines street address fields into one string, handling Pipedrive format."""
-    street_parts = []
-    # Pipedrive uses address_street_number, address_route, address_sublocality
-    if data and data.get("address_street_number"):
-        street_parts.append(data["address_street_number"])
-    if data and data.get("address_route"):
-        street_parts.append(data["address_route"])
-    if data and data.get("address_sublocality"):
-        street_parts.append(data["address_sublocality"])
+def _extract_address_from_html(html_string: str) -> str:
+    """
+    Extracts the address text from Pipedrive's address field,
+    specifically targeting the text inside the <a> tag.
+    """
+    if not html_string or '<a' not in html_string.lower():
+        return _clean(html_string)
 
-    # Fallback to a single street field if present
-    if not street_parts and data and data.get("address_street"):
-        street_parts.append(data["address_street"])
+    # Parse the text from within the <a> tag using non-greedy regex
+    # Matches: <a [any attributes]> (CONTENT) </a>
+    match = re.search(r'<a[^>]*>(.*?)<\/a>', html_string, re.IGNORECASE)
+    if match:
+        return _clean(match.group(1))
 
-    return _clean(" ".join(street_parts))
+    # Fallback: Clean the raw string if parsing fails
+    return _clean(html_string)
 
 
 def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
-    """Simple placeholder address parser (real implementation required for production)."""
-    # Placeholder: assumes the address is simple (line1, city, state, zip)
+    """
+    Robust parser that breaks a full address string (e.g., Line1, City, State, Zip, Country)
+    into its components.
+
+    Example input: '102 North Broadway Street, Lewistown, IL, USA'
+    """
+    full_addr = full_addr.strip()
+    if not full_addr:
+        return "", "", "", ""
+
+    # Components based on comma split.
     parts = [p.strip() for p in full_addr.split(',') if p.strip()]
+
     if len(parts) >= 3:
-        # Example: '123 Main St, Anytown, CA 90210'
         street = parts[0]
         city = parts[1]
-        state_zip = parts[-1].split()
-        state = state_zip[0] if len(state_zip) > 0 else ""
-        zip_code = state_zip[-1] if len(state_zip) > 1 else ""
-        return street, city, state, zip_code
+
+        # State/Zip logic (often combined in parts[2])
+        state_zip_part = parts[2]
+
+        # Regex: find 2-letter State, followed by optional spaces and a 5-9 digit Zip
+        match = re.search(r'([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?', state_zip_part)
+
+        state = ""
+        zip_code = ""
+
+        if match:
+            state = match.group(1).upper()
+            zip_code = match.group(2) or ""
+
+        # Simple fallback for State/Zip if regex failed and we have enough parts
+        if not state and len(parts) >= 3:
+            test_part = parts[2].split()
+            if len(test_part) >= 1 and len(test_part[0]) == 2:
+                state = test_part[0].upper()
+                zip_code = test_part[-1] if len(test_part) > 1 and test_part[-1].isdigit() else ""
+
+        return _clean(street), _clean(city), _clean(state), _clean(zip_code)
 
     return "", "", "", ""
 
 
 def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
-    """Maps Pipedrive Person and Organization data to the internal customer dict."""
+    """
+    Maps Pipedrive Person and Organization data to the internal customer dict.
+    Restored reliable extraction of Name, Email, Phone, and Org Name.
+    """
 
-    # --- Person Address Fields ---
-    p_street = _compose_street_from_parts(person)
-    p_city = _clean(person.get("address_locality") or person.get("address_city"))
-    p_state = _clean(person.get("address_admin_area_level_1") or person.get("address_state"))
-    p_zip = _clean(person.get("address_postal_code") or person.get("address_zip"))
-    p_addr_full = _clean(person.get("address_formatted_address") or person.get("address"))
-
-    # Parse full person address if parts are missing
-    if p_addr_full and not (p_street and p_city and p_state and p_zip):
-        s, c, st, z = _parse_us_address(p_addr_full)
-        p_street = p_street or s
-        p_city = p_city or c
-        p_state = p_state or st
-        p_zip = p_zip or z
-
-    # --- Person Contact Fields (for Shipping/Contact block) ---
+    # --- 1. CORE CONTACT FIELDS (from Person object) ---
     name = _clean(person.get("name"))
-    # Pipedrive often returns emails/phones as lists/objects
-    email = _clean(_pd_scalar(person.get("email", [{}])[0]) if person.get("email") else "")
-    phone = _clean(_pd_scalar(person.get("phone", [{}])[0]) if person.get("phone") else "")
+    email = _clean(_pd_scalar(person.get("email")))
+    phone = _clean(_pd_scalar(person.get("phone")))
+
+    # --- 2. ORGANIZATION/COMPANY FIELDS (from Org object) ---
     company = _clean((org or {}).get("name") or "")  # Use Org name as main company field
+    bill_company = company
 
-    # --- Organization Fields (for Billing/Org info) ---
-    bill_company = _clean((org or {}).get("name") or "")
-    bill_name = name  # <--- NEW: Default Bill Name to Person Name
-    bill_email = _clean(_pd_scalar((org or {}).get("email", [{}])[0]) if (org or {}).get("email") else "")
-    bill_phone = _clean(_pd_scalar((org or {}).get("phone", [{}])[0]) if (org or {}).get("phone") else "")
+    # Billing contact info (use Person as fallback for bill-to contact)
+    bill_name = name
+    bill_phone = phone
+    bill_email = email
 
-    # --- Organization Address Fields (Billing/Fallback) ---
-    o_street = _compose_street_from_parts(org or {})
-    o_city = _clean((org or {}).get("address_locality") or (org or {}).get("address_city"))
-    o_state = _clean((org or {}).get("address_admin_area_level_1") or (org or {}).get("address_state"))
-    o_zip = _clean((org or {}).get("address_postal_code") or (org or {}).get("address_zip"))
-    o_addr_full = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
+    # Use Org's contact info if available (often blank/unreliable, but follow Pipedrive structure)
+    if org:
+        org_email = _clean(_pd_scalar(org.get("email")))
+        org_phone = _clean(_pd_scalar(org.get("phone")))
+        bill_email = org_email or bill_email
+        bill_phone = org_phone or bill_phone
 
-    if o_addr_full and not (o_street and o_city and o_state and o_zip):
-        s, c, st, z = _parse_us_address(o_addr_full)
-        o_street = o_street or s
-        o_city = o_city or c
-        o_state = o_state or st
-        o_zip = o_zip or z
+    # --- 3. ADDRESS FIELDS ---
+    p_addr_raw = _clean(person.get("address_formatted_address") or person.get("address"))
+    o_addr_raw = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
 
-    # --- SHIPPING ADDRESS LOGIC (Prioritize Person's Address) ---
+    p_addr_full = _extract_address_from_html(p_addr_raw)
+    o_addr_full = _extract_address_from_html(o_addr_raw)
+
+    p_street, p_city, p_state, p_zip = _parse_us_address(p_addr_full)
+    o_street, o_city, o_state, o_zip = _parse_us_address(o_addr_full)
+
+    # SHIPPING ADDRESS LOGIC (Prioritize Person's Address)
     ship_addr1 = p_street or o_street
     ship_city = p_city or o_city
     ship_state = p_state or o_state
     ship_zip = p_zip or o_zip
 
-    # --- BILLING ADDRESS LOGIC (Prioritize Organization's Address) ---
-    # If Org data exists and has an address, use it. Otherwise, fall back to the ship address.
-    if org and (o_street or o_city or o_state or o_zip):
+    # BILLING ADDRESS LOGIC (Prioritize Organization's Address)
+    if org and o_addr_full:
         bill_addr1 = o_street
         bill_city = o_city
         bill_state = o_state
@@ -518,14 +538,14 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
 
     return {
         # SHIPPING/CONTACT INFO
-        "company": company,  # Company name displayed in the left block (Org name)
+        "company": company,
         "name": name,
         "email": email,
         "phone": phone,
         "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
-        # BILLING INFO (UNLOCKED/SEPARATED)
+        # BILLING INFO
         "bill_company": bill_company,
-        "bill_name": bill_name,  # <--- USED NEW bill_name KEY
+        "bill_name": bill_name,
         "bill_email": bill_email,
         "bill_phone": bill_phone,
         "bill_addr1": bill_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
@@ -702,7 +722,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         bill_block_order = (
             f"<b>Billing Address</b><br/>"
             f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"  # <--- USING bill_name
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
             f"{customer.get('bill_addr1', '')}<br/>"
             f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
             f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
@@ -903,7 +923,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         bill_block = (
             f"<b>Billing Address</b><br/>"
             f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"  # <--- USING bill_name
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
             f"{customer.get('bill_addr1', '')}<br/>"
             f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
             f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
@@ -1088,7 +1108,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         mime="application/pdf",
         # Use unique keys to allow multiple download buttons on the page
         key=f"download_{template}_pdf_{doc_number}",
-        use_container_width=True  # Match the original button width
+        use_container_width=True
     )
 
 
