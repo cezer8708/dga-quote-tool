@@ -653,21 +653,27 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     if not o_addr_full and org:
         o_addr_full = _get_address_from_components(org, 'org_address')
 
-    # Optional debug print for the final string fed to the parser:
-    # print(f"\n[DEBUG] FINAL Address (Person): {p_addr_full}")
-    # print(f"[DEBUG] FINAL Address (Org): {o_addr_full}\n")
-
     p_street, p_city, p_state, p_zip = _parse_us_address(p_addr_full)
     o_street, o_city, o_state, o_zip = _parse_us_address(o_addr_full)
 
-    # SHIPPING ADDRESS LOGIC (Prioritize Person's Address)
-    ship_addr1 = p_street or o_street
-    ship_city = p_city or o_city
-    ship_state = p_state or o_state
-    ship_zip = p_zip or o_zip
+    # --- START: SHIPPING ADDRESS LOGIC FIX (Prioritize Person's Address) ---
+
+    # Check if the Person address has any meaningful component
+    if p_street or p_city or p_state or p_zip:
+        ship_addr1 = p_street
+        ship_city = p_city
+        ship_state = p_state
+        ship_zip = p_zip
+    else:
+        # Fallback to Organization address if Person's address is completely empty
+        ship_addr1 = o_street
+        ship_city = o_city
+        ship_state = o_state
+        ship_zip = o_zip
+    # --- END: SHIPPING ADDRESS LOGIC FIX ---
 
     # BILLING ADDRESS LOGIC (Prioritize Organization's Address)
-    if org and o_addr_full:
+    if org and (o_addr_full or o_street or o_city or o_state or o_zip):  # Added component check
         bill_addr1 = o_street
         bill_city = o_city
         bill_state = o_state
