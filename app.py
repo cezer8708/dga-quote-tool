@@ -1104,7 +1104,8 @@ def main_app():
 
     # <<< UI FIX START: CSS Injection and Column Adjustment >>>
     # -------------------------------------------------------------------------
-    # UI FIX: Inject CSS to ensure buttons are vertically aligned and don't wrap.
+    # UI FIX: Inject CSS to ensure buttons are vertically aligned and don't wrap,
+    # and to adjust the height of the current doc info box.
     # -------------------------------------------------------------------------
     st.markdown("""
         <style>
@@ -1122,21 +1123,14 @@ def main_app():
                 padding-top: 0;
             }
 
-            /* Targets the containers holding the buttons to apply flexbox properties for vertical centering */
-            /* This targets the column divs that contain the buttons */
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(3), /* Retrieve column */
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(4), /* New Version column */
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(5) { /* New Quote column */
-                /* Use a consistent min-height/padding combination to ensure alignment with the selectbox */
-                display: flex;
-                align-items: flex-end; /* Align the bottom of the button to the bottom of the selectbox */
-                padding-bottom: 3px; /* Fine-tune adjustment if needed */
+            /* Ensure the Doc # info box is vertically aligned by moving it up */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) .stAlert {
+                margin-top: -15px !important; /* Adjust as needed */
             }
 
-            /* Ensure the Doc # info box is also vertically aligned */
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) .stAlert {
-                /* Target the st.info box inside the first column */
-                margin-top: -15px !important; /* Move it up to compensate for label spacing */
+            /* Add some vertical space between stacked buttons */
+            div[data-testid*="stVerticalBlock"] > div:nth-child(2) .stButton:not(:last-child) {
+                margin-bottom: 5px; 
             }
         </style>
     """, unsafe_allow_html=True)
@@ -1148,8 +1142,8 @@ def main_app():
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
-    # MODIFIED: Adjusted ratios to [1.0, 1.4, 0.7, 0.7, 0.7] for better centered layout balance and alignment.
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.4, 0.7, 0.7, 0.7])
+    # MODIFIED: Adjusted ratios to [1.0, 1.4, 0.7] to combine the three buttons into one stackable column.
+    lookup_col1, lookup_col2, lookup_col_stack = st.columns([1.0, 1.4, 0.7])
     # <<< UI FIX END >>>
 
     # Set the key suffix for all customer inputs
@@ -1181,74 +1175,82 @@ def main_app():
         selected_quote_no = st.selectbox("Select or Search for Doc #", quote_options, index=default_index,
                                          key="quote_select_box")
 
-    with lookup_col3:
-        if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
-            if selected_quote_no != "(New Quote)":
-                st.session_state["quote_no"] = selected_quote_no
+    # --- STACKED BUTTONS COLUMN ---
+    # The container ensures the items stack vertically
+    with lookup_col_stack:
+        # A placeholder div to push the buttons down to align with the selectbox
+        # Use st.container() without arguments to create a vertical block
+        with st.container():
+            st.markdown("<div style='min-height: 25px;'></div>", unsafe_allow_html=True)  # Spacer
 
-                # --- RETRIEVAL LOGIC CHANGE: Load from DataFrame (which came from Google Sheets) ---
-                try:
-                    # Find the row in the DataFrame corresponding to the selected Quote #
-                    # Note: We search by the Quote # column which might contain saved Order document numbers
-                    target_row_df = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no]
+            # 1. Retrieve
+            if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
+                if selected_quote_no != "(New Quote)":
+                    st.session_state["quote_no"] = selected_quote_no
 
-                    if target_row_df.empty:
-                        st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
-                        return
+                    # --- RETRIEVAL LOGIC CHANGE: Load from DataFrame (which came from Google Sheets) ---
+                    try:
+                        # Find the row in the DataFrame corresponding to the selected Quote #
+                        # Note: We search by the Quote # column which might contain saved Order document numbers
+                        target_row_df = all_quotes_df[all_quotes_df['Quote #'] == selected_quote_no]
 
-                    payload = target_row_df.iloc[-1]['Payload']  # Get the latest version
+                        if target_row_df.empty:
+                            st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
+                            return
 
-                    # Apply payload data to session state
-                    # NOTE: The customer dictionary now includes bill_name, bill_company, bill_email, bill_phone keys
-                    st.session_state["customer"] = payload.get("customer", {})
-                    st.session_state["line_items"] = payload.get("line_items", [])
-                    fees = payload.get("fees", {})
-                    st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
-                    st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
-                    st.session_state["freight_notes"] = payload.get("freight_notes", "")
-                    tax_meta = payload.get("tax_meta", {})
-                    st.session_state["tax_rate_pct_input"] = float(
-                        tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
-                    st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
-                    st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+                        payload = target_row_df.iloc[-1]['Payload']  # Get the latest version
 
-                    # Load Order/PO Details from Payload with robust defaulting
-                    order_meta = payload.get("order_meta", {})
-                    st.session_state["order_po_number"] = order_meta.get("po_number", "")
-                    st.session_state["order_operator"] = order_meta.get("operator", "CZ")
-                    st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
-                    st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
-                    st.session_state["order_check_number"] = order_meta.get("check_number", "")
-                    st.session_state["order_date_received"] = order_meta.get("date_received",
-                                                                             get_pacific_now().strftime('%m/%d/%y'))
+                        # Apply payload data to session state
+                        # NOTE: The customer dictionary now includes bill_name, bill_company, bill_email, bill_phone keys
+                        st.session_state["customer"] = payload.get("customer", {})
+                        st.session_state["line_items"] = payload.get("line_items", [])
+                        fees = payload.get("fees", {})
+                        st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
+                        st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
+                        st.session_state["freight_notes"] = payload.get("freight_notes", "")
+                        tax_meta = payload.get("tax_meta", {})
+                        st.session_state["tax_rate_pct_input"] = float(
+                            tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
+                        st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
+                        st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
 
-                    # Use the loaded 'order_doc_number' if available, otherwise default to the quote number
-                    loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
-                    # Ensure it defaults to the loaded quote number if blank:
-                    st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
+                        # Load Order/PO Details from Payload with robust defaulting
+                        order_meta = payload.get("order_meta", {})
+                        st.session_state["order_po_number"] = order_meta.get("po_number", "")
+                        st.session_state["order_operator"] = order_meta.get("operator", "CZ")
+                        st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
+                        st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
+                        st.session_state["order_check_number"] = order_meta.get("check_number", "")
+                        st.session_state["order_date_received"] = order_meta.get("date_received",
+                                                                                 get_pacific_now().strftime('%m/%d/%y'))
 
-                    # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
-                    st.session_state["customer_key_suffix"] += 1
+                        # Use the loaded 'order_doc_number' if available, otherwise default to the quote number
+                        loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
+                        # Ensure it defaults to the loaded quote number if blank:
+                        st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
 
-                    st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
-                    st.rerun()
+                        # CUSTOMER AUTOFILL FIX: Increment the key suffix to force widget reset
+                        st.session_state["customer_key_suffix"] += 1
 
-                except IndexError:
-                    st.error(f"Quote {selected_quote_no} not found in the loaded data.")
-                except Exception as e:
-                    st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
-            else:
-                st.warning("Please select a document to retrieve or click 'New Quote'.")
+                        st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
+                        st.rerun()
 
-    # --- NEW VERSION BUTTON (Uses use_container_width=True, relies on CSS/columns fix) ---
-    with lookup_col4:
-        if st.button("New Version", use_container_width=True, type="primary",
-                     help="Create a new version number based on the current quote."):
-            assign_new_quote_version()
+                    except IndexError:
+                        st.error(f"Quote {selected_quote_no} not found in the loaded data.")
+                    except Exception as e:
+                        st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
+                else:
+                    st.warning("Please select a document to retrieve or click 'New Quote'.")
 
-    with lookup_col5:
-        if st.button("New Quote", use_container_width=True, type="secondary"):
-            start_new_quote()
+            # 2. New Quote
+            if st.button("New Quote", use_container_width=True, type="secondary"):
+                start_new_quote()
+
+            # 3. New Version
+            if st.button("New Version", use_container_width=True, type="primary",
+                         help="Create a new version number based on the current quote."):
+                assign_new_quote_version()
+    # --- END STACKED BUTTONS COLUMN ---
 
     # (UI for Customer Info)
     c = st.session_state["customer"]
