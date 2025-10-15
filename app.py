@@ -8,6 +8,7 @@ import re
 import sys
 from typing import Any
 import pytz
+import html.parser  # <-- NEW: Added html.parser for robust HTML tag parsing
 
 import pandas as pd
 import streamlit as st
@@ -284,7 +285,8 @@ def start_new_quote():
 def assign_new_quote_version():
     """Increments the version number of the current quote."""
     current_quote_no = st.session_state["quote_no"]
-    base, version = re.match(r'(.+?)(?:-V(\d+))?$', current_quote_no).groups()
+    match = re.match(r'(.+?)(?:-V(\d+))?$', current_quote_no)
+    base, version = match.groups() if match else (current_quote_no, '0')
     new_version = int(version or 0) + 1
     st.session_state["quote_no"] = f"{base}-V{new_version}"
     st.rerun()
@@ -352,7 +354,7 @@ if "pd_matches" not in st.session_state:
 
 
 # =============================================================================
-# 4. Pipedrive Helpers (FINAL, ROBUST ADDRESS EXTRACTION FIX v2)
+# 4. Pipedrive Helpers (FINAL, ROBUST ADDRESS EXTRACTION FIX v3)
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -419,65 +421,115 @@ def _clean(value: Any) -> str:
     return str(value).strip()
 
 
+# --- START: HTML Parser Class and Extractor Function (Working) ---
+
+class _ATagTextExtractor(html.parser.HTMLParser):
+    """A minimal parser to extract text from the first <a> tag it finds."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.in_a_tag = False
+        self.data = ""
+        self.found = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'a' and not self.found:
+            self.in_a_tag = True
+
+    def handle_endtag(self, tag):
+        if tag == 'a' and self.in_a_tag:
+            self.in_a_tag = False
+            self.found = True  # Stop processing after the first <a> tag closes
+
+    def handle_data(self, data):
+        if self.in_a_tag:
+            self.data += data.strip()  # Accumulate text within the <a> tag
+
+
+def _extract_text_from_a_tag(html_string: str) -> str:
+    """Uses the HTML parser to extract content from the <a> tag reliably."""
+    if not html_string or '<a' not in html_string.lower():
+        return ""
+
+    parser = _ATagTextExtractor()
+    try:
+        parser.feed(html_string)
+        parser.close()
+        # Ensure we only return data if a tag was actually found
+        return parser.data if parser.found else ""
+    except Exception:
+        # Fallback if parsing fails
+        return ""
+
+
 def _extract_address_from_html(html_string: str) -> str:
     """
     Extracts the address text from Pipedrive's address field,
-    specifically targeting the text inside the <a> tag.
+    prioritizing text inside the <a> tag if HTML is present.
     """
-    if not html_string or '<a' not in html_string.lower():
-        return _clean(html_string)
+    clean_addr = _extract_text_from_a_tag(html_string)
 
-    # Parse the text from within the <a> tag using non-greedy regex
-    # Matches: <a [any attributes]> (CONTENT) </a>
-    match = re.search(r'<a[^>]*>(.*?)<\/a>', html_string, re.IGNORECASE)
-    if match:
-        return _clean(match.group(1))
+    if clean_addr:
+        return _clean(clean_addr)
 
-    # Fallback: Clean the raw string if parsing fails
+    # Fallback to the original clean method if no <a> tag was found or extraction failed.
     return _clean(html_string)
+
+
+# --- END: HTML Parser Class and Extractor Function ---
 
 
 def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
     """
     Robust parser that breaks a full address string (e.g., Line1, City, State, Zip, Country)
-    into its components.
-
-    Example input: '102 North Broadway Street, Lewistown, IL, USA'
+    into its components using reliable comma-splitting.
     """
     full_addr = full_addr.strip()
     if not full_addr:
         return "", "", "", ""
 
-    # Components based on comma split.
+    # Split the address by commas. Example:
+    # '102 North Broadway Street, Lewistown, IL, USA' -> ['102 North Broadway Street', 'Lewistown', 'IL', 'USA']
     parts = [p.strip() for p in full_addr.split(',') if p.strip()]
 
+    street = ""
+    city = ""
+    state = ""
+    zip_code = ""
+
+    # Must have at least street, city, and state/zip components
     if len(parts) >= 3:
         street = parts[0]
         city = parts[1]
 
-        # State/Zip logic (often combined in parts[2])
+        # The third part usually contains State and Zip, potentially with extra text like Country.
         state_zip_part = parts[2]
 
-        # Regex: find 2-letter State, followed by optional spaces and a 5-9 digit Zip
-        match = re.search(r'([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?', state_zip_part)
+        # Simple split by space to get State and Zip
+        sz_parts = [p.strip().upper() for p in state_zip_part.split() if p.strip()]
 
-        state = ""
-        zip_code = ""
+        if sz_parts:
+            # Assume the first non-numeric part is the State code
+            for part in sz_parts:
+                if len(part) == 2 and part.isalpha():
+                    state = part
+                elif part.isdigit() and len(part) >= 5 and not zip_code:
+                    # Take the first 5-digit or longer numeric string as the zip
+                    zip_code = part
 
-        if match:
-            state = match.group(1).upper()
-            zip_code = match.group(2) or ""
+                # If we've found both, we can stop processing this part
+                if state and zip_code:
+                    break
 
-        # Simple fallback for State/Zip if regex failed and we have enough parts
-        if not state and len(parts) >= 3:
-            test_part = parts[2].split()
-            if len(test_part) >= 1 and len(test_part[0]) == 2:
-                state = test_part[0].upper()
-                zip_code = test_part[-1] if len(test_part) > 1 and test_part[-1].isdigit() else ""
+        # If State wasn't found (e.g., 'IL 61477'), try to infer from the structure
+        if not state and len(sz_parts) >= 1 and len(sz_parts[0]) == 2 and sz_parts[0].isalpha():
+            state = sz_parts[0]
 
-        return _clean(street), _clean(city), _clean(state), _clean(zip_code)
+        # If Zip wasn't found (e.g., 'IL' and nothing else), try to get it from the last element if it looks like a zip
+        if not zip_code and len(sz_parts) > 1 and sz_parts[-1].isdigit() and len(sz_parts[-1]) >= 5:
+            zip_code = sz_parts[-1]
 
-    return "", "", "", ""
+    return _clean(street), _clean(city), _clean(state), _clean(zip_code)
 
 
 def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
@@ -510,6 +562,9 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     # --- 3. ADDRESS FIELDS ---
     p_addr_raw = _clean(person.get("address_formatted_address") or person.get("address"))
     o_addr_raw = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
+
+    st.error(f"RAW Pipedrive Address (Person): {p_addr_raw}")
+    st.error(f"RAW Pipedrive Address (Org): {o_addr_raw}")
 
     p_addr_full = _extract_address_from_html(p_addr_raw)
     o_addr_full = _extract_address_from_html(o_addr_raw)
