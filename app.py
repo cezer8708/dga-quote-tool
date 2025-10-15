@@ -1113,16 +1113,30 @@ def main_app():
                 white-space: nowrap !important;
                 font-size: 14px;
                 line-height: 1.0; /* Smaller line-height for better fit */
+                height: 38px; /* Force a consistent button height */
+                margin-top: 0px; /* Reset any default margin */
+            }
+
+            /* Targets the container holding the selectbox label/value to align it with the button labels */
+            div[data-testid="stVerticalBlock"] div[data-testid="stHorizontalBlock"] > div:nth-child(2) label {
+                padding-top: 0;
             }
 
             /* Targets the containers holding the buttons to apply flexbox properties for vertical centering */
-            /* This targets the column divs in the first st.columns call */
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) > div:nth-child(4),
-            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) > div:nth-child(5) {
+            /* This targets the column divs that contain the buttons */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(3), /* Retrieve column */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(4), /* New Version column */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(5) { /* New Quote column */
+                /* Use a consistent min-height/padding combination to ensure alignment with the selectbox */
                 display: flex;
-                align-items: center; /* Vertically center the button */
-                padding-top: 1.25rem; /* Add padding to match the top of the selectbox label */
-                min-height: 60px; /* Ensure a consistent minimum height for alignment */
+                align-items: flex-end; /* Align the bottom of the button to the bottom of the selectbox */
+                padding-bottom: 3px; /* Fine-tune adjustment if needed */
+            }
+
+            /* Ensure the Doc # info box is also vertically aligned */
+            div[data-testid*="stHorizontalBlock"] > div:nth-child(1) .stAlert {
+                /* Target the st.info box inside the first column */
+                margin-top: -15px !important; /* Move it up to compensate for label spacing */
             }
         </style>
     """, unsafe_allow_html=True)
@@ -1134,8 +1148,8 @@ def main_app():
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
-    # MODIFIED: Adjusted ratios to [1.0, 1.2, 0.6, 0.7, 0.7] for better centered layout balance
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.2, 0.6, 0.7, 0.7])
+    # MODIFIED: Adjusted ratios to [1.0, 1.4, 0.7, 0.7, 0.7] for better centered layout balance and alignment.
+    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.4, 0.7, 0.7, 0.7])
     # <<< UI FIX END >>>
 
     # Set the key suffix for all customer inputs
