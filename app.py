@@ -1412,6 +1412,24 @@ def handle_quantity_change(item_id: str):
         st.session_state["rerun_flag"] = True
 
 
+def search_pipedrive_callback():
+    """
+    Callback triggered when the Pipedrive search term changes (or Enter is hit).
+    Performs the search directly.
+    """
+    term = st.session_state.get("pd_term", "").strip()
+    if term:
+        try:
+            # Performs the search and updates the 'pd_matches' state
+            st.session_state["pd_matches"] = pd_search_persons(term)
+        except Exception as e:
+            # Using st.error here is fine if the user is interacting with the form
+            st.error(f"Pipedrive search failed: {e}")
+            st.session_state["pd_matches"] = []
+    else:
+        st.session_state["pd_matches"] = []
+
+
 def main_app():
     """Contains all the original quoting tool functionality."""
 
@@ -1582,31 +1600,21 @@ def main_app():
     st.subheader("Customer Information")
 
     # Pipedrive Lookup
-    # 🐛 FIX for TypeError: Ensure expander_default_state is a boolean
-    has_search_term = st.session_state.get("pd_term", "").strip() != ""
-    has_matches = bool(st.session_state.get("pd_matches", []))
+    # 🐛 FIX: Removed explicit Search Button, using on_change to trigger search on Enter/Focus Out
 
     # Set the expander to True if a search term is present OR matches were found.
+    has_search_term = st.session_state.get("pd_term", "").strip() != ""
+    has_matches = bool(st.session_state.get("pd_matches", []))
     expander_default_state = has_search_term or has_matches
 
     with st.expander("Pipedrive lookup (by email or name)", expanded=expander_default_state):
         if not PIPEDRIVE_API_TOKEN:
             st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
         else:
-            term = st.text_input("Search term", placeholder="e.g. jane@city.gov or Jane Smith", key="pd_term")
-
-            # Store the current term before search
-            current_term = term.strip()
-
-            if st.button("Search Pipedrive", key="pd_search_btn") and current_term:
-                try:
-                    st.session_state["pd_matches"] = pd_search_persons(current_term)
-                except Exception as e:
-                    st.error(f"Search failed due to unexpected error. Check console: {e}")
-                    st.session_state["pd_matches"] = []
-
-                # Force rerun to apply the expanded state immediately and show results
-                st.rerun()
+            # <<< FIX: ADDED on_change CALLBACK AND REMOVED SEPARATE BUTTON >>>
+            term = st.text_input("Search term", placeholder="e.g. jane@city.gov or Jane Smith", key="pd_term",
+                                 on_change=search_pipedrive_callback)
+            # <<< END FIX >>>
 
             matches = st.session_state.get("pd_matches", [])
 
@@ -1639,8 +1647,8 @@ def main_app():
                             st.rerun()
                         except Exception as e:
                             st.error(f"Failed to fetch or apply contact details. Check console: {e}")
-            elif current_term and "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
-                st.info(f"No Pipedrive contacts found matching '{current_term}'.")
+            elif term and not matches:  # Use the current 'term' variable for the check
+                st.info(f"No Pipedrive contacts found matching '{term}'.")
 
     # Customer Info Inputs
     with st.container(border=True):
