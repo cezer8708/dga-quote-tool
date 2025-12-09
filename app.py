@@ -65,10 +65,9 @@ PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
 # --- GOOGLE SHEETS CONFIGURATION ---
-GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"  #
+GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 
 
-# GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80" # Example User ID
 # -----------------------------------
 
 
@@ -79,7 +78,6 @@ def fmt_money(value: float) -> str:
 
 # =============================================================================
 # 1. Google Sheets Connection and Data Handling
-# (No changes to gsheet functions)
 # =============================================================================
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
@@ -238,7 +236,6 @@ PRODUCTS = load_products()
 
 # =============================================================================
 # 3. Session State Initialization
-# (No changes to initialization)
 # =============================================================================
 
 # --- Pacific Time Zone Helper ---
@@ -368,7 +365,6 @@ if "pd_expander_state" not in st.session_state:
 
 # =============================================================================
 # 4. Pipedrive Helpers
-# (No changes to Pipedrive helpers)
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -707,7 +703,7 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     }
 
 
-# --- Course Discount helpers (No changes to discount logic) ---
+# --- Course Discount helpers ---
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 
 
@@ -780,15 +776,15 @@ def ensure_course_discount(items: list[dict]) -> bool:
         # FIX: Ensure the discount is at the end immediately after adding/updating
         if modified:
             ensure_course_discount_stays_last(items)
-            # Force a rerun to clean up the display immediately
-            st.session_state["rerun_flag"] = True
+            # Do NOT force a rerun here, let the caller (the on_change callback) do it
+            # st.session_state["rerun_flag"] = True
 
     elif idx != -1:
         # Remove the discount item
         items.pop(idx)
         modified = True
-        # Force a rerun to clean up the display immediately
-        st.session_state["rerun_flag"] = True
+        # Do NOT force a rerun here, let the caller (the on_change callback) do it
+        # st.session_state["rerun_flag"] = True
 
     return modified  # New return value
 
@@ -805,7 +801,7 @@ def ensure_course_discount_stays_last(items: list[dict] = None):
         items.append(discount_item)
 
 
-# --- PDF Builder Functions (No changes to PDF logic) ---
+# --- PDF Builder Functions ---
 def _company_right_block(styles):
     return Paragraph(
         f"<b>Disc Golf Association (DGA)</b><br/>"
@@ -1392,6 +1388,30 @@ def add_item_callback():
     st.session_state["rerun_flag"] = True
 
 
+def handle_quantity_change(item_id: str):
+    """
+    Callback triggered when a quantity is changed (on change/enter),
+    explicitly recalculates total and checks discount.
+    """
+    items = st.session_state["line_items"]
+
+    # 1. Update the total for the specific item
+    for item in items:
+        if item["id"] == item_id:
+            # The widget updates the session state key directly, we just need to ensure the total is calculated
+            # Use the key used in the number_input widget
+            item_qty = int(st.session_state[f"qty_input_{item_id}"])
+            item_unit = float(item.get("unit", 0.0))
+            item["qty"] = item_qty
+            item["total"] = round(item_qty * item_unit, 2)
+            break
+
+    # 2. Re-run the core discount logic
+    if ensure_course_discount(items):
+        # If the discount changed (added/removed/updated), force a full rerun
+        st.session_state["rerun_flag"] = True
+
+
 def main_app():
     """Contains all the original quoting tool functionality."""
 
@@ -1811,8 +1831,11 @@ def main_app():
                     st.markdown("**Qty**")
                     st.markdown(f"**{int(row['qty'])}**")
                 else:
+                    # <<< FIX: ADDED on_change CALLBACK >>>
                     row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
-                                                 key=f"qty_input_{row['id']}")
+                                                 key=f"qty_input_{row['id']}",
+                                                 on_change=handle_quantity_change, args=(row["id"],))
+                    # <<< END FIX >>>
 
             with c3:
                 current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
