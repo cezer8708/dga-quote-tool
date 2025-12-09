@@ -15,7 +15,12 @@ import streamlit as st
 import gspread
 
 # =============================================================================
-# UI CHANGE 1: Set default layout to centered (NOT wide mode)
+# !!! REMOVED: Removed Streamlit Sortables for simpler Move Up/Down buttons !!!
+# from streamlit_sortables import sort_items
+# =============================================================================
+
+# =============================================================================
+# 0. Configuration and Environment
 # =============================================================================
 st.set_page_config(page_title="DGA Quoting Tool", layout="centered")
 
@@ -29,9 +34,6 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 )
 
-# =============================================================================
-# 0. Configuration and Environment
-# =============================================================================
 load_dotenv()
 
 
@@ -63,9 +65,10 @@ PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
 PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
 # --- GOOGLE SHEETS CONFIGURATION ---
-GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
+GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkGjTkGjTkGjT"  # Placeholder ID
 
 
+# GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80" # Example User ID
 # -----------------------------------
 
 
@@ -76,6 +79,7 @@ def fmt_money(value: float) -> str:
 
 # =============================================================================
 # 1. Google Sheets Connection and Data Handling
+# (No changes to gsheet functions)
 # =============================================================================
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
@@ -85,7 +89,8 @@ def get_gsheet_client():
         if "gcp_service_account" not in st.secrets:
             if os.path.exists("service_account.json"):
                 return gspread.service_account(filename="service_account.json")
-            st.error("Google Sheets Service Account not configured.")
+            st.warning(
+                "Google Sheets Service Account not configured in Streamlit Secrets or local file. Sheet saving disabled.")
             return None
 
         creds_data = st.secrets["gcp_service_account"]
@@ -233,6 +238,7 @@ PRODUCTS = load_products()
 
 # =============================================================================
 # 3. Session State Initialization
+# (No changes to initialization)
 # =============================================================================
 
 # --- Pacific Time Zone Helper ---
@@ -279,6 +285,10 @@ def start_new_quote():
     st.session_state["quote_no"] = new_quote_number()
     # Force customer autofill to reset all fields
     st.session_state["customer_key_suffix"] += 1
+    # Pipedrive FIX: Clear matches and close expander on new quote
+    st.session_state["pd_matches"] = []
+    st.session_state["pd_term"] = ""
+    st.session_state["pd_expander_state"] = False
     st.rerun()
 
 
@@ -306,6 +316,7 @@ if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
 
 # --- RERUN FLAG (USED FOR UNIT PRICE FIX - PREVIOUS LOGIC) ---
+# This is now also used for the discount visibility fix.
 if "rerun_flag" not in st.session_state:
     st.session_state["rerun_flag"] = False
 
@@ -351,10 +362,13 @@ if "order_date_received" not in st.session_state:
     st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
 if "pd_matches" not in st.session_state:
     st.session_state["pd_matches"] = []
+if "pd_expander_state" not in st.session_state:
+    st.session_state["pd_expander_state"] = False
 
 
 # =============================================================================
 # 4. Pipedrive Helpers
+# (No changes to Pipedrive helpers)
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -420,8 +434,6 @@ def _clean(value: Any) -> str:
         value = ", ".join([str(v) for v in value])
     return str(value).strip()
 
-
-# --- START: HTML Parser Class and Extractor Function (FIXED for JSON and undefined name) ---
 
 class _ATagTextExtractor(html.parser.HTMLParser):
     """A minimal parser to extract text from the first <a> tag it finds."""
@@ -496,9 +508,6 @@ def _extract_address_from_html(raw_input: Any) -> str:
     return html_string
 
 
-# --- END: HTML Parser Class and Extractor Function ---
-
-# --- START: Robust Address Builder for Components ---
 def _get_address_from_components(entity: dict, addr_type: str) -> str:
     """
     Constructs a full address string from individual Pipedrive address components
@@ -559,9 +568,6 @@ def _get_address_from_components(entity: dict, addr_type: str) -> str:
         parts.append(_clean(entity[f"{addr_type}_country_code"]))
 
     return ", ".join(parts)
-
-
-# --- END: Robust Address Builder for Components ---
 
 
 def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
@@ -701,7 +707,7 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     }
 
 
-# --- Course Discount helpers ---
+# --- Course Discount helpers (No changes to discount logic) ---
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 
 
@@ -727,7 +733,8 @@ def is_basket_5_7_X(item: dict) -> bool:
 
 
 def eligible_qty_for_discount(items: list[dict]) -> int:
-    return int(sum((float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it))))
+    # Only calculate the qty based on non-discount items
+    return int(sum((float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it) and it.get("sku") != "CD")))
 
 
 def find_course_discount_index(items: list[dict]) -> int:
@@ -737,16 +744,19 @@ def find_course_discount_index(items: list[dict]) -> int:
     return -1
 
 
-def ensure_course_discount(items: list[dict]) -> None:
+def ensure_course_discount(items: list[dict]) -> bool:
+    """
+    Checks for and adds/updates/removes the Course Discount.
+    Returns True if the line_items list was modified, False otherwise.
+    """
     qty = eligible_qty_for_discount(items)
     idx = find_course_discount_index(items)
+
+    modified = False
     DISCOUNT_NOTE = "Auto-applied for 9+ Mach 5/7/X baskets"
 
     if qty >= 9:
-        existing_notes = items[idx]["notes"] if idx != -1 and "notes" in items[idx] else ""
-        note_to_use = existing_notes if (
-                existing_notes and not existing_notes.startswith(DISCOUNT_NOTE)) else DISCOUNT_NOTE
-
+        # NOTE: Total is calculated in the loop, but stored here for state consistency
         disc_line = {
             "id": items[idx]["id"] if idx != -1 and "id" in items[idx] else str(uuid.uuid4()),
             "sku": "CD",
@@ -754,18 +764,48 @@ def ensure_course_discount(items: list[dict]) -> None:
             "qty": qty,
             "unit": -100.0,
             "total": round(-100.0 * qty, 2),
-            "notes": note_to_use,
+            "notes": DISCOUNT_NOTE,
             "prev_sku": "CD",
         }
+
         if idx == -1:
+            # Add the discount item
             items.append(disc_line)
-        else:
+            modified = True
+        elif items[idx]["qty"] != disc_line["qty"] or items[idx]["total"] != disc_line["total"]:
+            # Update the discount item if qty or total changed
             items[idx] = disc_line
+            modified = True
+
+        # FIX: Ensure the discount is at the end immediately after adding/updating
+        if modified:
+            ensure_course_discount_stays_last(items)
+            # Force a rerun to clean up the display immediately
+            st.session_state["rerun_flag"] = True
+
     elif idx != -1:
+        # Remove the discount item
         items.pop(idx)
+        modified = True
+        # Force a rerun to clean up the display immediately
+        st.session_state["rerun_flag"] = True
+
+    return modified  # New return value
 
 
-# --- PDF Builder Functions ---
+def ensure_course_discount_stays_last(items: list[dict] = None):
+    """Ensures the Course Discount line item is the very last element in the list."""
+    if items is None:
+        items = st.session_state["line_items"]
+
+    idx = find_course_discount_index(items)
+    if idx != -1 and idx != len(items) - 1:
+        # Move the discount item to the end
+        discount_item = items.pop(idx)
+        items.append(discount_item)
+
+
+# --- PDF Builder Functions (No changes to PDF logic) ---
 def _company_right_block(styles):
     return Paragraph(
         f"<b>Disc Golf Association (DGA)</b><br/>"
@@ -1232,7 +1272,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         if save_successful:
             container.success(f"Quote **{doc_number}** successfully saved to **Google Sheets** and PDF generated.")
         else:
-            container.error(
+            container.warning(
                 "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions."
             )
     else:  # is 'order'
@@ -1265,6 +1305,93 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
 # 5. Main Application Logic
 # =============================================================================
 
+# --- Line Item Callback Functions (New/Modified) ---
+
+def move_item(item_id: str, direction: str):
+    """
+    Moves a line item up or down in the list, ensuring the discount item stays last.
+    Sets the rerun flag to trigger a refresh.
+    """
+    items = st.session_state["line_items"]
+    # Find the index of the item to move
+    try:
+        current_index = next(i for i, item in enumerate(items) if item["id"] == item_id)
+    except StopIteration:
+        return  # Item not found
+
+    new_index = current_index
+
+    if direction == "up" and current_index > 0:
+        new_index = current_index - 1
+    elif direction == "down" and current_index < len(items) - 1:
+        new_index = current_index + 1
+
+    # Check if the new index is the Course Discount, and prevent moving past it
+    discount_idx = find_course_discount_index(items)
+
+    # Prevent moving the discount item up (it should only be moved if it gets out of place)
+    if current_index == discount_idx and direction == "up":
+        # Do not move the discount item up
+        return
+
+    # Prevent moving a regular item into the discount's spot if it's the last item
+    if new_index == discount_idx and discount_idx == len(items) - 1:
+        # If the discount item is correctly placed at the end, stop the regular item one step before it
+        if direction == "down":
+            return
+
+    # Swap the items
+    if new_index != current_index:
+        items[current_index], items[new_index] = items[new_index], items[current_index]
+
+        # After any move, ensure the discount item is still last if it exists
+        ensure_course_discount_stays_last(items)
+
+        # Force rerun to reflect the new order
+        st.session_state["rerun_flag"] = True
+
+
+def move_item_up(item_id: str):
+    """Callback for moving an item up."""
+    move_item(item_id, "up")
+
+
+def move_item_down(item_id: str):
+    """Callback for moving an item down."""
+    move_item(item_id, "down")
+
+
+def remove_item(item_id):
+    """Removes a line item based on its ID and sets the rerun flag if the discount is affected."""
+    line_items_before = len(st.session_state["line_items"])
+    st.session_state["line_items"] = [
+        item for item in st.session_state["line_items"] if item["id"] != item_id
+    ]
+    # Check if removing the item might affect the discount and trigger a rerun if the list size changed.
+    if line_items_before != len(st.session_state["line_items"]):
+        ensure_course_discount(st.session_state["line_items"])
+    else:
+        # If the discount item itself was removed (list size still changes)
+        if find_course_discount_index(st.session_state["line_items"]) == -1:
+            st.session_state["rerun_flag"] = True
+
+
+def add_item_callback():
+    """Adds a new line item and sets the rerun flag."""
+    st.session_state["line_items"].append({
+        "id": str(uuid.uuid4()),
+        "sku": "",
+        "name": "",
+        "qty": 1,
+        "unit": 0.0,
+        "total": 0.0,
+        "notes": "",
+        "prev_sku": "",
+    })
+    # Force rerun to ensure the newly added item shows up correctly
+    st.session_state["rerun_flag"] = True
+
+
 def main_app():
     """Contains all the original quoting tool functionality."""
 
@@ -1273,8 +1400,7 @@ def main_app():
 
     # <<< UI FIX START: CSS Injection and Column Adjustment >>>
     # -------------------------------------------------------------------------
-    # UI FIX: Inject CSS to ensure buttons are vertically aligned and don't wrap,
-    # and to adjust the height of the current doc info box.
+    # UI FIX: Inject CSS for consistent button sizing and drag handle visibility
     # -------------------------------------------------------------------------
     st.markdown("""
         <style>
@@ -1282,9 +1408,9 @@ def main_app():
             .stButton>button {
                 white-space: nowrap !important;
                 font-size: 14px;
-                line-height: 1.0; /* Smaller line-height for better fit */
-                height: 38px; /* Force a consistent button height */
-                margin-top: 0px; /* Reset any default margin */
+                line-height: 1.0; 
+                height: 38px; 
+                margin-top: 0px; 
             }
 
             /* Targets the container holding the selectbox label/value to align it with the button labels */
@@ -1294,20 +1420,29 @@ def main_app():
 
             /* Ensure the Doc # info box is vertically aligned by moving it up */
             div[data-testid*="stHorizontalBlock"] > div:nth-child(1) .stAlert {
-                margin-top: -15px !important; /* Adjust as needed */
+                margin-top: -15px !important; 
             }
 
-            /* Add some vertical space between stacked buttons */
-            div[data-testid*="stVerticalBlock"] > div:nth-child(2) .stButton:not(:last-child) {
-                margin-bottom: 5px; 
+            /* --- FIX for Red Key Display (More aggressive selector) --- */
+            /* This targets the container holding the red box output from the old sortable component,
+               which might still be appearing due to old caching or hidden component rendering. */
+            div.stVerticalBlock > div.stVerticalBlock > div:nth-child(2) > div:nth-child(1) > div:nth-child(1) {
+                display: none;
             }
+            /* A broader approach to hide the output of the line item ID list */
+            div[data-testid="stVerticalBlock"] > div > div > div:first-child[data-testid="stVerticalBlock"]:has(div.stAlert) {
+                display: none;
+            }
+            /* End Red Key Fix */
+
         </style>
     """, unsafe_allow_html=True)
     # -------------------------------------------------------------------------
 
-    # --- RERUN CHECK FOR UNIT PRICE FIX ---
+    # --- RERUN CHECK FOR UNIT PRICE / DISCOUNT FIX ---
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
+        # IMPORTANT: Rerunning immediately fixes the visibility and re-keying issues (Course Discount Phantom).
         st.rerun()
 
     # (UI for Quote Lookup/New Quote)
@@ -1427,17 +1562,31 @@ def main_app():
     st.subheader("Customer Information")
 
     # Pipedrive Lookup
-    with st.expander("Pipedrive lookup (by email or name)", expanded=False):
+    # 🐛 FIX for TypeError: Ensure expander_default_state is a boolean
+    has_search_term = st.session_state.get("pd_term", "").strip() != ""
+    has_matches = bool(st.session_state.get("pd_matches", []))
+
+    # Set the expander to True if a search term is present OR matches were found.
+    expander_default_state = has_search_term or has_matches
+
+    with st.expander("Pipedrive lookup (by email or name)", expanded=expander_default_state):
         if not PIPEDRIVE_API_TOKEN:
             st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
         else:
             term = st.text_input("Search term", placeholder="e.g. jane@city.gov or Jane Smith", key="pd_term")
-            if st.button("Search Pipedrive", key="pd_search_btn") and term.strip():
+
+            # Store the current term before search
+            current_term = term.strip()
+
+            if st.button("Search Pipedrive", key="pd_search_btn") and current_term:
                 try:
-                    st.session_state["pd_matches"] = pd_search_persons(term.strip())
+                    st.session_state["pd_matches"] = pd_search_persons(current_term)
                 except Exception as e:
                     st.error(f"Search failed due to unexpected error. Check console: {e}")
                     st.session_state["pd_matches"] = []
+
+                # Force rerun to apply the expanded state immediately and show results
+                st.rerun()
 
             matches = st.session_state.get("pd_matches", [])
 
@@ -1470,8 +1619,8 @@ def main_app():
                             st.rerun()
                         except Exception as e:
                             st.error(f"Failed to fetch or apply contact details. Check console: {e}")
-            elif "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
-                st.info("No Pipedrive contacts found matching the search term.")
+            elif current_term and "pd_matches" in st.session_state and st.session_state["pd_matches"] == []:
+                st.info(f"No Pipedrive contacts found matching '{current_term}'.")
 
     # Customer Info Inputs
     with st.container(border=True):
@@ -1532,110 +1681,166 @@ def main_app():
     # 2) Line Items
     st.subheader("Line Items")
 
-    def add_item(default_sku: str = ""):
-        st.session_state["line_items"].append({
-            "id": str(uuid.uuid4()),
-            "sku": default_sku,
-            "name": "",
-            "qty": 1,
-            "unit": 0.0,
-            "total": 0.0,
-            "notes": "",
-            "prev_sku": "",
-        })
+    # Add Line Item Button (uses on_click to prevent phantom presses on add)
+    st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
 
-    if st.button("Add Line Item", key="btn_add_line"):
-        add_item()
-
-    remove_ids = []
     sku_to_name = PRODUCTS.set_index('SKU')['Name'].to_dict()
     sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
 
-    for i, row in enumerate(st.session_state["line_items"]):
-        st.markdown(f"**Item {i + 1}**")
-        c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
-
-        current_sku = row.get("sku", "")
-        prod_name = row.get("name", "")
-        prod_price = row.get("unit", 0.0)
-
-        current_display = "(custom)"
-        if current_sku:
-            match = f"{current_sku} — {sku_to_name.get(current_sku, prod_name)}"
-            if match in sku_options_display:
-                current_display = match
-
-        try:
-            sel_idx = sku_options_display.index(current_display)
-        except ValueError:
-            sel_idx = 0
-
-        with c1:
-            sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
-                                                key=f"sku_select_{row['id']}")
-
-            # --- UNIT PRICE AUTOFILL LOGIC ---
-            new_sku = ""
-            new_name = prod_name
-            new_unit = prod_price
-
-            if sku_selected_display == "(custom)":
-                new_sku = ""
-                new_name = prod_name
-                new_unit = prod_price
-            else:
-                parts = sku_selected_display.split('—', 1)
-                new_sku = parts[0].strip()
-
-                prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
-                if not prod.empty:
-                    new_name = str(prod.iloc[0]["Name"])
-                    new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
-                else:
-                    new_name = parts[1].strip() if len(parts) > 1 else new_sku
-                    new_unit = prod_price
-
-            if new_sku != row["sku"]:
-                row["sku"] = new_sku
-                row["name"] = new_name
-                row["unit"] = new_unit
-                row["prev_sku"] = new_sku if new_sku else "(custom)"
-                # Set the flag to trigger a rerun on the next loop
-                st.session_state["rerun_flag"] = True
-
-            if not row["sku"]:
-                row["name"] = st.text_input("Custom Name (Required)", value=row["name"], key=f"name_input_{row['id']}")
-            # ---------------------------------------------
-
-        with c2:
-            row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
-                                         key=f"qty_input_{row['id']}")
-
-        with c3:
-            current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
-
-            # UNIT PRICE AUTOFILL FIX: Dynamic Key including SKU forces widget reset when SKU changes
-            row["unit"] = st.number_input("Unit Price", min_value=-100000.0, value=current_unit, step=0.01,
-                                          format="%.2f",
-                                          key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}")
-
-        with c4:
-            row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
-            st.write(f"**${row['total']:,.2f}**")
-
-        row["notes"] = st.text_area("Notes (optional)", value=row.get("notes", ""), key=f"notes_input_{row['id']}")
-        if st.button("Remove", key=f"rm_btn_{row['id']}"):
-            remove_ids.append(row["id"])
-        st.divider()
-
-    if remove_ids:
-        st.session_state["line_items"] = [r for r in st.session_state["line_items"] if r["id"] not in remove_ids]
-        st.rerun()
-
+    # --- COURSE DISCOUNT AUTO-ADD/REMOVE AND RERUN FIX ---
+    # Perform this check BEFORE the rendering loop to ensure the list is clean
     ensure_course_discount(st.session_state["line_items"])
 
-    if st.button("Add Line Item", key="btn_add_line_bottom"):
-        add_item()
+    # --- LINE ITEM RENDERING LOOP ---
+    # Check the list length again in case the discount check removed an item
+    for i in range(len(st.session_state["line_items"])):
+        # Retrieve the item by index
+        row = st.session_state["line_items"][i]
+
+        # Skip the Course Discount line for the drag handle, but allow removal via button
+        is_course_discount = row.get("sku") == "CD"
+
+        # Determine if the item can be moved
+        can_move_up = i > 0
+        can_move_down = i < len(st.session_state["line_items"]) - 1
+
+        # The discount item should not be moved if it is the last item
+        if is_course_discount and i == len(st.session_state["line_items"]) - 1:
+            can_move_up = False
+            can_move_down = False
+
+        # Also prevent moving an item down past the discount line if it's the item just before it
+        if not is_course_discount and i == len(st.session_state["line_items"]) - 2 and find_course_discount_index(
+                st.session_state["line_items"]) == len(st.session_state["line_items"]) - 1:
+            can_move_down = False
+
+        # Start of the individual item card for rendering
+        item_container = st.container(border=True)
+        with item_container:
+            # Row for Item Number and Move/Remove buttons
+            header_col1, header_col2, header_col3, header_col4 = st.columns([0.8, 0.4, 0.4, 0.4])
+
+            with header_col1:
+                st.markdown(f"**Item {i + 1}**")
+
+            with header_col2:
+                if can_move_up:
+                    st.button("⬆️", key=f"btn_up_{row['id']}", help="Move item up",
+                              on_click=move_item_up, args=(row["id"],), use_container_width=True)
+                else:
+                    st.empty()
+
+            with header_col3:
+                if can_move_down:
+                    st.button("⬇️", key=f"btn_down_{row['id']}", help="Move item down",
+                              on_click=move_item_down, args=(row["id"],), use_container_width=True)
+                else:
+                    st.empty()
+
+            with header_col4:
+                st.button("🗑️", key=f"btn_rm_{row['id']}", help="Remove item",
+                          on_click=remove_item, args=(row["id"],), use_container_width=True)
+
+            # Adjust columns for input/price/total
+            c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
+
+            current_sku = row.get("sku", "")
+            prod_name = row.get("name", "")
+            prod_price = row.get("unit", 0.0)
+
+            current_display = "(custom)"
+            if current_sku:
+                match = f"{current_sku} — {sku_to_name.get(current_sku, prod_name)}"
+                if match in sku_options_display:
+                    current_display = match
+
+            try:
+                sel_idx = sku_options_display.index(current_display)
+            except ValueError:
+                sel_idx = 0
+
+            with c1:
+                # Discount item is a locked Text input, not a selectbox
+                if is_course_discount:
+                    # FIX: Use markdown/metric layout for cleaner non-editable display
+                    st.markdown("**Auto-Discount**", help="This line is automatically calculated and non-editable.")
+                    st.markdown(f"**{row['name']}**")
+                else:
+                    sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
+                                                        key=f"sku_select_{row['id']}")
+
+                    # --- UNIT PRICE AUTOFILL LOGIC (Remains the same) ---
+                    new_sku = ""
+                    new_name = prod_name
+                    new_unit = prod_price
+
+                    if sku_selected_display == "(custom)":
+                        new_sku = ""
+                        new_name = prod_name
+                        new_unit = prod_price
+                    else:
+                        parts = sku_selected_display.split('—', 1)
+                        new_sku = parts[0].strip()
+
+                        prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
+                        if not prod.empty:
+                            new_name = str(prod.iloc[0]["Name"])
+                            new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
+                        else:
+                            new_name = parts[1].strip() if len(parts) > 1 else new_sku
+                            new_unit = prod_price
+
+                    if new_sku != row["sku"]:
+                        row["sku"] = new_sku
+                        row["name"] = new_name
+                        row["unit"] = new_unit
+                        row["prev_sku"] = new_sku if new_sku else "(custom)"
+                        # Set the flag to trigger a rerun on the next loop
+                        st.session_state["rerun_flag"] = True
+
+                    # Custom Name input for non-SKU items
+                    if not row["sku"] and not is_course_discount:
+                        row["name"] = st.text_input("Custom Name (Required)", value=row["name"],
+                                                    key=f"name_input_{row['id']}")
+                    # ---------------------------------------------
+
+            with c2:
+                # Discount item quantity is auto-calculated and cannot be edited
+                if is_course_discount:
+                    # FIX: Use markdown/metric layout for cleaner non-editable display
+                    st.markdown("**Qty**")
+                    st.markdown(f"**{int(row['qty'])}**")
+                else:
+                    row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
+                                                 key=f"qty_input_{row['id']}")
+
+            with c3:
+                current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
+
+                # Discount item unit price is locked
+                if is_course_discount:
+                    # FIX: Use markdown/metric layout for cleaner non-editable display
+                    st.markdown("**Unit Price**")
+                    st.markdown(f"**{fmt_money(current_unit)}**")
+                else:
+                    # UNIT PRICE AUTOFILL FIX: Dynamic Key including SKU forces widget reset when SKU changes
+                    row["unit"] = st.number_input("Unit Price", min_value=-100000.0, value=current_unit, step=0.01,
+                                                  format="%.2f",
+                                                  key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}")
+
+            with c4:
+                # Calculate total in every run, regardless of inputs
+                row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
+                st.markdown("**Total**")
+                st.write(f"**{fmt_money(row['total'])}**")
+
+            row["notes"] = st.text_area("Notes (optional)", value=row.get("notes", ""), key=f"notes_input_{row['id']}",
+                                        height=30)
+
+        # --- End of item container ---
+
+    # Add Line Item Button (bottom)
+    st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
     # 3) Fees, Tax & Totals
     st.subheader("Fees, Tax & Totals")
@@ -1673,7 +1878,7 @@ def main_app():
 
     qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
     if qual_qty >= 9:
-        st.success(f"Course Discount active: -$100 × {qual_qty} qualifying baskets.")
+        st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
     else:
         st.info(
             f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount.")
