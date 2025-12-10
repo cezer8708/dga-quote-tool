@@ -922,7 +922,6 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             Paragraph(f"**ORDER: {doc_number}**", styles['Heading2']),
             Spacer(1, 4)
         ]
-
         # --- PT Date for consistency ---
         grouped_info_text = (
             f"Date: {get_pacific_now().strftime('%m/%d/%y')}<br/>"
@@ -1446,7 +1445,7 @@ def move_item(item_id: str, direction: str):
 
     # Swap the items
     if new_index != current_index:
-        items[current_index], items[new_index] = items[new_index], items[current_index]
+        items[current_index], items[new_index] = items[new_index], items[new_index]
 
         # After any move, ensure the discount item is still last if it exists
         ensure_course_discount_stays_last(items)
@@ -1735,6 +1734,7 @@ def main_app():
             # Get the current payload (which contains all data needed for the PDF)
             preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
 
+            # <<< FIX APPLIED HERE >>>
             try:
                 # Generate PDF data
                 pdf_buffer = io.BytesIO()
@@ -1767,7 +1767,18 @@ def main_app():
                 st.markdown(pdf_display, unsafe_allow_html=True)
 
             except Exception as e:
+                # --- SYNTAX ERROR FIX: Correct indentation and placement ---
                 st.error(f"Error generating PDF preview: {e}")
+
+                # ADDED DEBUGGING TOOLS:
+                pdf_data_size = len(pdf_buffer.getvalue())
+                st.error(f"DEBUG: PDF Buffer Size: {pdf_data_size} bytes")
+
+                if pdf_data_size > 0:
+                    base64_pdf_debug = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+                    with st.expander("Raw Base64 Debug (First 100 chars)"):
+                        st.code(base64_pdf_debug[:100] + "...")
+                # <<< END FIX >>>
 
     # -------------------------------------------------------------------------
 
