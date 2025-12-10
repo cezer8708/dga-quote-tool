@@ -59,7 +59,7 @@ COMPANY = {
 }
 DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
-COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png")
+# COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png") # Original line
 
 # Pipedrive configuration retrieval
 PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
@@ -70,6 +70,51 @@ GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 
 
 # -----------------------------------
+
+# --- FIX IMPLEMENTATION START ---
+@st.cache_resource(ttl=None)  # Cache the result as this won't change at runtime
+def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | None:
+    """
+    Checks for common logo paths/casings, necessary for Streamlit Cloud (Linux)
+    which is case-sensitive, unlike many local development environments (Windows/macOS).
+    """
+    logo_path_base = get_env("COMPANY_LOGO_PATH", default_path)
+
+    # 1. Check the path as provided/defaulted
+    if os.path.exists(logo_path_base):
+        return logo_path_base
+
+    # 2. Check common casing variations (e.g., if assets/dga_logo.png was committed as Assets/DGA_Logo.png)
+    dirname, basename = os.path.split(logo_path_base)
+
+    # Common variations to check
+    variations = [
+        os.path.join(dirname.capitalize(), basename.capitalize()),  # e.g., Assets/DGA_Logo.png
+        os.path.join(dirname.lower(), basename.capitalize()),  # e.g., assets/DGA_Logo.png
+        os.path.join(dirname.capitalize(), basename.lower()),  # e.g., Assets/dga_logo.png
+    ]
+
+    for path in variations:
+        if os.path.exists(path):
+            # Print to stderr for deployment debugging
+            print(f"Found logo at case-adjusted path: {path}", file=sys.stderr)
+            return path
+
+    # 3. Final check: if the provided path is relative, check the root directory as well
+    if dirname == 'assets':
+        root_path = basename
+        if os.path.exists(root_path):
+            return root_path
+
+    # If all checks fail, return None
+    print(f"Logo not found at expected path: {logo_path_base} or common variations.", file=sys.stderr)
+    return None
+
+
+COMPANY_LOGO_PATH = _get_logo_path_robustly()
+
+
+# --- FIX IMPLEMENTATION END ---
 
 
 def fmt_money(value: float) -> str:
@@ -850,7 +895,9 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     # ==== TEMPLATE: ORDER ====
     if template == "order":
-        if COMPANY_LOGO_PATH and os.path.exists(COMPANY_LOGO_PATH):
+        # --- FIX: Use the robustly determined COMPANY_LOGO_PATH ---
+        # REMOVED: global COMPANY_LOGO_PATH (not needed for read)
+        if COMPANY_LOGO_PATH:  # Checks if the path was successfully found
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
             logo.hAlign = 'LEFT'
             company_info_block = _company_right_block(styles)
@@ -868,6 +915,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         else:
             story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
                       Spacer(1, 4)]
+        # --- END FIX ---
 
         # Display only the Order Document # (doc_number)
         story += [
@@ -1032,12 +1080,15 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         )
         company_info_para = Paragraph(company_info_text, styles['Normal'])
 
-        if COMPANY_LOGO_PATH and os.path.exists(COMPANY_LOGO_PATH):
+        # --- FIX: Use the robustly determined COMPANY_LOGO_PATH ---
+        # REMOVED: global COMPANY_LOGO_PATH (not needed for read)
+        if COMPANY_LOGO_PATH:  # Checks if the path was successfully found
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
             logo.hAlign = 'LEFT'
             left_logo_block_elements = [logo, Spacer(1, 4), company_info_para]
         else:
             left_logo_block_elements = [company_info_para]
+        # --- END FIX ---
 
         left_logo_block = Table([[elem] for elem in left_logo_block_elements], colWidths=[3.75 * inch])
         left_logo_block.setStyle(TableStyle([
@@ -1661,7 +1712,6 @@ def main_app():
                          help="Create a new version number based on the current quote."):
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
-
     # -------------------------------------------------------------------------
     # NEW: Sidebar for PDF Preview
     # -------------------------------------------------------------------------
