@@ -9,6 +9,7 @@ import sys
 from typing import Any
 import pytz
 import html.parser
+import base64  # <-- NEW: For base64 encoding the PDF for the iframe preview
 
 import pandas as pd
 import streamlit as st
@@ -361,6 +362,10 @@ if "pd_matches" not in st.session_state:
     st.session_state["pd_matches"] = []
 if "pd_expander_state" not in st.session_state:
     st.session_state["pd_expander_state"] = False
+
+# --- NEW: PDF Preview State ---
+if "show_pdf_preview" not in st.session_state:
+    st.session_state["show_pdf_preview"] = False
 
 
 # =============================================================================
@@ -1297,6 +1302,58 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     )
 
 
+# --- NEW HELPER FUNCTION TO GET PAYLOAD (DRY) ---
+def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, sales_tax: float, grand_total: float,
+                        tax_rate: float) -> dict:
+    """Assembles and returns the current payload dict from session state."""
+    quote_no = st.session_state["quote_no"]
+
+    # Re-assemble order_meta using session state values
+    order_meta = {
+        "order_doc_number": st.session_state.get("order_doc_number_pdf", quote_no),
+        "po_number": st.session_state["order_po_number"],
+        "operator": st.session_state["order_operator"],
+        "terms": st.session_state["order_terms"],
+        "commission_to": st.session_state["order_comm_to"],
+        "check_number": st.session_state["order_check_number"],
+        "date_received": st.session_state["order_date_received"],
+        # Crucial: Save the actual quote number used to create this order/payload
+        "source_quote_number": quote_no
+    }
+
+    fees = {
+        "drop_ship_fee": drop_ship_fee,
+        "freight": freight,
+    }
+    totals = {
+        "subtotal": subtotal,
+        "sales_tax": sales_tax,
+        "grand_total": grand_total,
+        "tax_rate_pct": tax_rate,
+    }
+    tax_meta = {
+        "tax_rate_pct_input": st.session_state["tax_rate_pct_input"],
+        "sc_county_checkbox": st.session_state["sc_county_checkbox"],
+    }
+
+    payload = {
+        "quote_no": quote_no,
+        "date": get_pacific_now().isoformat(),
+        "customer": st.session_state["customer"],
+        "line_items": st.session_state["line_items"],
+        "fees": fees,
+        "totals": totals,
+        "tax_meta": tax_meta,
+        "freight_notes": st.session_state["freight_notes"],
+        "footer_notes": st.session_state["footer_notes"],
+        "order_meta": order_meta,
+    }
+    return payload
+
+
+# --- END NEW HELPER FUNCTION ---
+
+
 # =============================================================================
 # 5. Main Application Logic
 # =============================================================================
@@ -1473,6 +1530,17 @@ def main_app():
             }
             /* End Red Key Fix */
 
+            /* NEW: PDF Preview iframe size fix for mobile/smaller screens */
+            .pdf-iframe-container {
+                overflow: auto;
+                height: 100vh; /* Takes up available height */
+            }
+            .pdf-iframe-container iframe {
+                width: 100%;
+                height: 100%;
+                border: 1px solid #ddd;
+            }
+
         </style>
     """, unsafe_allow_html=True)
     # -------------------------------------------------------------------------
@@ -1593,6 +1661,65 @@ def main_app():
                          help="Create a new version number based on the current quote."):
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
+
+    # -------------------------------------------------------------------------
+    # NEW: Sidebar for PDF Preview
+    # -------------------------------------------------------------------------
+    with st.sidebar:
+        st.header("PDF Preview")
+        st.info("Check this box to see a live preview of the generated Quote PDF.")
+        st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview", key="live_preview_checkbox")
+
+        # Display the live preview if the checkbox is checked
+        if st.session_state["show_pdf_preview"]:
+            # Recalculate totals for the preview
+            tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
+                else float(st.session_state["tax_rate_pct_input"]) / 100.0
+            subtotal = sum(float(r["total"]) for r in st.session_state["line_items"])
+            drop_ship_fee = st.session_state["drop_fee_input"]
+            freight = st.session_state["freight_fee_input"]
+            pre_tax = subtotal + float(drop_ship_fee) + float(freight)
+            sales_tax = round(pre_tax * tax_rate, 2)
+            grand_total = round(pre_tax + sales_tax, 2)
+
+            # Get the current payload (which contains all data needed for the PDF)
+            preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
+
+            try:
+                # Generate PDF data
+                pdf_buffer = io.BytesIO()
+                pdf_data = build_pdf(
+                    pdf_buffer,
+                    preview_payload["customer"],
+                    preview_payload["line_items"],
+                    preview_payload["fees"],
+                    preview_payload["totals"],
+                    preview_payload["quote_no"],
+                    preview_payload["footer_notes"],
+                    template="quote",
+                    meta=preview_payload["order_meta"],
+                )
+
+                # Encode to Base64
+                base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+
+                # Use st.markdown with an iframe to render the PDF
+                # The height is set to make it scroll nicely in the sidebar
+                pdf_display = f"""
+                <div class="pdf-iframe-container" style="height: 80vh;">
+                    <iframe 
+                        src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0&scrollbar=0" 
+                        title="PDF Preview"
+                        style="width: 100%; height: 100%; border: none;">
+                    </iframe>
+                </div>
+                """
+                st.markdown(pdf_display, unsafe_allow_html=True)
+
+            except Exception as e:
+                st.error(f"Error generating PDF preview: {e}")
+
+    # -------------------------------------------------------------------------
 
     # (UI for Customer Info)
     c = st.session_state["customer"]
@@ -1925,8 +2052,9 @@ def main_app():
     st.markdown(f"**Current Quote #:** `{quote_no}`")
     # ----------------------------------------
 
-    footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
-                                key="footer_notes_input")
+    st.session_state["footer_notes"] = st.text_area("Footer Notes (shown on PDF)",
+                                                    value=st.session_state["footer_notes"],
+                                                    key="footer_notes_input")
 
     # Order/PO Details Section
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
@@ -1967,66 +2095,23 @@ def main_app():
                 key="order_date_received",  # Binds directly to the session key
             )
 
-    # Re-assemble order_meta using session state values
-    order_meta = {
-        "order_doc_number": st.session_state["order_doc_number_pdf"],
-        "po_number": st.session_state["order_po_number"],
-        "operator": st.session_state["order_operator"],
-        "terms": st.session_state["order_terms"],
-        "commission_to": st.session_state["order_comm_to"],
-        "check_number": st.session_state["order_check_number"],
-        "date_received": st.session_state["order_date_received"],
-        # Crucial: Save the actual quote number used to create this order/payload
-        "source_quote_number": st.session_state["quote_no"]
-    }
-
-    # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
-    fees = {
-        "drop_ship_fee": drop_ship_fee,
-        "freight": freight,
-    }
-    totals = {
-        "subtotal": subtotal,
-        "sales_tax": sales_tax,
-        "grand_total": grand_total,
-        "tax_rate_pct": tax_rate,
-    }
-    tax_meta = {
-        "tax_rate_pct_input": st.session_state["tax_rate_pct_input"],
-        "sc_county_checkbox": st.session_state["sc_county_checkbox"],
-    }
-
-    payload = {
-        "quote_no": quote_no,
-        # Use ISO format for saving to payload/sheet (already PT via new_quote_number logic)
-        "date": get_pacific_now().isoformat(),
-        "customer": st.session_state["customer"],
-        "line_items": st.session_state["line_items"],
-        "fees": fees,
-        "totals": totals,
-        "tax_meta": tax_meta,
-        "freight_notes": st.session_state["freight_notes"],
-        "footer_notes": footer_notes,
-        "order_meta": order_meta,  # --- Save Order/PO Details to Payload ---
-    }
+    # --- NEW: Use Helper Function to assemble final payload ---
+    payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
+    order_meta = payload["order_meta"]  # Get the assembled order_meta from the payload
 
     # --- PDF Buttons ---
     pdf_col1, pdf_col2 = st.columns(2)
 
     # **MODIFIED QUOTE BUTTON LOGIC**
     if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
-        # Ensure the payload includes the latest data before generation/save
-        payload["order_meta"] = order_meta  # Save latest PO details even on a quote
+        # The payload is already up-to-date from the helper function
         handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
     # **MODIFIED ORDER BUTTON LOGIC**
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
         # The 'order_doc_number' is the number the user wants on the file name/header
         order_doc_number = st.session_state["order_doc_number_pdf"]
-        # NEW: persist order_meta with the quote so re-loads remember it
-        payload["order_meta"] = order_meta
-        payload["source_quote_number"] = quote_no  # Ensure the source quote is tracked in the payload
-
+        # The payload is already up-to-date from the helper function
         handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
