@@ -802,6 +802,12 @@ def _company_right_block(styles):
     )
 
 
+def _safe_get(data: dict, key: str, default: str = "") -> str:
+    """Safely retrieves a key from a dictionary, ensuring a non-None string is returned."""
+    val = data.get(key, default)
+    return str(val or default)
+
+
 def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, totals: dict,
               doc_number: str, footer_notes_text: str, template: str = "quote",
               meta: dict | None = None):
@@ -879,14 +885,15 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         info_tbl.hAlign = 'LEFT'
         story += [info_tbl, Spacer(1, 4)]
 
+        # --- SAFE GET IMPLEMENTATION for Customer Data ---
         ship_block_order = (
             f"<b>Shipping Address</b><br/>"
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
-            f"{customer.get('ship_addr1', '')}<br/>"
-            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}<br/><br/>"
+            f"{_safe_get(customer, 'company')}<br/>"
+            f"{_safe_get(customer, 'name')}<br/>"
+            f"{_safe_get(customer, 'ship_addr1')}<br/>"
+            f"{_safe_get(customer, 'ship_city')}, {_safe_get(customer, 'ship_state')} {_safe_get(customer, 'ship_zip')}<br/>"
+            f"{_safe_get(customer, 'phone')}<br/>"
+            f"{_safe_get(customer, 'email')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
             f"P.O. Number: {meta.get('po_number', '')}<br/>"
             f"Terms: {meta.get('terms', '')}<br/>"
@@ -894,16 +901,16 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"Date Received: {meta.get('date_received', '')}"
         )
 
-        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block_order = (
             f"<b>Billing Address</b><br/>"
-            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
-            f"{customer.get('bill_addr1', '')}<br/>"
-            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
-            f"{customer.get('bill_email', customer.get('email', ''))}"
+            f"{_safe_get(customer, 'bill_company', _safe_get(customer, 'company'))}<br/>"
+            f"{_safe_get(customer, 'bill_name', _safe_get(customer, 'name'))}<br/>"
+            f"{_safe_get(customer, 'bill_addr1')}<br/>"
+            f"{_safe_get(customer, 'bill_city')}, {_safe_get(customer, 'bill_state')} {_safe_get(customer, 'bill_zip')}<br/>"
+            f"{_safe_get(customer, 'bill_phone', _safe_get(customer, 'phone'))}<br/>"
+            f"{_safe_get(customer, 'bill_email', _safe_get(customer, 'email'))}"
         )
+        # --- END SAFE GET IMPLEMENTATION ---
 
         addr_data = [
             [
@@ -1085,26 +1092,27 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         t.hAlign = 'LEFT'
         story += [t, Spacer(1, 8)]
 
+        # --- SAFE GET IMPLEMENTATION for Customer Data ---
         ship_block = (
             f"<b>Shipping Address</b><br/>"
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
-            f"{customer.get('ship_addr1', '')}<br/>"
-            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}"
+            f"{_safe_get(customer, 'company')}<br/>"
+            f"{_safe_get(customer, 'name')}<br/>"
+            f"{_safe_get(customer, 'ship_addr1')}<br/>"
+            f"{_safe_get(customer, 'ship_city')}, {_safe_get(customer, 'ship_state')} {_safe_get(customer, 'ship_zip')}<br/>"
+            f"{_safe_get(customer, 'phone')}<br/>"
+            f"{_safe_get(customer, 'email')}"
         )
 
-        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block = (
             f"<b>Billing Address</b><br/>"
-            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
-            f"{customer.get('bill_addr1', '')}<br/>"
-            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
-            f"{customer.get('bill_email', customer.get('email', ''))}"
+            f"{_safe_get(customer, 'bill_company', _safe_get(customer, 'company'))}<br/>"
+            f"{_safe_get(customer, 'bill_name', _safe_get(customer, 'name'))}<br/>"
+            f"{_safe_get(customer, 'bill_addr1')}<br/>"
+            f"{_safe_get(customer, 'bill_city')}, {_safe_get(customer, 'bill_state')} {_safe_get(customer, 'bill_zip')}<br/>"
+            f"{_safe_get(customer, 'bill_phone', _safe_get(customer, 'phone'))}<br/>"
+            f"{_safe_get(customer, 'bill_email', _safe_get(customer, 'email'))}"
         )
+        # --- END SAFE GET IMPLEMENTATION ---
 
         t = Table([
             [Paragraph(ship_block, addr_style), Paragraph(bill_block, addr_style)]
@@ -1622,7 +1630,7 @@ def main_app():
 
             # 3. New Version
             if st.button("New Version", use_container_width=True, type="primary",
-                         help="Create a new version number based on the current quote."):  # <-- FIX APPLIED
+                         help="Create a new version number based on the current quote."):
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
 
