@@ -9,7 +9,7 @@ import sys
 from typing import Any
 import pytz
 import html.parser
-import base64  # <-- NEW: For base64 encoding the PDF for the iframe preview
+import base64  # <-- For base64 encoding the PDF for the iframe/embed preview
 
 import pandas as pd
 import streamlit as st
@@ -1580,12 +1580,12 @@ def main_app():
             }
             /* End Red Key Fix */
 
-            /* NEW: PDF Preview iframe size fix for mobile/smaller screens */
-            .pdf-iframe-container {
+            /* NEW: PDF Preview iframe size fix for mobile/smaller screens (Updated to include embed) */
+            .pdf-embed-container {
                 overflow: auto;
                 height: 100vh; /* Takes up available height */
             }
-            .pdf-iframe-container iframe {
+            .pdf-embed-container embed {
                 width: 100%;
                 height: 100%;
                 border: 1px solid #ddd;
@@ -1734,7 +1734,7 @@ def main_app():
             # Get the current payload (which contains all data needed for the PDF)
             preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
 
-            # <<< FIX APPLIED HERE >>>
+            # Use a try...except block to catch ReportLab or Base64 encoding errors
             try:
                 # Generate PDF data
                 pdf_buffer = io.BytesIO()
@@ -1753,21 +1753,23 @@ def main_app():
                 # Encode to Base64
                 base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-                # Use st.markdown with an iframe to render the PDF
-                # The height is set to make it scroll nicely in the sidebar
+                # <<< FIX IMPLEMENTATION: Use <embed> instead of <iframe> >>>
+                # Use st.markdown with an <embed> tag to render the PDF
                 pdf_display = f"""
-                <div class="pdf-iframe-container" style="height: 80vh;">
-                    <iframe 
-                        src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0&scrollbar=0" 
+                <div class="pdf-embed-container" style="height: 80vh;">
+                    <embed 
+                        src="data:application/pdf;base64,{base64_pdf}" 
+                        type="application/pdf"
                         title="PDF Preview"
                         style="width: 100%; height: 100%; border: none;">
-                    </iframe>
+                    </embed>
                 </div>
                 """
                 st.markdown(pdf_display, unsafe_allow_html=True)
+                # <<< END FIX IMPLEMENTATION >>>
 
             except Exception as e:
-                # --- SYNTAX ERROR FIX: Correct indentation and placement ---
+                # Catch and display PDF generation errors
                 st.error(f"Error generating PDF preview: {e}")
 
                 # ADDED DEBUGGING TOOLS:
@@ -1775,11 +1777,12 @@ def main_app():
                 st.error(f"DEBUG: PDF Buffer Size: {pdf_data_size} bytes")
 
                 if pdf_data_size > 0:
-                    base64_pdf_debug = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
-                    with st.expander("Raw Base64 Debug (First 100 chars)"):
-                        st.code(base64_pdf_debug[:100] + "...")
-                # <<< END FIX >>>
-
+                    try:
+                        base64_pdf_debug = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+                        with st.expander("Raw Base64 Debug (First 100 chars)"):
+                            st.code(base64_pdf_debug[:100] + "...")
+                    except Exception as b64e:
+                        st.error(f"DEBUG: Base64 encoding failed: {b64e}")
     # -------------------------------------------------------------------------
 
     # (UI for Customer Info)
