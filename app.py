@@ -1088,6 +1088,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             left_logo_block_elements = [logo, Spacer(1, 4), company_info_para]
         else:
             left_logo_block_elements = [company_info_para]
+
         # --- END FIX ---
 
         left_logo_block = Table([[elem] for elem in left_logo_block_elements], colWidths=[3.75 * inch])
