@@ -9,16 +9,20 @@ import sys
 from typing import Any
 import pytz
 import html.parser
-import base64
 
 import pandas as pd
 import streamlit as st
 import gspread
 
 # =============================================================================
+# !!! REMOVED: Removed Streamlit Sortables for simpler Move Up/Down buttons !!!
+# from streamlit_sortables import sort_items
+# =============================================================================
+
+# =============================================================================
 # 0. Configuration and Environment
 # =============================================================================
-st.set_page_config(page_title="DGA Quoting Tool", layout="wide")  # <-- Changed layout to 'wide' for preview column
+st.set_page_config(page_title="DGA Quoting Tool", layout="centered")
 
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
@@ -56,6 +60,16 @@ DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
 COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png")
 
+# Pipedrive configuration retrieval
+PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
+PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
+
+# --- GOOGLE SHEETS CONFIGURATION ---
+GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
+
+
+# -----------------------------------
+
 
 def fmt_money(value: float) -> str:
     """Formats a float as a currency string, e.g., 1234.56 -> $1,234.56"""
@@ -65,11 +79,6 @@ def fmt_money(value: float) -> str:
 # =============================================================================
 # 1. Google Sheets Connection and Data Handling
 # =============================================================================
-PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
-PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
-GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
-
-
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
     """Initializes/caches gspread using a robust secrets loader."""
@@ -802,12 +811,6 @@ def _company_right_block(styles):
     )
 
 
-def _safe_get(data: dict, key: str, default: str = "") -> str:
-    """Safely retrieves a key from a dictionary, ensuring a non-None string is returned."""
-    val = data.get(key, default)
-    return str(val or default)
-
-
 def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, totals: dict,
               doc_number: str, footer_notes_text: str, template: str = "quote",
               meta: dict | None = None):
@@ -885,15 +888,14 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         info_tbl.hAlign = 'LEFT'
         story += [info_tbl, Spacer(1, 4)]
 
-        # --- SAFE GET IMPLEMENTATION for Customer Data ---
         ship_block_order = (
             f"<b>Shipping Address</b><br/>"
-            f"{_safe_get(customer, 'company')}<br/>"
-            f"{_safe_get(customer, 'name')}<br/>"
-            f"{_safe_get(customer, 'ship_addr1')}<br/>"
-            f"{_safe_get(customer, 'ship_city')}, {_safe_get(customer, 'ship_state')} {_safe_get(customer, 'ship_zip')}<br/>"
-            f"{_safe_get(customer, 'phone')}<br/>"
-            f"{_safe_get(customer, 'email')}<br/><br/>"
+            f"{customer.get('company', '')}<br/>"
+            f"{customer.get('name', '')}<br/>"
+            f"{customer.get('ship_addr1', '')}<br/>"
+            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
+            f"{customer.get('phone', '')}<br/>"
+            f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
             f"P.O. Number: {meta.get('po_number', '')}<br/>"
             f"Terms: {meta.get('terms', '')}<br/>"
@@ -901,16 +903,16 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             f"Date Received: {meta.get('date_received', '')}"
         )
 
+        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block_order = (
             f"<b>Billing Address</b><br/>"
-            f"{_safe_get(customer, 'bill_company', _safe_get(customer, 'company'))}<br/>"
-            f"{_safe_get(customer, 'bill_name', _safe_get(customer, 'name'))}<br/>"
-            f"{_safe_get(customer, 'bill_addr1')}<br/>"
-            f"{_safe_get(customer, 'bill_city')}, {_safe_get(customer, 'bill_state')} {_safe_get(customer, 'bill_zip')}<br/>"
-            f"{_safe_get(customer, 'bill_phone', _safe_get(customer, 'phone'))}<br/>"
-            f"{_safe_get(customer, 'bill_email', _safe_get(customer, 'email'))}"
+            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
+            f"{customer.get('bill_addr1', '')}<br/>"
+            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
+            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
+            f"{customer.get('bill_email', customer.get('email', ''))}"
         )
-        # --- END SAFE GET IMPLEMENTATION ---
 
         addr_data = [
             [
@@ -1092,27 +1094,26 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         t.hAlign = 'LEFT'
         story += [t, Spacer(1, 8)]
 
-        # --- SAFE GET IMPLEMENTATION for Customer Data ---
         ship_block = (
             f"<b>Shipping Address</b><br/>"
-            f"{_safe_get(customer, 'company')}<br/>"
-            f"{_safe_get(customer, 'name')}<br/>"
-            f"{_safe_get(customer, 'ship_addr1')}<br/>"
-            f"{_safe_get(customer, 'ship_city')}, {_safe_get(customer, 'ship_state')} {_safe_get(customer, 'ship_zip')}<br/>"
-            f"{_safe_get(customer, 'phone')}<br/>"
-            f"{_safe_get(customer, 'email')}"
+            f"{customer.get('company', '')}<br/>"
+            f"{customer.get('name', '')}<br/>"
+            f"{customer.get('ship_addr1', '')}<br/>"
+            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
+            f"{customer.get('phone', '')}<br/>"
+            f"{customer.get('email', '')}"
         )
 
+        # FIX: Use bill_company, bill_name, bill_phone, bill_email
         bill_block = (
             f"<b>Billing Address</b><br/>"
-            f"{_safe_get(customer, 'bill_company', _safe_get(customer, 'company'))}<br/>"
-            f"{_safe_get(customer, 'bill_name', _safe_get(customer, 'name'))}<br/>"
-            f"{_safe_get(customer, 'bill_addr1')}<br/>"
-            f"{_safe_get(customer, 'bill_city')}, {_safe_get(customer, 'bill_state')} {_safe_get(customer, 'bill_zip')}<br/>"
-            f"{_safe_get(customer, 'bill_phone', _safe_get(customer, 'phone'))}<br/>"
-            f"{_safe_get(customer, 'bill_email', _safe_get(customer, 'email'))}"
+            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
+            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
+            f"{customer.get('bill_addr1', '')}<br/>"
+            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
+            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
+            f"{customer.get('bill_email', customer.get('email', ''))}"
         )
-        # --- END SAFE GET IMPLEMENTATION ---
 
         t = Table([
             [Paragraph(ship_block, addr_style), Paragraph(bill_block, addr_style)]
@@ -1236,56 +1237,6 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
 # --- Custom Streamlit logic (MODIFIED) ---
 
-def generate_current_pdf_bytes(payload: dict, doc_number: str, template: str = "quote",
-                               meta: dict | None = None) -> bytes:
-    """
-    Helper to generate the PDF bytes. Includes robust error handling to prevent
-    a blank preview iframe if the ReportLab generation fails due to missing keys/data.
-    """
-    pdf_buffer = io.BytesIO()
-
-    try:
-        pdf_data = build_pdf(
-            pdf_buffer,
-            payload["customer"],
-            payload["line_items"],
-            payload["fees"],
-            payload["totals"],
-            doc_number,
-            payload["footer_notes"],
-            template=template,
-            meta=meta,
-        )
-        return pdf_data
-
-    except Exception as e:
-        # If build_pdf fails, create a simple fallback PDF with the error message
-        print(f"PDF Generation Failed: {e}", file=sys.stderr)
-
-        err_buffer = io.BytesIO()
-        doc = SimpleDocTemplate(err_buffer, pagesize=letter)
-        styles = getSampleStyleSheet()
-        story = [
-            Paragraph("--- LIVE PREVIEW ERROR ---", styles['Title']),
-            Spacer(1, 12),
-            Paragraph("The PDF builder failed to generate the document.", styles['Normal']),
-            Paragraph(f"Error: <b>{type(e).__name__}</b>", styles['Normal']),
-            Paragraph(f"Details: {e}", styles['Normal']),
-            Spacer(1, 12),
-            Paragraph("Check the Streamlit console for full traceback.", styles['Italic']),
-        ]
-
-        # Build the error document
-        try:
-            doc.build(story)
-            return err_buffer.getvalue()
-        except Exception:
-            # If the error handler itself fails, return a minimal valid PDF
-            fallback_buffer = io.BytesIO(
-                b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 55 >>\nstream\nBT /F1 24 Tf 100 700 Td (PDF Error Fallback) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000010 00000 n\n0000000056 00000 n\n0000000105 00000 n\n0000000185 00000 n\ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n270\n%%EOF')
-            return fallback_buffer.getvalue()
-
-
 def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator,
                           order_meta: dict | None = None):
     """Generates PDF, attempts save, and renders the download button."""
@@ -1296,8 +1247,18 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     label = f"Download Quote PDF" if is_quote else f"Download Order/PO PDF"
 
     # 2. Generate PDF data
-    # NOTE: We now use the dedicated helper to generate the bytes
-    pdf_data = generate_current_pdf_bytes(payload, doc_number, template=template, meta=order_meta)
+    pdf_buffer = io.BytesIO()
+    pdf_data = build_pdf(
+        pdf_buffer,
+        payload["customer"],
+        payload["line_items"],
+        payload["fees"],
+        payload["totals"],
+        doc_number,
+        payload["footer_notes"],
+        template=template,
+        meta=order_meta,
+    )
 
     # 3. Attempt to save to Google Sheets
     save_successful = save_quote_to_gsheet(payload)
@@ -1473,8 +1434,7 @@ def main_app():
     """Contains all the original quoting tool functionality."""
 
     st.title("DGA Quoting Tool")
-    st.caption(
-        "Local product DB • Pipedrive Lookup • Auto Course Discount • Google Sheets/PDF export • **Live PDF Preview**")
+    st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • Google Sheets/PDF export")
 
     # <<< UI FIX START: CSS Injection and Column Adjustment >>>
     # -------------------------------------------------------------------------
@@ -1640,6 +1600,8 @@ def main_app():
     st.subheader("Customer Information")
 
     # Pipedrive Lookup
+    # 🐛 FIX: Removed explicit Search Button, using on_change to trigger search on Enter/Focus Out
+
     # Set the expander to True if a search term is present OR matches were found.
     has_search_term = st.session_state.get("pd_term", "").strip() != ""
     has_matches = bool(st.session_state.get("pd_matches", []))
@@ -1913,22 +1875,18 @@ def main_app():
 
     # 3) Fees, Tax & Totals
     st.subheader("Fees, Tax & Totals")
+    cc1, cc2, cc3, cc4 = st.columns(4)
+    with cc1:
+        drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
+    with cc2:
+        freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
+    with cc3:
+        _ = st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
+    with cc4:
+        _ = st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
 
-    # Use a container for the fees/tax inputs to keep them contained above the totals metrics
-    with st.container():
-        cc1, cc2, cc3, cc4 = st.columns(4)
-        with cc1:
-            drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
-        with cc2:
-            freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
-        with cc3:
-            _ = st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
-        with cc4:
-            _ = st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)",
-                            key="sc_county_checkbox")
-
-        st.text_area("Freight Notes (optional)", key="freight_notes",
-                     placeholder="e.g., XPO, quote #12345, residential w/ liftgate, 2 pallets, ETA 5–7 biz days")
+    st.text_area("Freight Notes (optional)", key="freight_notes",
+                 placeholder="e.g., XPO, quote #12345, residential w/ liftgate, 2 pallets, ETA 5–7 biz days")
 
     tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
         else float(st.session_state["tax_rate_pct_input"]) / 100.0
@@ -1939,7 +1897,6 @@ def main_app():
     sales_tax = round(pre_tax * tax_rate, 2)
     grand_total = round(pre_tax + sales_tax, 2)
 
-    # Totals Metrics Row
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.metric("Subtotal", f"${subtotal:,.2f}")
@@ -1961,14 +1918,55 @@ def main_app():
     st.divider()
 
     # 4) Generate PDF Quote + Order PDF
-    # --- Live Preview / Final Generation Layout ---
+    st.subheader("Generate PDF Documents")
 
-    # --- Generate and Save Quote Logic (Prepare Payload) ---
-    quote_no = st.session_state["quote_no"]
+    # --- FIX: REMOVED QUOTE # INPUT FIELD ---
+    quote_no = st.session_state["quote_no"]  # Use the canonical value
+    st.markdown(f"**Current Quote #:** `{quote_no}`")
+    # ----------------------------------------
+
     footer_notes = st.text_area("Footer Notes (shown on PDF)", value=st.session_state["footer_notes"],
                                 key="footer_notes_input")
 
-    # Order/PO Details Section (Moved to the final control column for better flow)
+    # Order/PO Details Section
+    with st.expander("Order/PO Details (for Order PDF)", expanded=False):
+        # Seed the order doc number to the current quote if empty/missing
+        if not st.session_state.get("order_doc_number_pdf"):
+            st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+
+        order_col1, order_col2 = st.columns(2)
+        with order_col1:
+            st.text_input(
+                "Order/PO Document # (Used for Order PDF Header/File Name)",
+                key="order_doc_number_pdf",  # Binds directly to the session key
+                value=st.session_state.get("order_doc_number_pdf", quote_no)
+            )
+            st.text_input(
+                "P.O. Number",
+                key="order_po_number",  # Binds directly to the session key
+            )
+            st.text_input(
+                "Operator",
+                key="order_operator",  # Binds directly to the session key
+            )
+            st.text_input(
+                "Terms",
+                key="order_terms",  # Binds directly to the session key
+            )
+        with order_col2:
+            st.text_input(
+                "Commission To",
+                key="order_comm_to",  # Binds directly to the session key
+            )
+            st.text_input(
+                "Check Number",
+                key="order_check_number",  # Binds directly to the session key
+            )
+            st.text_input(
+                "Date Received",
+                key="order_date_received",  # Binds directly to the session key
+            )
+
     # Re-assemble order_meta using session state values
     order_meta = {
         "order_doc_number": st.session_state["order_doc_number_pdf"],
@@ -1979,9 +1977,10 @@ def main_app():
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
         # Crucial: Save the actual quote number used to create this order/payload
-        "source_quote_number": quote_no
+        "source_quote_number": st.session_state["quote_no"]
     }
 
+    # --- Generate and Save Quote Logic (MODIFIED FOR SHEETS) ---
     fees = {
         "drop_ship_fee": drop_ship_fee,
         "freight": freight,
@@ -1997,9 +1996,9 @@ def main_app():
         "sc_county_checkbox": st.session_state["sc_county_checkbox"],
     }
 
-    # Final Payload Assembly
     payload = {
         "quote_no": quote_no,
+        # Use ISO format for saving to payload/sheet (already PT via new_quote_number logic)
         "date": get_pacific_now().isoformat(),
         "customer": st.session_state["customer"],
         "line_items": st.session_state["line_items"],
@@ -2008,71 +2007,27 @@ def main_app():
         "tax_meta": tax_meta,
         "freight_notes": st.session_state["freight_notes"],
         "footer_notes": footer_notes,
-        "order_meta": order_meta,
+        "order_meta": order_meta,  # --- Save Order/PO Details to Payload ---
     }
 
-    # Create the two main columns for the bottom section
-    ctrl_col, preview_col = st.columns([1, 1])
+    # --- PDF Buttons ---
+    pdf_col1, pdf_col2 = st.columns(2)
 
-    with ctrl_col:
-        st.subheader("Final Generation & Order Details")
-        st.markdown(f"**Current Quote #:** `{quote_no}`")
+    # **MODIFIED QUOTE BUTTON LOGIC**
+    if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+        # Ensure the payload includes the latest data before generation/save
+        payload["order_meta"] = order_meta  # Save latest PO details even on a quote
+        handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
-        with st.expander("Order/PO Details (for Order PDF)", expanded=False):
-            # Seed the order doc number to the current quote if empty/missing
-            if not st.session_state.get("order_doc_number_pdf"):
-                st.session_state["order_doc_number_pdf"] = quote_no
+    # **MODIFIED ORDER BUTTON LOGIC**
+    if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
+        # The 'order_doc_number' is the number the user wants on the file name/header
+        order_doc_number = st.session_state["order_doc_number_pdf"]
+        # NEW: persist order_meta with the quote so re-loads remember it
+        payload["order_meta"] = order_meta
+        payload["source_quote_number"] = quote_no  # Ensure the source quote is tracked in the payload
 
-            order_col1, order_col2 = st.columns(2)
-            with order_col1:
-                st.text_input(
-                    "Order/PO Document #",
-                    key="order_doc_number_pdf",
-                    value=st.session_state.get("order_doc_number_pdf", quote_no),
-                    help="This number will appear on the Order PDF header and file name."
-                )
-                st.text_input("P.O. Number", key="order_po_number")
-                st.text_input("Operator", key="order_operator")
-            with order_col2:
-                st.text_input("Terms", key="order_terms")
-                st.text_input("Commission To", key="order_comm_to")
-                st.text_input("Check Number", key="order_check_number")
-                st.text_input("Date Received", key="order_date_received")
-
-        st.markdown("---")
-
-        # **MODIFIED QUOTE BUTTON LOGIC**
-        if st.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary", key="btn_save_quote_final"):
-            # Ensure the payload includes the latest data before generation/save
-            payload["order_meta"] = order_meta  # Save latest PO details even on a quote
-            handle_pdf_generation(payload, quote_no, "quote", ctrl_col)
-
-        # **MODIFIED ORDER BUTTON LOGIC**
-        if st.button("Process as Order / PO", use_container_width=True, type="secondary", key="btn_save_order_final"):
-            order_doc_number = st.session_state["order_doc_number_pdf"]
-            payload["order_meta"] = order_meta
-            payload["source_quote_number"] = quote_no  # Ensure the source quote is tracked in the payload
-
-            handle_pdf_generation(payload, order_doc_number, "order", ctrl_col, order_meta=order_meta)
-
-    with preview_col:
-        st.subheader("Live Quote Preview")
-
-        # 1. Generate the PDF bytes using the new helper function
-        # Always use the "quote" template for the live preview
-        pdf_bytes = generate_current_pdf_bytes(payload, quote_no, template="quote", meta=order_meta)
-
-        # 2. Encode the bytes to base64
-        base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-
-        # 3. Create the HTML for the embedded PDF viewer
-        # Use st.components.v1.html for embedding the PDF
-        pdf_display = f'''
-        <iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf">
-        </iframe>'''
-
-        # 4. Embed the PDF using Streamlit's HTML component
-        st.components.v1.html(pdf_display, height=750, scrolling=True)
+        handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 # =============================================================================
