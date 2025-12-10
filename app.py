@@ -9,7 +9,8 @@ import sys
 from typing import Any
 import pytz
 import html.parser
-import base64  # <-- NEW: For base64 encoding the PDF for the iframe preview
+import base64
+import streamlit.components.v1 as components  # <-- NEW: Import components
 
 import pandas as pd
 import streamlit as st
@@ -1753,9 +1754,8 @@ def main_app():
                 # Encode to Base64
                 base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-                # Use st.markdown with an iframe to render the PDF
-                # The height is set to make it scroll nicely in the sidebar
-                pdf_display = f"""
+                # Use the Streamlit HTML component to bypass potential browser security block
+                html_content = f"""
                 <div class="pdf-iframe-container" style="height: 80vh;">
                     <iframe 
                         src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0&scrollbar=0" 
@@ -1764,7 +1764,11 @@ def main_app():
                     </iframe>
                 </div>
                 """
-                st.markdown(pdf_display, unsafe_allow_html=True)
+
+                # --- FIX: Replaced st.markdown with st.components.v1.html ---
+                components.html(html_content, height=650, scrolling=True)  # Set height for sidebar display
+                # --- END FIX ---
+
 
             except Exception as e:
                 st.error(f"Error generating PDF preview: {e}")
