@@ -9,12 +9,16 @@ import sys
 from typing import Any
 import pytz
 import html.parser
-import base64
+import base64  # <-- NEW: For base64 encoding the PDF for the iframe preview
 
 import pandas as pd
 import streamlit as st
 import gspread
-import streamlit.components.v1 as components  # <--- CRITICAL FIX IMPORT
+
+# =============================================================================
+# !!! REMOVED: Removed Streamlit Sortables for simpler Move Up/Down buttons !!!
+# from streamlit_sortables import sort_items
+# =============================================================================
 
 # =============================================================================
 # 0. Configuration and Environment
@@ -55,6 +59,7 @@ COMPANY = {
 }
 DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
+# COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png") # Original line
 
 # Pipedrive configuration retrieval
 PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
@@ -62,9 +67,12 @@ PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
 
 # --- GOOGLE SHEETS CONFIGURATION ---
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
+
+
 # -----------------------------------
 
-@st.cache_resource(ttl=None)
+# --- FIX IMPLEMENTATION START ---
+@st.cache_resource(ttl=None)  # Cache the result as this won't change at runtime
 def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | None:
     """
     Checks for common logo paths/casings, necessary for Streamlit Cloud (Linux)
@@ -76,17 +84,19 @@ def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | 
     if os.path.exists(logo_path_base):
         return logo_path_base
 
-    # 2. Check common casing variations
+    # 2. Check common casing variations (e.g., if assets/dga_logo.png was committed as Assets/DGA_Logo.png)
     dirname, basename = os.path.split(logo_path_base)
 
+    # Common variations to check
     variations = [
-        os.path.join(dirname.capitalize(), basename.capitalize()),
-        os.path.join(dirname.lower(), basename.capitalize()),
-        os.path.join(dirname.capitalize(), basename.lower()),
+        os.path.join(dirname.capitalize(), basename.capitalize()),  # e.g., Assets/DGA_Logo.png
+        os.path.join(dirname.lower(), basename.capitalize()),  # e.g., assets/DGA_Logo.png
+        os.path.join(dirname.capitalize(), basename.lower()),  # e.g., Assets/dga_logo.png
     ]
 
     for path in variations:
         if os.path.exists(path):
+            # Print to stderr for deployment debugging
             print(f"Found logo at case-adjusted path: {path}", file=sys.stderr)
             return path
 
@@ -96,11 +106,15 @@ def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | 
         if os.path.exists(root_path):
             return root_path
 
+    # If all checks fail, return None
     print(f"Logo not found at expected path: {logo_path_base} or common variations.", file=sys.stderr)
     return None
 
 
 COMPANY_LOGO_PATH = _get_logo_path_robustly()
+
+
+# --- FIX IMPLEMENTATION END ---
 
 
 def fmt_money(value: float) -> str:
@@ -881,6 +895,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     # ==== TEMPLATE: ORDER ====
     if template == "order":
+        # --- FIX: Use the robustly determined COMPANY_LOGO_PATH ---
+        # REMOVED: global COMPANY_LOGO_PATH (not needed for read)
         if COMPANY_LOGO_PATH:  # Checks if the path was successfully found
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
             logo.hAlign = 'LEFT'
@@ -899,6 +915,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         else:
             story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles['Title']),
                       Spacer(1, 4)]
+        # --- END FIX ---
 
         # Display only the Order Document # (doc_number)
         story += [
@@ -1063,12 +1080,15 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         )
         company_info_para = Paragraph(company_info_text, styles['Normal'])
 
+        # --- FIX: Use the robustly determined COMPANY_LOGO_PATH ---
+        # REMOVED: global COMPANY_LOGO_PATH (not needed for read)
         if COMPANY_LOGO_PATH:  # Checks if the path was successfully found
             logo = Image(COMPANY_LOGO_PATH, width=1.8 * inch, height=1.0 * inch)
             logo.hAlign = 'LEFT'
             left_logo_block_elements = [logo, Spacer(1, 4), company_info_para]
         else:
             left_logo_block_elements = [company_info_para]
+        # --- END FIX ---
 
         left_logo_block = Table([[elem] for elem in left_logo_block_elements], colWidths=[3.75 * inch])
         left_logo_block.setStyle(TableStyle([
@@ -1385,6 +1405,10 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
 # --- END NEW HELPER FUNCTION ---
 
 
+# =============================================================================
+# 5. Main Application Logic
+# =============================================================================
+
 # --- Line Item Callback Functions (New/Modified) ---
 
 def move_item(item_id: str, direction: str):
@@ -1556,6 +1580,18 @@ def main_app():
                 display: none;
             }
             /* End Red Key Fix */
+
+            /* NEW: PDF Preview iframe size fix for mobile/smaller screens */
+            .pdf-iframe-container {
+                overflow: auto;
+                height: 100vh; /* Takes up available height */
+            }
+            .pdf-iframe-container iframe {
+                width: 100%;
+                height: 100%;
+                border: 1px solid #ddd;
+            }
+
         </style>
     """, unsafe_allow_html=True)
     # -------------------------------------------------------------------------
@@ -1676,7 +1712,6 @@ def main_app():
                          help="Create a new version number based on the current quote."):
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
-
     # -------------------------------------------------------------------------
     # NEW: Sidebar for PDF Preview
     # -------------------------------------------------------------------------
@@ -1718,9 +1753,10 @@ def main_app():
                 # Encode to Base64
                 base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-                # --- FINAL ROBUST FIX: Use components.html with explicit height/scrolling ---
-                html_content = f"""
-                <div style="height: 100%;">
+                # Use st.markdown with an iframe to render the PDF
+                # The height is set to make it scroll nicely in the sidebar
+                pdf_display = f"""
+                <div class="pdf-iframe-container" style="height: 80vh;">
                     <iframe 
                         src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0&scrollbar=0" 
                         title="PDF Preview"
@@ -1728,10 +1764,7 @@ def main_app():
                     </iframe>
                 </div>
                 """
-                # This uses the Streamlit Component API, which is more reliable for bypassing CSP issues
-                components.html(html_content, height=450, scrolling=True)
-                # --- END FINAL ROBUST FIX ---
-
+                st.markdown(pdf_display, unsafe_allow_html=True)
 
             except Exception as e:
                 st.error(f"Error generating PDF preview: {e}")
