@@ -1713,61 +1713,84 @@ def main_app():
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
     # -------------------------------------------------------------------------
-    # NEW: Sidebar for PDF Preview
-    # -------------------------------------------------------------------------
-    with st.sidebar:
-        st.header("PDF Preview")
-        st.info("Check this box to see a live preview of the generated Quote PDF.")
-        st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview", key="live_preview_checkbox")
+        # -------------------------------------------------------------------------
+        # NEW: Sidebar for PDF Preview
+        # -------------------------------------------------------------------------
+        with st.sidebar:
+            st.header("PDF Preview")
+            st.info("Check this box to see a live preview of the generated Quote PDF.")
+            st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview", key="live_preview_checkbox")
 
-        # Display the live preview if the checkbox is checked
-        if st.session_state["show_pdf_preview"]:
-            # Recalculate totals for the preview
-            tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
-                else float(st.session_state["tax_rate_pct_input"]) / 100.0
-            subtotal = sum(float(r["total"]) for r in st.session_state["line_items"])
-            drop_ship_fee = st.session_state["drop_fee_input"]
-            freight = st.session_state["freight_fee_input"]
-            pre_tax = subtotal + float(drop_ship_fee) + float(freight)
-            sales_tax = round(pre_tax * tax_rate, 2)
-            grand_total = round(pre_tax + sales_tax, 2)
+            # Display the live preview if the checkbox is checked
+            if st.session_state["show_pdf_preview"]:
+                # Recalculate totals for the preview (using the same logic as the Generate button)
+                tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
+                    else float(st.session_state["tax_rate_pct_input"]) / 100.0
+                subtotal = sum(float(r["total"]) for r in st.session_state["line_items"])
+                drop_ship_fee = st.session_state["drop_fee_input"]
+                freight = st.session_state["freight_fee_input"]
+                pre_tax = subtotal + float(drop_ship_fee) + float(freight)
+                sales_tax = round(pre_tax * tax_rate, 2)
+                grand_total = round(pre_tax + sales_tax, 2)
 
-            # Get the current payload (which contains all data needed for the PDF)
-            preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
+                # Get the current payload (which contains all data needed for the PDF)
+                preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total,
+                                                      tax_rate)
 
-            try:
-                # Generate PDF data
-                pdf_buffer = io.BytesIO()
-                pdf_data = build_pdf(
-                    pdf_buffer,
-                    preview_payload["customer"],
-                    preview_payload["line_items"],
-                    preview_payload["fees"],
-                    preview_payload["totals"],
-                    preview_payload["quote_no"],
-                    preview_payload["footer_notes"],
-                    template="quote",
-                    meta=preview_payload["order_meta"],
-                )
+                # Use a try...except block to catch ReportLab or Base64 encoding errors
+                try:
+                    pdf_buffer = io.BytesIO()
+                    # Use a dummy document number just for the preview
+                    pdf_data = build_pdf(
+                        pdf_buffer,
+                        preview_payload["customer"],
+                        preview_payload["line_items"],
+                        preview_payload["fees"],
+                        preview_payload["totals"],
+                        preview_payload["quote_no"],
+                        preview_payload["footer_notes"],
+                        template="quote",
+                        meta=preview_payload["order_meta"],
+                    )
 
-                # Encode to Base64
-                base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
+                    # --- FIX: Check for empty data before encoding ---
+                    if not pdf_data or len(pdf_data) < 100:  # 100 bytes is a safe check for a minimal file
+                        st.warning("PDF data is minimal or empty. Add line items to see the full preview.")
+                        # Show the simple white box placeholder if we can't generate
+                        st.empty()
+                    else:
+                        # Encode to Base64
+                        base64_pdf = base64.b64encode(pdf_data).decode('utf-8')
 
-                # Use st.markdown with an iframe to render the PDF
-                # The height is set to make it scroll nicely in the sidebar
-                pdf_display = f"""
-                <div class="pdf-iframe-container" style="height: 80vh;">
-                    <iframe 
-                        src="data:application/pdf;base64,{base64_pdf}#toolbar=0&navpanes=0&scrollbar=0" 
-                        title="PDF Preview"
-                        style="width: 100%; height: 100%; border: none;">
-                    </iframe>
-                </div>
-                """
-                st.markdown(pdf_display, unsafe_allow_html=True)
+                        # Use st.markdown with an <embed> tag to render the PDF
+                        pdf_display = f"""
+                        <div style="height: 800px; width: 100%; border: 1px solid #333;">
+                            <embed 
+                                src="data:application/pdf;base64,{base64_pdf}" 
+                                type="application/pdf"
+                                title="PDF Quote Preview"
+                                style="width: 100%; height: 100%; border: none;">
+                            </embed>
+                        </div>
+                        """
+                        st.markdown(pdf_display, unsafe_allow_html=True)
 
-            except Exception as e:
-                st.error(f"Error generating PDF preview: {e}")
+                except Exception as e:
+                    # Catch and display PDF generation errors
+                    st.error(f"Error generating PDF preview: {e}")
+
+                    # Added debugging tools for size
+                    pdf_data_size = len(pdf_buffer.getvalue())
+                    st.error(f"DEBUG: PDF Buffer Size: {pdf_data_size} bytes")
+
+                    # Further debug: check if base64 encoding failed for the raw data
+                    if pdf_data_size > 0:
+                        try:
+                            base64_pdf_debug = base64.b64encode(pdf_buffer.getvalue()).decode('utf-8')
+                            with st.expander("Raw Base64 Debug (First 100 chars)"):
+                                st.code(base64_pdf_debug[:100] + "...")
+                        except Exception as b64e:
+                            st.error(f"DEBUG: Base64 encoding failed: {b64e}")
 
     # -------------------------------------------------------------------------
 
