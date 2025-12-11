@@ -351,7 +351,7 @@ def start_new_quote():
     st.session_state["pd_matches"] = []
     st.session_state["pd_term"] = ""
     st.session_state["pd_expander_state"] = False
-    st.session_state["show_pdf_preview"] = False  # Reset preview checkbox
+    st.session_state["show_pdf_preview"] = True  # FIX: Reset preview checkbox to pre-checked
     st.rerun()
 
 
@@ -428,9 +428,10 @@ if "pd_matches" not in st.session_state:
 if "pd_expander_state" not in st.session_state:
     st.session_state["pd_expander_state"] = False
 
-# --- NEW: PDF Preview State ---
+# --- NEW: PDF Preview State (FIX APPLIED HERE) ---
 if "show_pdf_preview" not in st.session_state:
-    st.session_state["show_pdf_preview"] = False
+    # Set the default value to True to pre-check the box
+    st.session_state["show_pdf_preview"] = True
 
 
 # =============================================================================
@@ -1752,7 +1753,10 @@ def main_app():
     with st.sidebar:
         st.header("PDF Preview")
         st.info("Check this box to see a live preview of the generated Quote PDF.")
-        st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview", key="live_preview_checkbox")
+        # FIX IMPLEMENTATION: Remove `value=...` and rely on session state default
+        st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview",
+                                                           key="live_preview_checkbox",
+                                                           value=st.session_state["show_pdf_preview"])
 
         # Display the live preview if the checkbox is checked
         if st.session_state["show_pdf_preview"]:
