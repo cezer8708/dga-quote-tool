@@ -351,7 +351,7 @@ def start_new_quote():
     st.session_state["pd_matches"] = []
     st.session_state["pd_term"] = ""
     st.session_state["pd_expander_state"] = False
-    st.session_state["show_pdf_preview"] = False # Reset preview checkbox
+    st.session_state["show_pdf_preview"] = False  # Reset preview checkbox
     st.rerun()
 
 
@@ -431,6 +431,7 @@ if "pd_expander_state" not in st.session_state:
 # --- NEW: PDF Preview State ---
 if "show_pdf_preview" not in st.session_state:
     st.session_state["show_pdf_preview"] = False
+
 
 # =============================================================================
 # 4. Pipedrive Helpers
@@ -799,6 +800,7 @@ def is_basket_5_7_X(item: dict) -> bool:
 
     return False
 
+
 def eligible_qty_for_discount(items: list[dict]) -> int:
     # Only calculate the qty based on non-discount items
     return int(sum((float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it) and it.get("sku") != "CD")))
@@ -833,6 +835,7 @@ def ensure_course_discount(items: list[dict]) -> bool:
             "total": round(-100.0 * qty, 2),
             "notes": DISCOUNT_NOTE,
             "prev_sku": "CD",
+            "previewChecked": True,  # Ensure discount is always in preview
         }
 
         if idx == -1:
@@ -1012,8 +1015,11 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         data = [header]
         # Iterate over the items list passed to the function, not the session state directly
         for r in items:
-            if float(r.get("qty", 0)) == 0:
+            # Only include items that have a quantity AND are marked for preview (if the field exists)
+            is_checked = r.get("previewChecked", True)  # Default to True for compatibility
+            if float(r.get("qty", 0)) == 0 or not is_checked:
                 continue
+
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
             data.append([str(r["qty"]), desc_para,
@@ -1210,7 +1216,10 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
         data = [header]
         # Iterate over the items list passed to the function, not the session state directly
         for r in items:
-            if float(r.get("qty", 0)) == 0: continue
+            # Only include items that have a quantity AND are marked for preview (if the field exists)
+            is_checked = r.get("previewChecked", True)  # Default to True for compatibility
+            if float(r.get("qty", 0)) == 0 or not is_checked: continue
+
             desc_para = Paragraph(str(r["name"]),
                                   ParagraphStyle('Desc', parent=styles['Normal'], fontSize=9, leading=11))
             data.append([str(r["qty"]), desc_para,
@@ -1310,7 +1319,7 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     # --- LIVE PREVIEW CONSISTENCY FIX: Ensure buffer is ready for reading ---
     doc.build(story)
-    buffer.seek(0) # Rewind the buffer to the beginning after building
+    buffer.seek(0)  # Rewind the buffer to the beginning after building
     # The return statement now uses the ready-to-read buffer
     return buffer.getvalue()
 
@@ -1498,7 +1507,7 @@ def remove_item(item_id):
     if line_items_before != len(st.session_state["line_items"]):
         # Re-run the core discount logic (which adds/removes/updates)
         if ensure_course_discount(st.session_state["line_items"]):
-            st.session_state["rerun_flag"] = True # Rerun if discount changed
+            st.session_state["rerun_flag"] = True  # Rerun if discount changed
 
 
 def add_item_callback():
@@ -1506,12 +1515,15 @@ def add_item_callback():
     st.session_state["line_items"].append({
         "id": str(uuid.uuid4()),
         "sku": "",
+        # FIX 1: Ensure 'name' is initialized as a string ('') to prevent blank preview/input errors
         "name": "",
         "qty": 1,
         "unit": 0.0,
         "total": 0.0,
         "notes": "",
         "prev_sku": "",
+        # FIX 2: PRE-CHECK THE BOX by setting this property to true.
+        "previewChecked": True,
     })
     # Force rerun to ensure the newly added item shows up correctly
     st.session_state["rerun_flag"] = True
@@ -1734,8 +1746,7 @@ def main_app():
                 assign_new_quote_version()
     # --- END STACKED BUTTONS COLUMN ---
 
-
-  # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # NEW: Sidebar for PDF Preview
     # -------------------------------------------------------------------------
     with st.sidebar:
@@ -1748,7 +1759,10 @@ def main_app():
             # Recalculate totals for the preview
             tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
                 else float(st.session_state["tax_rate_pct_input"]) / 100.0
-            subtotal = sum(float(r["total"]) for r in st.session_state["line_items"])
+
+            # Subtotal only includes items marked for preview
+            subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
+
             drop_ship_fee = st.session_state["drop_fee_input"]
             freight = st.session_state["freight_fee_input"]
             pre_tax = subtotal + float(drop_ship_fee) + float(freight)
@@ -1764,6 +1778,7 @@ def main_app():
                 pdf_data = build_pdf(
                     pdf_buffer,
                     preview_payload["customer"],
+                    # Pass the full line items list; build_pdf handles filtering by previewChecked
                     preview_payload["line_items"],
                     preview_payload["fees"],
                     preview_payload["totals"],
@@ -1875,7 +1890,7 @@ def main_app():
             c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""),
                                            key=f"ship_zip_input_{cust_key_suffix}")
 
-      # --- BILLING ADDRESS (RIGHT COLUMN) ---
+        # --- BILLING ADDRESS (RIGHT COLUMN) ---
         with cols_addr[1]:
             st.subheader("Billing Address")
 
@@ -1929,6 +1944,10 @@ def main_app():
         # Skip the Course Discount line for the drag handle, but allow removal via button
         is_course_discount = row.get("sku") == "CD"
 
+        # NEW: Checkbox state for preview
+        # If the item doesn't have the key (e.g., loaded from old state), default it to True
+        is_preview_checked = row.get("previewChecked", True)
+
         # Determine if the item can be moved
         can_move_up = i > 0
         can_move_down = i < len(st.session_state["line_items"]) - 1
@@ -1947,7 +1966,7 @@ def main_app():
         item_container = st.container(border=True)
         with item_container:
             # Row for Item Number and Move/Remove buttons
-            header_col1, header_col2, header_col3, header_col4 = st.columns([0.8, 0.4, 0.4, 0.4])
+            header_col1, header_col2, header_col3, header_col4, header_col5 = st.columns([0.8, 0.4, 0.4, 0.4, 1.2])
 
             with header_col1:
                 st.markdown(f"**Item {i + 1}**")
@@ -1969,6 +1988,23 @@ def main_app():
             with header_col4:
                 st.button("🗑️", key=f"btn_rm_{row['id']}", help="Remove item",
                           on_click=remove_item, args=(row["id"],), use_container_width=True)
+
+            with header_col5:
+                # Preview Checkbox Widget
+                if is_course_discount:
+                    st.checkbox("Show in Preview", value=True, disabled=True, key=f"preview_check_{row['id']}",
+                                help="Discount is always shown in preview.")
+                else:
+                    # NOTE: This uses the existing `row` dictionary to store/retrieve state.
+                    # Setting the key directly to the item's ID makes it sticky.
+                    new_checked_state = st.checkbox("Show in Preview", value=is_preview_checked,
+                                                    key=f"preview_check_{row['id']}")
+
+                    # Check if the state changed, and update the list item
+                    if new_checked_state != is_preview_checked:
+                        row["previewChecked"] = new_checked_state
+                        # Force rerun to ensure the total recalculation (in case the item was unchecked)
+                        st.session_state["rerun_flag"] = True
 
             # Adjust columns for input/price/total
             c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
@@ -2092,7 +2128,9 @@ def main_app():
     tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
         else float(st.session_state["tax_rate_pct_input"]) / 100.0
 
-    subtotal = sum(float(r["total"]) for r in st.session_state["line_items"])
+    # Subtotal only includes items marked for preview (consistent with PDF sidebar)
+    subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
+
     pre_tax = subtotal + float(drop_ship_fee) + float(freight)
 
     sales_tax = round(pre_tax * tax_rate, 2)
