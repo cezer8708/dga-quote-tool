@@ -435,16 +435,18 @@ if "pd_expander_state" not in st.session_state:
 if "show_pdf_preview" not in st.session_state:
     st.session_state["show_pdf_preview"] = False
 
-
 # =============================================================================
 # 4. Pipedrive Helpers
 # =============================================================================
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
     """Helper for Pipedrive API calls."""
-    if not PIPEDRIVE_API_TOKEN:
+    if not PIPEDRIVE_API_TOKEN or not PIPEDRIVE_BASE_URL:
+        # Avoid crashing if the API token or URL is missing
+        print("Pipedrive API Token or Base URL is missing.", file=sys.stderr)
         return None
-    url = f"{PIPEDRVE_BASE_URL}/{endpoint}"
+    # FIX: Corrected the typo in the variable name
+    url = f"{PIPEDRIVE_BASE_URL}/{endpoint}"
     _params = {"api_token": PIPEDRIVE_API_TOKEN, "limit": 5, **(params or {})}
     try:
         response = requests.get(url, params=_params, timeout=5)
@@ -799,7 +801,6 @@ def is_basket_5_7_X(item: dict) -> bool:
         return True
 
     return False
-
 
 def eligible_qty_for_discount(items: list[dict]) -> int:
     # Only calculate the qty based on non-discount items
@@ -1312,7 +1313,6 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
     doc.build(story)
     return buffer.getvalue()
-
 
 # --- Custom Streamlit logic (MODIFIED) ---
 def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator,
