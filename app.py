@@ -16,14 +16,10 @@ import streamlit as st
 import gspread
 
 # =============================================================================
-# !!! REMOVED: Removed Streamlit Sortables for simpler Move Up/Down buttons !!!
-# from streamlit_sortables import sort_items
-# =============================================================================
-
-# =============================================================================
 # 0. Configuration and Environment
 # =============================================================================
-st.set_page_config(page_title="DGA Quoting Tool", layout="centered")
+# --- CHANGE: Changed 'centered' to 'wide' as requested ---
+st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
@@ -355,6 +351,7 @@ def start_new_quote():
     st.session_state["pd_matches"] = []
     st.session_state["pd_term"] = ""
     st.session_state["pd_expander_state"] = False
+    st.session_state["show_pdf_preview"] = False # Reset preview checkbox
     st.rerun()
 
 
@@ -1311,8 +1308,12 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
 
         story += [Paragraph("<b>Notes:</b>", notes_style), Paragraph(footer_notes_text, notes_style)]
 
+    # --- LIVE PREVIEW CONSISTENCY FIX: Ensure buffer is ready for reading ---
     doc.build(story)
+    buffer.seek(0) # Rewind the buffer to the beginning after building
+    # The return statement now uses the ready-to-read buffer
     return buffer.getvalue()
+
 
 # --- Custom Streamlit logic (MODIFIED) ---
 def handle_pdf_generation(payload: dict, doc_number: str, template: str, container: st.delta_generator.DeltaGenerator,
@@ -1495,11 +1496,9 @@ def remove_item(item_id):
     ]
     # Check if removing the item might affect the discount and trigger a rerun if the list size changed.
     if line_items_before != len(st.session_state["line_items"]):
-        ensure_course_discount(st.session_state["line_items"])
-    else:
-        # If the discount item itself was removed (list size still changes)
-        if find_course_discount_index(st.session_state["line_items"]) == -1:
-            st.session_state["rerun_flag"] = True
+        # Re-run the core discount logic (which adds/removes/updates)
+        if ensure_course_discount(st.session_state["line_items"]):
+            st.session_state["rerun_flag"] = True # Rerun if discount changed
 
 
 def add_item_callback():
@@ -1876,7 +1875,7 @@ def main_app():
             c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""),
                                            key=f"ship_zip_input_{cust_key_suffix}")
 
-        # --- BILLING ADDRESS (RIGHT COLUMN) ---
+      # --- BILLING ADDRESS (RIGHT COLUMN) ---
         with cols_addr[1]:
             st.subheader("Billing Address")
 
