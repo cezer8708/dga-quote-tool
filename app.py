@@ -35,13 +35,26 @@ from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 )
 
+# Load environment variables from .env file (for local development)
+# This MUST be called early in the script.
 load_dotenv()
 
 
 def get_env(key, default=None, cast=str):
-    val = os.getenv(key, default)
+    """
+    Helper to safely retrieve environment variables with casting.
+    Checks os.environ (local) first, then st.secrets (Streamlit Cloud).
+    """
+    # 1. Check Streamlit Secrets (for deployment)
+    if key in st.secrets:
+        val = st.secrets[key]
+    # 2. Check os.environ (for local development via load_dotenv)
+    else:
+        val = os.getenv(key, default)
+
+    # Casting logic
     try:
-        return cast(val) if val is not None else val
+        return cast(val) if val is not None else default
     except Exception:
         return default
 
@@ -61,9 +74,19 @@ DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
 # COMPANY_LOGO_PATH = get_env("COMPANY_LOGO_PATH", "assets/dga_logo.png") # Original line
 
-# Pipedrive configuration retrieval
-PIPEDRIVE_API_TOKEN = os.getenv("PIPEDRIVE_API_TOKEN")
-PIPEDRIVE_BASE_URL = "https://api.pipedrive.com/v1"
+# --- Pipedrive configuration retrieval FIX ---
+# We retrieve the domain from the environment (using your .env name)
+PIPEDRIVE_DOMAIN = get_env("PIPEDRIVE_API_URL")
+
+# We define the token using the name defined in your .env
+PIPEDRIVE_API_TOKEN = get_env("PIPEDRIVE_API_TOKEN")
+
+# The correct API Base URL structure includes the domain and the /v1 endpoint
+if PIPEDRIVE_DOMAIN:
+    # Ensure the domain doesn't end with a slash before appending /v1
+    PIPEDRIVE_BASE_URL = PIPEDRIVE_DOMAIN.rstrip('/') + "/v1"
+else:
+    PIPEDRIVE_BASE_URL = None  # Will be None if env variable is missing
 
 # --- GOOGLE SHEETS CONFIGURATION ---
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
