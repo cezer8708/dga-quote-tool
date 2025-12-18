@@ -312,7 +312,7 @@ def get_pacific_now():
 
 def new_quote_number():
     """Generates a new quote number using the current time in the Pacific Time Zone."""
-    return get_pacific_now().strftime("%Y%m%d-%H%M")
+    return get_pacific_now().strftime("%m%d-%H%M")
 
 
 def start_new_quote():
