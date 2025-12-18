@@ -358,11 +358,17 @@ def start_new_quote():
 def assign_new_quote_version():
     """Increments the version number of the current quote."""
     current_quote_no = st.session_state["quote_no"]
+
     match = re.match(r'(.+?)(?:-V(\d+))?$', current_quote_no)
-    base, version = match.groups() if match else (current_quote_no, '0')
-    new_version = int(version or 0) + 1
+    base, version = match.groups() if match else (current_quote_no, None)
+
+    # If no version exists, assume current is V1 → next should be V2
+    current_version = int(version) if version is not None else 1
+    new_version = current_version + 1
+
     st.session_state["quote_no"] = f"{base}-V{new_version}"
     st.rerun()
+
 
 
 if "customer" not in st.session_state:
