@@ -36,3 +36,6 @@ npm-debug.log
 Thumbs.db
 logs/
 tmp/
+service_account.json
+.env
+test_sheet.py

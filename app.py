@@ -146,57 +146,47 @@ def fmt_money(value: float) -> str:
 # =============================================================================
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
-    """Initializes/caches gspread using a robust secrets loader."""
+    """
+    Authenticates with Google Sheets.
+    Priority:
+    1. Local 'service_account.json' file (verified via test_sheet.py).
+    2. Streamlit Secrets 'gcp_service_account' (for cloud deployment).
+    """
     try:
-        # 0) If there's no section, allow local file fallback
-        if "gcp_service_account" not in st.secrets:
-            if os.path.exists("service_account.json"):
-                return gspread.service_account(filename="service_account.json")
-            st.warning(
-                "Google Sheets Service Account not configured in Streamlit Secrets or local file. Sheet saving disabled.")
-            return None
+        # 1. LOCAL PRIORITY: Use the file verified with test_sheet.py
+        if os.path.exists("service_account.json"):
+            return gspread.service_account(filename="service_account.json")
 
-        creds_data = st.secrets["gcp_service_account"]
+        # 2. CLOUD FALLBACK: Use Streamlit Secrets if local file is missing
+        if "gcp_service_account" in st.secrets:
+            creds_data = st.secrets["gcp_service_account"]
 
-        # 1) Accept any Mapping (Streamlit's SecretDict), then coerce to dict
-        from collections.abc import Mapping
-        sa_creds = None
+            # Handle both Dictionary (SecretDict) and JSON String formats
+            if isinstance(creds_data, str):
+                try:
+                    sa_creds = json.loads(creds_data)
+                except json.JSONDecodeError:
+                    st.error("Secret format error: gcp_service_account is a string but not valid JSON.")
+                    return None
+            else:
+                # Coerce Streamlit SecretDict to a standard dictionary
+                sa_creds = dict(creds_data)
 
-        if isinstance(creds_data, Mapping):
-            d = dict(creds_data)
-            # Handle accidental nesting (rare, but seen in cloud UIs)
-            if "gcp_service_account" in d and isinstance(d["gcp_service_account"], Mapping):
-                d = dict(d["gcp_service_account"])
-            if d.get("type") == "service_account":
-                sa_creds = d
+            # Normalize private key newlines (The "Invalid private key" fix)
+            if "private_key" in sa_creds and isinstance(sa_creds["private_key"], str):
+                sa_creds["private_key"] = sa_creds["private_key"].replace("\\n", "\n")
 
-        # 2) If user stored JSON string for the block, parse it
-        if sa_creds is None and isinstance(creds_data, str):
-            try:
-                decoded = json.loads(creds_data)
-                if isinstance(decoded, dict) and decoded.get("type") == "service_account":
-                    sa_creds = decoded
-            except json.JSONDecodeError:
-                st.error("Secret format error: gcp_service_account is a string but not valid JSON.")
-                return None
+            return gspread.service_account_from_dict(sa_creds)
 
-        if not sa_creds or sa_creds.get("type") != "service_account":
-            st.error("Google Sheets Service Account secret is invalid or missing 'type'.")
-            return None
-
-        # 3) Normalize private key newlines
-        if "private_key" in sa_creds and isinstance(sa_creds["private_key"], str):
-            sa_creds["private_key"] = sa_creds["private_key"].replace("\\n", "\n")
-
-        # 4) Build the client
-        return gspread.service_account_from_dict(sa_creds)
+        st.error("No Google Sheets credentials found. Please add 'service_account.json' or update st.secrets.")
+        return None
 
     except Exception as e:
         st.error(f"Error connecting to Google Sheets: {e}")
         return None
 
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes (adjust TTL as needed)
+@st.cache_data(ttl=300)
 def load_all_quotes() -> pd.DataFrame:
     """Loads all quote data from the Google Sheet for lookup."""
     client = get_gsheet_client()
@@ -204,15 +194,13 @@ def load_all_quotes() -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        # FIX: Use open_by_key instead of open or open_by_title for reliability
         sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
-
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
 
         if 'Quote #' not in df.columns or 'Quote JSON Payload' not in df.columns:
-            st.error("Google Sheet missing required columns: 'Quote #' and 'Quote JSON Payload'. Check row 1.")
+            st.error("Google Sheet missing required columns: 'Quote #' and 'Quote JSON Payload'.")
             return pd.DataFrame()
 
         # Convert the JSON string column back to actual dicts
@@ -228,36 +216,30 @@ def load_all_quotes() -> pd.DataFrame:
 
 
 def save_quote_to_gsheet(payload: dict) -> bool:
-    """Saves a new quote to the Google Sheet."""
+    """Saves a new quote or order to the Google Sheet."""
     client = get_gsheet_client()
     if not client:
         return False
 
     try:
-        # FIX: Use open_by_key instead of open or open_by_title for reliability
         sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
 
-        # Extract the order document number for saving if it's an order payload
-        doc_number = payload["order_meta"].get("order_doc_number") or payload.get("quote_no")
+        # Use order doc number if available, otherwise use quote number
+        doc_number = payload.get("order_meta", {}).get("order_doc_number") or payload.get("quote_no")
 
-        # Prepare the row data for the Sheet's main columns (A to G)
         row_data = [
-            doc_number,  # Use the doc_number which can be the quote # or a new PO #
+            doc_number,
             payload.get("date"),
-            payload["customer"].get("company", ""),
-            payload["customer"].get("name", ""),
-            payload["customer"].get("email", ""),
-            payload["totals"].get("grand_total", 0.0),
-            json.dumps(payload),  # Full payload is saved as a JSON string
+            payload.get("customer", {}).get("company", ""),
+            payload.get("customer", {}).get("name", ""),
+            payload.get("customer", {}).get("email", ""),
+            payload.get("totals", {}).get("grand_total", 0.0),
+            json.dumps(payload),  # Full payload saved as JSON string
         ]
 
-        # Append the new row to the sheet
         worksheet.append_row(row_data, value_input_option='USER_ENTERED')
-
-        # Clear the quote cache so the next load reflects the new entry
-        load_all_quotes.clear()
-
+        load_all_quotes.clear() # Reset cache so the new row appears immediately
         return True
     except Exception as e:
         st.error(f"Error saving quote to sheet: {e}")
