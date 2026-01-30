@@ -2033,41 +2033,27 @@ def main_app():
                         parts = sku_selected_display.split('—', 1)
                         new_sku = parts[0].strip()
 
-                        # ==============================
-                        # Auto-fill product info for quote line
-                        # ==============================
-                        def populate_line_item(row: dict, new_sku: str, prod_price: float = 0.0, parts: list = None):
-                            """
-                            Given a SKU, fills the line item row with Name, UnitPrice, Notes from PRODUCTS DataFrame.
-                            Falls back to manual input if SKU is not found.
-                            """
-                            # Ensure SKU is clean
-                            lookup_sku = str(new_sku).strip()
+                        # --- Lookup product in PRODUCTS DataFrame based on SKU ---
+                        prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
 
-                            # Lookup in PRODUCTS DataFrame
-                            prod = PRODUCTS[PRODUCTS["SKU"].str.strip() == lookup_sku]
+                        if not prod.empty:
+                            new_name = str(prod.iloc[0]["Name"])
+                            new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
+                            new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
+                                prod.iloc[0]["Notes"]) else ""
+                        else:
+                            # Fallback if SKU not found in CSV
+                            new_name = parts[1].strip() if len(parts) > 1 else new_sku
+                            new_unit = prod_price
+                            new_notes = ""  # <-- ensure Notes is always assigned
 
-                            if not prod.empty:
-                                # Pull values from the CSV
-                                new_name = str(prod.iloc[0]["Name"])
-                                new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(
-                                    prod.iloc[0]["UnitPrice"]) else 0.0
-                                new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
-                                    prod.iloc[0]["Notes"]) else ""
-                            else:
-                                # Fallback: SKU not found
-                                new_name = parts[1].strip() if parts and len(parts) > 1 else new_sku
-                                new_unit = prod_price
-                                new_notes = ""
-
-                            # Update the line item dict
-                            row["sku"] = lookup_sku
+                        # --- Update the row in session_state line_items ---
+                        if new_sku != row["sku"]:
+                            row["sku"] = new_sku
                             row["name"] = new_name
                             row["unit"] = new_unit
-                            row["notes"] = new_notes
-                            row["prev_sku"] = lookup_sku if lookup_sku else "(custom)"
-
-                            # Trigger rerun if needed
+                            row["notes"] = new_notes  # <-- Notes now autofills correctly
+                            row["prev_sku"] = new_sku if new_sku else "(custom)"
                             st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
