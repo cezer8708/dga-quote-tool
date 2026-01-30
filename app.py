@@ -1480,8 +1480,12 @@ def remove_item(item_id):
     """Removes a line item based on its ID and sets the rerun flag if the discount is affected."""
     line_items_before = len(st.session_state["line_items"])
     st.session_state["line_items"] = [
-        item for item in st.session_state["line_items"] if item["id"] != item_id
-    ]
+        for item in st.session_state["line_items"]:
+    if item["sku"]:
+        row = PRODUCTS.loc[PRODUCTS["SKU"] == item["sku"]]
+    if not row.empty:
+        item["notes"] = row["Notes"].iloc[0]
+
     # Check if removing the item might affect the discount and trigger a rerun if the list size changed.
     if line_items_before != len(st.session_state["line_items"]):
         # Re-run the core discount logic (which adds/removes/updates)
@@ -1491,21 +1495,28 @@ def remove_item(item_id):
 
 def add_item_callback():
     """Adds a new line item and sets the rerun flag."""
+    new_id = str(uuid.uuid4())
+    sku = ""  # initially empty
+    # Look up Notes if SKU exists
+    notes = ""
+    if sku:
+        product_row = PRODUCTS.loc[PRODUCTS["SKU"] == sku]
+        if not product_row.empty:
+            notes = product_row["Notes"].iloc[0]
+
     st.session_state["line_items"].append({
-        "id": str(uuid.uuid4()),
-        "sku": "",
-        # FIX 1: Ensure 'name' is initialized as a string ('') to prevent blank preview/input errors
+        "id": new_id,
+        "sku": sku,
         "name": "",
         "qty": 1,
         "unit": 0.0,
         "total": 0.0,
-        "notes": "",
+        "notes": notes,       # <-- pull from products.csv here
         "prev_sku": "",
-        # FIX 2: PRE-CHECK THE BOX by setting this property to true.
         "previewChecked": True,
     })
-    # Force rerun to ensure the newly added item shows up correctly
     st.session_state["rerun_flag"] = True
+
 
 
 def handle_quantity_change(item_id: str):
