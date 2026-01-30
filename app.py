@@ -396,7 +396,7 @@ st.session_state.setdefault("footer_notes", (
 ))
 st.session_state.setdefault("drop_fee_input", 0.0)
 st.session_state.setdefault("freight_fee_input", 0.0)
-st.session_state.setdefault("tax_rate_pct_input", float(DEFAULT_TAX * 100))
+st.session_state.setdefault("tax_rate_pct_input", 0.0)  # start with 0% tax
 st.session_state.setdefault("sc_county_checkbox", False)
 st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("order_doc_number_pdf", "")
@@ -1738,9 +1738,12 @@ def main_app():
 
         # Display the live preview if the checkbox is checked
         if st.session_state["show_pdf_preview"]:
-            # Recalculate totals for the preview
-            tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] \
-                else float(st.session_state["tax_rate_pct_input"]) / 100.0
+            # Apply tax **only if manually set** or SC checkbox checked
+            if st.session_state["sc_county_checkbox"]:
+                tax_rate = SANTA_CRUZ_TAX_RATE
+            else:
+                tax_input = float(st.session_state.get("tax_rate_pct_input", 0.0))
+                tax_rate = tax_input / 100 if tax_input > 0 else 0.0
 
             # Subtotal only includes items marked for preview
             subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
@@ -1748,6 +1751,7 @@ def main_app():
             drop_ship_fee = st.session_state["drop_fee_input"]
             freight = st.session_state["freight_fee_input"]
             pre_tax = subtotal + float(drop_ship_fee) + float(freight)
+
             sales_tax = round(pre_tax * tax_rate, 2)
             grand_total = round(pre_tax + sales_tax, 2)
 
