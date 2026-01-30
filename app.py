@@ -2114,8 +2114,22 @@ def main_app():
                 st.markdown("**Total**")
                 st.write(f"**{fmt_money(row['total'])}**")
 
-            row["Notes"] = st.text_area("Notes (optional)", value=row.get("Notes", ""), key=f"Notes_input_{row['id']}",
-                                        height=30)
+            notes_key = f"Notes_input_{row['id']}"
+
+            # Initialize widget state ONCE from CSV / existing value
+            if notes_key not in st.session_state:
+                st.session_state[notes_key] = row.get("Notes", "")
+
+            # Render textarea
+            new_notes_val = st.text_area(
+                "Notes (optional)",
+                key=notes_key,
+                height=30
+            )
+
+            # Only update row if user actually changed something
+            if new_notes_val != row.get("Notes", ""):
+                row["Notes"] = new_notes_val
 
         # --- End of item container ---
 
