@@ -247,8 +247,19 @@ def save_quote_to_gsheet(payload: dict) -> bool:
 
 
 # =============================================================================
-# 2. Data: Local Product DB (Placeholder)
+# 2+3. Data: Local Product DB + Session State Initialization
 # =============================================================================
+import pandas as pd
+import pytz
+from datetime import datetime
+import re
+import streamlit as st
+
+DEFAULT_TAX = 0.08  # Example default tax rate
+
+# ----------------------------------------
+# Load Products CSV
+# ----------------------------------------
 @st.cache_data
 def load_products(path: str = "products.csv") -> pd.DataFrame:
     """
@@ -258,19 +269,26 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
     """
     try:
         df = pd.read_csv(path)
+        # Strip whitespace from column headers
         df.columns = [c.strip() for c in df.columns]
 
         # Verify required columns
-        if "SKU" not in df.columns or "Name" not in df.columns or "UnitPrice" not in df.columns:
-            raise ValueError("products.csv must have columns: SKU, Name, UnitPrice")
+        for col in ["SKU", "Name", "UnitPrice"]:
+            if col not in df.columns:
+                raise ValueError(f"products.csv must have column: {col}")
 
-        # --- NEW: Ensure Notes column exists and is cleaned ---
+        # Strip whitespace from string columns
+        str_cols = df.select_dtypes(include="object").columns
+        for col in str_cols:
+            df[col] = df[col].str.strip()
+
+        # Ensure Notes column exists and is cleaned
         if "Notes" not in df.columns:
             df["Notes"] = ""
         else:
             df["Notes"] = df["Notes"].fillna("").astype(str)
 
-        df["SKU"] = df["SKU"].astype(str)
+        # Ensure numeric conversion
         df["UnitPrice"] = pd.to_numeric(
             df["UnitPrice"].astype(str).str.replace(r"[^0-9.\-]", "", regex=True),
             errors="coerce"
@@ -278,7 +296,6 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
 
         return df
     except FileNotFoundError:
-        # Fallback to a minimal DataFrame if products.csv is missing
         st.warning(f"Product file not found at '{path}'. Using minimal placeholder data.")
         return pd.DataFrame({
             "SKU": ["M5-ST", "M7-PT", "M14-CO", "TS-BASIC"],
@@ -288,149 +305,111 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
             "Notes": ["", "", "", ""]
         })
 
-
 PRODUCTS = load_products()
 
 
-# =============================================================================
-# 3. Session State Initialization
-# =============================================================================
-
-# --- Pacific Time Zone Helper ---
+# ----------------------------------------
+# Pacific Time Helper
+# ----------------------------------------
 def get_pacific_now():
-    """Returns the current datetime object localized to America/Los_Angeles."""
+    """Returns current datetime localized to America/Los_Angeles."""
     pacific_tz = pytz.timezone('America/Los_Angeles')
     return datetime.now(pacific_tz)
 
 
+# ----------------------------------------
+# Quote Number Helpers
+# ----------------------------------------
 def new_quote_number():
-    """Generates a new quote number using the current time in the Pacific Time Zone."""
+    """Generates a new quote number using the current time in Pacific Time."""
     return get_pacific_now().strftime("%m%d-%H%M")
-
-
-def start_new_quote():
-    """Resets the state to begin a new quote."""
-    st.session_state["customer"] = {
-        # SHIP-TO info (usually person/org combo, but often just person)
-        "company": "", "name": "", "email": "", "phone": "",
-        "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
-        # BILL-TO info (Org-specific)
-        "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
-        "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
-    }
-    st.session_state["line_items"] = []
-    st.session_state["drop_fee_input"] = 0.0
-    st.session_state["freight_fee_input"] = 0.0
-    st.session_state["freight_notes"] = ""
-    st.session_state["tax_rate_pct_input"] = float(DEFAULT_TAX * 100)
-    st.session_state["sc_county_checkbox"] = False
-    st.session_state["footer_notes"] = (
-        "Pricing subject to change. Please review all details carefully.\n"
-        "International customers will be responsible for all duties and taxes upon delivery."
-    )
-    # Order/PO details
-    st.session_state["order_doc_number_pdf"] = ""
-    st.session_state["order_po_number"] = ""
-    st.session_state["order_operator"] = "CZ"
-    st.session_state["order_terms"] = "NET 30"
-    st.session_state["order_comm_to"] = ""
-    st.session_state["order_check_number"] = ""
-    st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
-
-    st.session_state["quote_no"] = new_quote_number()
-    # Force customer autofill to reset all fields
-    st.session_state["customer_key_suffix"] += 1
-    # Pipedrive FIX: Clear matches and close expander on new quote
-    st.session_state["pd_matches"] = []
-    st.session_state["pd_term"] = ""
-    st.session_state["pd_expander_state"] = False
-    st.session_state["show_pdf_preview"] = True  # FIX: Reset preview checkbox to pre-checked
-    st.rerun()
 
 
 def assign_new_quote_version():
     """Increments the version number of the current quote."""
     current_quote_no = st.session_state["quote_no"]
-
     match = re.match(r'(.+?)(?:-V(\d+))?$', current_quote_no)
     base, version = match.groups() if match else (current_quote_no, None)
-
-    # If no version exists, assume current is V1 → next should be V2
     current_version = int(version) if version is not None else 1
     new_version = current_version + 1
-
     st.session_state["quote_no"] = f"{base}-V{new_version}"
     st.rerun()
 
 
-
-if "customer" not in st.session_state:
+def start_new_quote():
+    """Resets session state to start a new quote."""
+    # Customer info
     st.session_state["customer"] = {
-        # SHIP-TO info (These are the fields currently displayed/modified)
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
-        # BILL-TO info (Added separate fields for locked info)
         "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
 
-if "line_items" not in st.session_state:
     st.session_state["line_items"] = []
-
-# --- RERUN FLAG (USED FOR UNIT PRICE FIX - PREVIOUS LOGIC) ---
-# This is now also used for the discount visibility fix.
-if "rerun_flag" not in st.session_state:
-    st.session_state["rerun_flag"] = False
-
-# --- CUSTOMER AUTOFILL FIX: Dynamic Key Suffix ---
-if "customer_key_suffix" not in st.session_state:
-    st.session_state["customer_key_suffix"] = 0
-
-if "quote_no" not in st.session_state:
-    st.session_state["quote_no"] = new_quote_number()
-
-if "footer_notes" not in st.session_state:
+    st.session_state["drop_fee_input"] = 0.0
+    st.session_state["freight_fee_input"] = 0.0
+    st.session_state["freight_notes"] = ""
+    st.session_state["tax_rate_pct_input"] = float(DEFAULT_TAX * 100)
+    st.session_state["sc_county_checkbox"] = False
     st.session_state["footer_notes"] = (
         "Pricing subject to change. Please review all details carefully.\n"
         "International customers will be responsible for all duties and taxes upon delivery."
     )
 
-# --- widget-backed fields: initialize once (prevents Streamlit warning) ---
-if "drop_fee_input" not in st.session_state:
-    st.session_state["drop_fee_input"] = 0.0
-if "freight_fee_input" not in st.session_state:
-    st.session_state["freight_fee_input"] = 0.0
-if "tax_rate_pct_input" not in st.session_state:
-    st.session_state["tax_rate_pct_input"] = float(DEFAULT_TAX * 100)
-if "sc_county_checkbox" not in st.session_state:
-    st.session_state["sc_county_checkbox"] = False
-if "freight_notes" not in st.session_state:
-    st.session_state["freight_notes"] = ""
-
-# Order/PO details init
-if "order_doc_number_pdf" not in st.session_state:
+    # Order/PO info
     st.session_state["order_doc_number_pdf"] = ""
-if "order_po_number" not in st.session_state:
     st.session_state["order_po_number"] = ""
-if "order_operator" not in st.session_state:
     st.session_state["order_operator"] = "CZ"
-if "order_terms" not in st.session_state:
     st.session_state["order_terms"] = "NET 30"
-if "order_comm_to" not in st.session_state:
     st.session_state["order_comm_to"] = ""
-if "order_check_number" not in st.session_state:
     st.session_state["order_check_number"] = ""
-if "order_date_received" not in st.session_state:
     st.session_state["order_date_received"] = get_pacific_now().strftime('%m/%d/%y')
-if "pd_matches" not in st.session_state:
-    st.session_state["pd_matches"] = []
-if "pd_expander_state" not in st.session_state:
-    st.session_state["pd_expander_state"] = False
 
-# --- NEW: PDF Preview State (FIX APPLIED HERE) ---
-if "show_pdf_preview" not in st.session_state:
-    # Set the default value to True to pre-check the box
+    # Quote numbering
+    st.session_state["quote_no"] = new_quote_number()
+    st.session_state["customer_key_suffix"] += 1
+
+    # Pipedrive session fields
+    st.session_state["pd_matches"] = []
+    st.session_state["pd_term"] = ""
+    st.session_state["pd_expander_state"] = False
     st.session_state["show_pdf_preview"] = True
+    st.rerun()
+
+
+# ----------------------------------------
+# Initialize Session State Defaults
+# ----------------------------------------
+if "customer" not in st.session_state:
+    st.session_state["customer"] = {}
+
+if "line_items" not in st.session_state:
+    st.session_state["line_items"] = []
+
+st.session_state.setdefault("rerun_flag", False)
+st.session_state.setdefault("customer_key_suffix", 0)
+st.session_state.setdefault("quote_no", new_quote_number())
+st.session_state.setdefault("footer_notes", (
+    "Pricing subject to change. Please review all details carefully.\n"
+    "International customers will be responsible for all duties and taxes upon delivery."
+))
+st.session_state.setdefault("drop_fee_input", 0.0)
+st.session_state.setdefault("freight_fee_input", 0.0)
+st.session_state.setdefault("tax_rate_pct_input", float(DEFAULT_TAX * 100))
+st.session_state.setdefault("sc_county_checkbox", False)
+st.session_state.setdefault("freight_notes", "")
+st.session_state.setdefault("order_doc_number_pdf", "")
+st.session_state.setdefault("order_po_number", "")
+st.session_state.setdefault("order_operator", "CZ")
+st.session_state.setdefault("order_terms", "NET 30")
+st.session_state.setdefault("order_comm_to", "")
+st.session_state.setdefault("order_check_number", "")
+st.session_state.setdefault("order_date_received", get_pacific_now().strftime('%m/%d/%y'))
+st.session_state.setdefault("pd_matches", [])
+st.session_state.setdefault("pd_expander_state", False)
+st.session_state.setdefault("show_pdf_preview", True)
+
 
 
 # =============================================================================
