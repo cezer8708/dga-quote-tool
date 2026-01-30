@@ -2033,8 +2033,11 @@ def main_app():
                         parts = sku_selected_display.split('—', 1)
                         new_sku = parts[0].strip()
 
-                        # --- Lookup product in PRODUCTS DataFrame based on SKU ---
-                        prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
+                        # --- Ensure SKU is clean for lookup ---
+                        lookup_sku = str(new_sku).strip()
+
+                        # --- Lookup product in PRODUCTS DataFrame ---
+                        prod = PRODUCTS[PRODUCTS["SKU"].str.strip() == lookup_sku]
 
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
@@ -2042,19 +2045,18 @@ def main_app():
                             new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
                                 prod.iloc[0]["Notes"]) else ""
                         else:
-                            # Fallback if SKU not found in CSV
+                            # SKU not found, fallback to manual input
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
-                            new_notes = ""  # <-- ensure Notes is always assigned
+                            new_notes = ""
 
-                        # --- Update the row in session_state line_items ---
-                        if new_sku != row["sku"]:
-                            row["sku"] = new_sku
-                            row["name"] = new_name
-                            row["unit"] = new_unit
-                            row["notes"] = new_notes  # <-- Notes now autofills correctly
-                            row["prev_sku"] = new_sku if new_sku else "(custom)"
-                            st.session_state["rerun_flag"] = True
+                        # --- Update the session_state row ---
+                        row["sku"] = lookup_sku
+                        row["name"] = new_name
+                        row["unit"] = new_unit
+                        row["notes"] = new_notes
+                        row["prev_sku"] = lookup_sku if lookup_sku else "(custom)"
+                        st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
                     if not row["sku"] and not is_course_discount:
