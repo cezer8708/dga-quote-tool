@@ -350,7 +350,7 @@ def start_new_quote():
     st.session_state["drop_fee_input"] = 0.0
     st.session_state["freight_fee_input"] = 0.0
     st.session_state["freight_notes"] = ""
-    st.session_state["tax_rate_pct_input"] = float(DEFAULT_TAX * 100)
+    st.session_state["tax_rate_pct_input"] = 0.0
     st.session_state["sc_county_checkbox"] = False
     st.session_state["footer_notes"] = (
         "Pricing subject to change. Please review all details carefully.\n"
