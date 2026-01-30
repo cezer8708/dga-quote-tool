@@ -2033,30 +2033,28 @@ def main_app():
                         parts = sku_selected_display.split('—', 1)
                         new_sku = parts[0].strip()
 
+                        # --- Lookup product in PRODUCTS DataFrame based on SKU ---
                         prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
 
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
                             new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
-                            # Only populate notes if the user hasn't typed anything yet
-                            if not new_notes:
-                                new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
-                                    prod.iloc[0]["Notes"]) else ""
+                            new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
+                                prod.iloc[0]["Notes"]) else ""
                         else:
-                            # Fallback if SKU not found in PRODUCTS
+                            # Fallback if SKU not found in CSV
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
+                            new_notes = ""  # <-- ensure Notes is always assigned
 
-                    # Apply changes if SKU changed
-                    if new_sku != row.get("sku", ""):
-                        row["sku"] = new_sku
-                        row["name"] = new_name
-                        row["unit"] = new_unit
-                        row["prev_sku"] = new_sku if new_sku else "(custom)"
-                        # Only overwrite notes if empty
-                        if not row.get("notes"):
-                            row["notes"] = new_notes
-                        st.session_state["rerun_flag"] = True
+                        # --- Update the row in session_state line_items ---
+                        if new_sku != row["sku"]:
+                            row["sku"] = new_sku
+                            row["name"] = new_name
+                            row["unit"] = new_unit
+                            row["notes"] = new_notes  # <-- Notes now autofills correctly
+                            row["prev_sku"] = new_sku if new_sku else "(custom)"
+                            st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
                     if not row["sku"] and not is_course_discount:
