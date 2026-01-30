@@ -296,6 +296,10 @@ PRODUCTS = load_products()
 # 3. Session State Initialization
 # =============================================================================
 
+# --- NEW: SKU TO NOTES MAPPING ---
+# This creates a dictionary for fast lookup of notes by SKU from your PRODUCTS dataframe
+SKU_TO_NOTES = PRODUCTS.set_index('SKU')['Notes'].to_dict() if 'Notes' in PRODUCTS.columns else {}
+
 # --- Pacific Time Zone Helper ---
 def get_pacific_now():
     """Returns the current datetime object localized to America/Los_Angeles."""
@@ -431,7 +435,6 @@ if "pd_expander_state" not in st.session_state:
 if "show_pdf_preview" not in st.session_state:
     # Set the default value to True to pre-check the box
     st.session_state["show_pdf_preview"] = True
-
 
 # =============================================================================
 # 4. Pipedrive Helpers
@@ -1920,7 +1923,7 @@ def main_app():
                                             key=f"bill_city_input_{cust_key_suffix}")
             c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""),
                                              key=f"bill_state_input_{cust_key_suffix}")
-            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""),
+            c["bill_zip"] = bc3.text_input("Zip", value=bc3.get("bill_zip", ""),
                                            key=f"bill_zip_input_{cust_key_suffix}")
 
     st.divider()
@@ -2063,6 +2066,9 @@ def main_app():
                         row["name"] = new_name
                         row["unit"] = new_unit
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
+                        # --- NEW: AUTOFILL NOTES FROM SKU MAPPING ---
+                        if new_sku in SKU_TO_NOTES:
+                            row["notes"] = str(SKU_TO_NOTES[new_sku]) if SKU_TO_NOTES[new_sku] else ""
                         # Set the flag to trigger a rerun on the next loop
                         st.session_state["rerun_flag"] = True
 
@@ -2081,8 +2087,7 @@ def main_app():
                 else:
                     # <<< FIX: ADDED on_change CALLBACK >>>
                     row["qty"] = st.number_input("Qty", min_value=0, value=int(row.get("qty", 1)), step=1,
-                                                 key=f"qty_input_{row['id']}",
-                                                 on_change=handle_quantity_change, args=(row["id"],))
+                                                key=f"qty_input_{row['id']}", on_change=handle_quantity_change, args=(row["id"],))
                     # <<< END FIX >>>
 
             with c3:
