@@ -2034,44 +2034,41 @@ def main_app():
                                                         key=f"sku_select_{row['id']}")
 
                     # --- UNIT PRICE, NAME, AND NOTES AUTOFILL LOGIC ---
-                    new_sku = ""
-                    new_name = prod_name
-                    new_unit = prod_price
-                    new_notes = row.get("notes", "")  # start with existing notes, if any
+                    # Start with existing Notes (use capital N consistently)
+                    new_notes = row.get("Notes", "")  # <-- match CSV column
 
                     if sku_selected_display == "(custom)":
                         # Keep current values for custom items
                         new_sku = ""
                         new_name = prod_name
                         new_unit = prod_price
-                        # Don't overwrite notes for custom items
+                        # Do not overwrite Notes
                     else:
-                        # Parse the SKU from display string
+                        # Parse SKU from display string
                         parts = sku_selected_display.split('—', 1)
                         new_sku = parts[0].strip()
 
-                        # --- Lookup product in PRODUCTS DataFrame based on SKU ---
+                        # Lookup product in PRODUCTS DataFrame
                         prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
-
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
                             new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
                             new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
                                 prod.iloc[0]["Notes"]) else ""
                         else:
-                            # Fallback if SKU not found in CSV
+                            # Fallback if SKU not found
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
-                            new_notes = ""  # <-- ensure Notes is always assigned
+                            new_notes = ""
 
-                        # --- Update the row in session_state line_items ---
-                        if new_sku != row["sku"]:
-                            row["sku"] = new_sku
-                            row["name"] = new_name
-                            row["unit"] = new_unit
-                            row["notes"] = new_notes  # <-- Notes now autofills correctly
-                            row["prev_sku"] = new_sku if new_sku else "(custom)"
-                            st.session_state["rerun_flag"] = True
+                    # --- Update the row in session_state line_items ---
+                    if new_sku != row["sku"]:
+                        row["sku"] = new_sku
+                        row["name"] = new_name
+                        row["unit"] = new_unit
+                        row["Notes"] = new_notes  # <-- FIX: use capital N
+                        row["prev_sku"] = new_sku if new_sku else "(custom)"
+                        st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
                     if not row["sku"] and not is_course_discount:
