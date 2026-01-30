@@ -2053,13 +2053,18 @@ def main_app():
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
                             new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
-                            new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
-                                prod.iloc[0]["Notes"]) else ""
+
+                            # <-- NEW: Only pull Notes from CSV if SKU is NOT CD
+                            if new_sku != "CD":
+                                new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
+                                    prod.iloc[0]["Notes"]) else ""
                         else:
                             # Fallback if SKU not found
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
-                            new_notes = ""
+
+                            if new_sku != "CD":
+                                new_notes = ""
 
                     # --- Update the row in session_state line_items ---
                     if new_sku != row["sku"]:
