@@ -2037,35 +2037,46 @@ def main_app():
                     sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
                                                         key=f"sku_select_{row['id']}")
 
-                    # --- UNIT PRICE AUTOFILL LOGIC (Remains the same) ---
+                    # --- UNIT PRICE, NAME, AND NOTES AUTOFILL LOGIC ---
                     new_sku = ""
                     new_name = prod_name
                     new_unit = prod_price
+                    new_notes = row.get("notes", "")  # start with existing notes, if any
 
                     if sku_selected_display == "(custom)":
+                        # Keep current values for custom items
                         new_sku = ""
                         new_name = prod_name
                         new_unit = prod_price
+                        # Don't overwrite notes for custom items
                     else:
+                        # Parse the SKU from display string
                         parts = sku_selected_display.split('—', 1)
                         new_sku = parts[0].strip()
 
                         prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
+
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
                             new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
-                            ew_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
-                                prod.iloc[0]["Notes"]) else ""
+                            # Only populate notes if the user hasn't typed anything yet
+                            if not new_notes:
+                                new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
+                                    prod.iloc[0]["Notes"]) else ""
                         else:
+                            # Fallback if SKU not found in PRODUCTS
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
 
-                    if new_sku != row["sku"]:
+                    # Apply changes if SKU changed
+                    if new_sku != row.get("sku", ""):
                         row["sku"] = new_sku
                         row["name"] = new_name
                         row["unit"] = new_unit
-                        row["notes"] = new_notes  # <-- new assignment here
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
+                        # Only overwrite notes if empty
+                        if not row.get("notes"):
+                            row["notes"] = new_notes
                         st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
