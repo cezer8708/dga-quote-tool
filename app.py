@@ -2066,9 +2066,7 @@ def main_app():
                         row["sku"] = new_sku
                         row["name"] = new_name
                         row["unit"] = new_unit
-                        # ONLY set Notes if blank
-                        if not row.get("Notes"):
-                            row["Notes"] = new_notes
+                        row["Notes"] = new_notes  # <-- FIX: use capital N
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
                         st.session_state["rerun_flag"] = True
 
