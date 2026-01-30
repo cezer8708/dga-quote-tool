@@ -1205,7 +1205,8 @@ def build_pdf(buffer: io.BytesIO, customer: dict, items: list, fees: dict, total
             data.append([str(r["qty"]), desc_para,
                          fmt_money(float(r['unit'])) if float(r['unit']) >= 0 else fmt_money(float(r['unit'])),
                          fmt_money(float(r['total']))])
-            note_txt = (r.get("notes") or "").strip()
+            note_txt = (r.get("Notes") or r.get("notes") or "").strip()
+
             if note_txt:
                 data.append(["", Paragraph(note_txt, notes_style), "", ""])
 
