@@ -1480,12 +1480,8 @@ def remove_item(item_id):
     """Removes a line item based on its ID and sets the rerun flag if the discount is affected."""
     line_items_before = len(st.session_state["line_items"])
     st.session_state["line_items"] = [
-        for item in st.session_state["line_items"]:
-    if item["sku"]:
-        row = PRODUCTS.loc[PRODUCTS["SKU"] == item["sku"]]
-    if not row.empty:
-        item["notes"] = row["Notes"].iloc[0]
-
+        item for item in st.session_state["line_items"] if item["id"] != item_id
+    ]
     # Check if removing the item might affect the discount and trigger a rerun if the list size changed.
     if line_items_before != len(st.session_state["line_items"]):
         # Re-run the core discount logic (which adds/removes/updates)
