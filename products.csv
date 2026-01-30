@@ -1,15 +1,15 @@
-SKU,Name,UnitPrice
+SKU,Name,UnitPrice,Notes
 M2P,Mach 2 Pro - Portable,300.00
 M2IG,Mach 2 Pro - In Ground,300.00
-M5STD,Mach 5 Standard,525.00
-M5P,Mach 5 Portable,525.00
-M5NF,Mach 5 No Frills,495.00
-M7STD,Mach 7 Standard,575.00
-M7P,Mach 7 Portable,575.00
-M7NF,Mach 7 No Frills,545.00
-MXSTD,Mach X Standard,625.00
-MXNF,Mach X No Frills,595.00
-MXP,Mach X Portable,625.00
+M5STD,Mach 5 Standard,525.00,Includes Anchor and Collar
+M5P,Mach 5 Portable,525.00,Includes Portable Base
+M5NF,Mach 5 No Frills,495.00,Direct Cement
+M7STD,Mach 7 Standard,575.00,Includes Anchor and Collar
+M7P,Mach 7 Portable,575.00,Includes Portable Base
+M7NF,Mach 7 No Frills,545.00,Direct Cement
+MXSTD,Mach X Standard,625.00,Includes Anchor and Collar
+MXNF,Mach X No Frills,595.00,Direct Cement
+MXP,Mach X Portable,625.00,Includes Portable Base
 CD,Course Discount,-100.00
 NP,Number Plate - Stock,35.00
 NPB, Number Plate - Blank, 30.00
@@ -25,13 +25,13 @@ PE,Pole Extension,60.00
 PBase,Portable Base - Wheel,60.00
 CNP,Number Plate - Custom,55.00
 CW,Mach 7 Wrap - Custom,35.00
-BCTS,Tee Sign - 5"x10",55.00
-CTS9x12,Tee Sign - 9"x12",89.00
-CTS12x18,Tee Sign - 12"x18",115.00
+BCTS,Tee Sign - 5"x10",55.00,Includes Design - Mounting Not Included
+CTS9x12,Tee Sign - 9"x12",89.00,Includes Design - Mounting Not Included
+CTS12x18,Tee Sign - 12"x18",115.00,Includes Design - Mounting Not Included
 CTS8x11,Tee Sign - 8"x11",79.00
-CM9,Course Map - 9 Hole,700.00
-CM18,Course Map - 18 Hole,1250.00
-UFO,UFO Course Sign,45.00
+CM9,Course Map - 9 Hole,700.00,Design Only
+CM18,Course Map - 18 Hole,1250.00,Design Only
+UFO,UFO Course Sign,45.00,Mounting Not Included
 CRS12x18,Color Rules Sign - 12"x18",69.00
 FCRS,Framed Color Rules Sign - 8"x11",80.00
 BFS,Basket Flag - Standard Plug,30.00

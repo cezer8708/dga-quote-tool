@@ -254,18 +254,28 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
     """
     Local catalog used for quoting.
     Required columns: SKU, Name, UnitPrice
+    Optional column: Notes (Autofilled into line items)
     """
     try:
         df = pd.read_csv(path)
         df.columns = [c.strip() for c in df.columns]
+
+        # Verify required columns
         if "SKU" not in df.columns or "Name" not in df.columns or "UnitPrice" not in df.columns:
             raise ValueError("products.csv must have columns: SKU, Name, UnitPrice")
+
+        # --- NEW: Ensure Notes column exists and is cleaned ---
+        if "Notes" not in df.columns:
+            df["Notes"] = ""
+        else:
+            df["Notes"] = df["Notes"].fillna("").astype(str)
 
         df["SKU"] = df["SKU"].astype(str)
         df["UnitPrice"] = pd.to_numeric(
             df["UnitPrice"].astype(str).str.replace(r"[^0-9.\-]", "", regex=True),
             errors="coerce"
-        )
+        ).fillna(0.0)
+
         return df
     except FileNotFoundError:
         # Fallback to a minimal DataFrame if products.csv is missing
@@ -274,7 +284,8 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
             "SKU": ["M5-ST", "M7-PT", "M14-CO", "TS-BASIC"],
             "Name": ["Mach 5 Standard Basket", "Mach 7 Portable Basket", "Mach 14 Chain Collar",
                      "Basic Color Tee Sign"],
-            "UnitPrice": [499.00, 399.00, 35.00, 55.00]
+            "UnitPrice": [499.00, 399.00, 35.00, 55.00],
+            "Notes": ["", "", "", ""]
         })
 
 
