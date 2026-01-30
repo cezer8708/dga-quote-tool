@@ -1489,29 +1489,31 @@ def remove_item(item_id):
             st.session_state["rerun_flag"] = True  # Rerun if discount changed
 
 
-def add_item_callback(selected_sku: str = ""):
-    """Adds a new line item and sets the rerun flag. Pulls Notes from products.csv if SKU exists."""
+def add_item_callback(sku: str = ""):
+    """Adds a new line item and sets the rerun flag."""
     new_id = str(uuid.uuid4())
-    sku = selected_sku.strip()  # Start empty by default
+    sku = (sku or "").upper().strip()  # Ensure SKU is uppercase and stripped
     notes = ""
 
-    # Pull Notes from products.csv if SKU exists
-    if sku:
+    # Pull Notes from products.csv if SKU exists and it's not CD
+    if sku and sku != "CD":
         product_row = PRODUCTS.loc[PRODUCTS["SKU"] == sku]
         if not product_row.empty:
-            notes = product_row["Notes"].iloc[0]  # Matches your CSV column
+            notes = product_row["Notes"].iloc[0]
 
     st.session_state["line_items"].append({
         "id": new_id,
         "sku": sku,
-        "name": "",          # Could also populate from PRODUCTS["Name"] if you want
+        "name": "",
         "qty": 1,
         "unit": 0.0,
         "total": 0.0,
-        "Notes": notes,      # <-- pull from CSV here
+        "Notes": notes,        # <-- dynamically pulled for regular items
         "prev_sku": "",
         "previewChecked": True,
     })
+    st.session_state["rerun_flag"] = True
+
 
     # Force a rerun so the new line item appears
     st.session_state["rerun_flag"] = True
