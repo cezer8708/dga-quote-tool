@@ -1507,7 +1507,7 @@ def add_item_callback():
         "qty": 1,
         "unit": 0.0,
         "total": 0.0,
-        "Notes": Notes,       # <-- pull from products.csv here
+        "Notes": notes,       # <-- pull from products.csv here
         "prev_sku": "",
         "previewChecked": True,
     })
