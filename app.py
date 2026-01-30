@@ -2071,8 +2071,12 @@ def main_app():
                         row["sku"] = new_sku
                         row["name"] = new_name
                         row["unit"] = new_unit
-                        row["Notes"] = new_notes  # <-- FIX: use capital N
+                        row["Notes"] = new_notes
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
+
+                        # 🔥 FORCE notes textarea to refresh
+                        st.session_state[f"Notes_input_{row['id']}"] = new_notes
+
                         st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
