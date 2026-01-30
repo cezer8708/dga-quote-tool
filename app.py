@@ -2054,6 +2054,8 @@ def main_app():
                         if not prod.empty:
                             new_name = str(prod.iloc[0]["Name"])
                             new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
+                            ew_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(
+                                prod.iloc[0]["Notes"]) else ""
                         else:
                             new_name = parts[1].strip() if len(parts) > 1 else new_sku
                             new_unit = prod_price
@@ -2062,8 +2064,8 @@ def main_app():
                         row["sku"] = new_sku
                         row["name"] = new_name
                         row["unit"] = new_unit
+                        row["notes"] = new_notes  # <-- new assignment here
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
-                        # Set the flag to trigger a rerun on the next loop
                         st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
