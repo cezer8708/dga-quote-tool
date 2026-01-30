@@ -2109,7 +2109,7 @@ def main_app():
                 st.markdown("**Total**")
                 st.write(f"**{fmt_money(row['total'])}**")
 
-            row["notes"] = st.text_area("Notes (optional)", value=row.get("notes", ""), key=f"notes_input_{row['id']}",
+            row["Notes"] = st.text_area("Notes (optional)", value=row.get("Notes", ""), key=f"Notes_input_{row['id']}",
                                         height=30)
 
         # --- End of item container ---
