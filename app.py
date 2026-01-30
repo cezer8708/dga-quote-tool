@@ -2062,8 +2062,11 @@ def main_app():
                         row["sku"] = new_sku
                         row["name"] = new_name
                         row["unit"] = new_unit
+                        # --- ADD THESE 3 LINES ---
+                        if new_sku in SKU_TO_NOTES:
+                            row["notes"] = str(SKU_TO_NOTES[new_sku]) if SKU_TO_NOTES[new_sku] else ""
+                        # -------------------------
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
-                        # Set the flag to trigger a rerun on the next loop
                         st.session_state["rerun_flag"] = True
 
                     # Custom Name input for non-SKU items
@@ -2105,8 +2108,13 @@ def main_app():
                 st.markdown("**Total**")
                 st.write(f"**{fmt_money(row['total'])}**")
 
-            row["notes"] = st.text_area("Notes (optional)", value=row.get("notes", ""), key=f"notes_input_{row['id']}",
-                                        height=30)
+                # Below the SKU/Qty/Price columns, add the Notes field
+                if not is_course_discount:
+                    row["notes"] = st.text_input(
+                        "Item Notes",
+                        value=row.get("notes", ""),
+                        key=f"notes_input_{row['id']}"
+                    )
 
         # --- End of item container ---
 
