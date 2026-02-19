@@ -1569,7 +1569,6 @@ def main_app():
     """Contains all the original quoting tool functionality."""
 
     st.title("DGA Quoting Tool")
-    st.caption("Local product DB • Pipedrive Lookup • Auto Course Discount • Google Sheets/PDF export")
 
     # <<< UI FIX START: CSS Injection and Column Adjustment >>>
     # -------------------------------------------------------------------------
