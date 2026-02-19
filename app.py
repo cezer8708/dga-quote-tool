@@ -2184,7 +2184,6 @@ def main_app():
         st.info(
             f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount.")
 
-    st.info("Note: International customers will be responsible for all duties and taxes upon delivery.")
     st.divider()
 
     # 4) Generate PDF Quote + Order PDF
