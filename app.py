@@ -1744,7 +1744,6 @@ def main_app():
     # -------------------------------------------------------------------------
     with st.sidebar:
         st.header("PDF Preview")
-        st.info("Check this box to see a live preview of the generated Quote PDF.")
         # FIX IMPLEMENTATION: Remove `value=...` and rely on session state default
         st.session_state["show_pdf_preview"] = st.checkbox("Show Live Quote Preview",
                                                            key="live_preview_checkbox",
