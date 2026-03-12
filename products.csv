@@ -12,7 +12,7 @@ MXNF,Mach X No Frills,595.00,Direct Cement
 MXP,Mach X Portable,625.00,Includes Portable Base
 CD,Course Discount,-100.00
 NP,Number Plate - Stock,35.00
-NPB,Number Plate - Blank, 30.00
+NPB,Number Plate - Blank,30.00
 PC-Stock,Powder Coat Fee - Stock,90.00
 PC-Custom,Powder Coat Fee - Custom,120.00
 AA,Anchor,30.00
@@ -58,3 +58,23 @@ StartBag,Starter Bag,19.99
 TB-2,Trapper Basket 2,180.00
 TB-1,Trapper Basket 1,170.00
 MS,Mach Shift,150.00
+MLFT,Mach Lite Fabric - Top,25.00
+MLFB,Mach Lite Fabric - Bottom,25.00
+DL,D-Line Disc,11.99
+DLS,D-Line Stone Disc,14.99
+SP,Spark Disc,17.99
+CSP,CLoud Sprk Disc,17.99
+PL,ProLine Disc,17.99
+AT,Atmos Disc,19.99
+SIG,Signature Line Disc,15.99
+DDR,DisClaimer Disc Retreiver Tool,39.99
+CUST,Custom Artwork Fee,80.00,Includes Artwork Set-Up and Hot-Stamp Fee
+25TS,2025 Tour Series Disc,24.99
+24TS,2024 Tour Series Disc,14.99
+MNF,Midnight Flyer,21.99
+M10,DGA Premium Mystery Box - 10 Pack,99.99
+M3MB-DGA Premium Mystery Box - 3 Pack,35.99
+SEHMDS,"Steady" Ed Headrick Memorial Disc Set,200.00
+LHMFD,Lines of Headrick Memorial Freestyle Disc,50.00
+24PL,2024 ProLine Disc,11.99,CLOSEOUT
+24SP,2024 SP-Line Disc,11.99,CLOSEOUT
