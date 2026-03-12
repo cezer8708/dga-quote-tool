@@ -27,13 +27,16 @@ CNP,Number Plate - Custom,55.00,Design Not Included
 CW,Mach 7 Wrap - Custom,35.00,Design Not Included
 BCTS,Tee Sign - 5"x10",55.00,Includes Design - Mounting Not Included
 CTS9x12,Tee Sign - 9"x12",89.00,Includes Design - Mounting Not Included
+CTS9x12RP,Tee Sign - 9"x12" Reprint,76.00,REPRINRT - Mounting Not Included
 CTS12x18,Tee Sign - 12"x18",115.00,Includes Design - Mounting Not Included
+CRS12x18RP,Tee Sign - 12"x18",102,REPRINT - Mounting Not Included
 CTS8x11,Tee Sign - 8"x11",79.00
+FCSS,Framed Color Sponsor Sign,155.00,Two Framed 8"x11" Panels with Mounting Pole
+FCCRS,Framed Combo Color and Rules Sign,165.00,Two Framed 8"x11" Panel with Mounting Pole
 CM9,Course Map - 9 Hole,700.00,Design Only
 CM18,Course Map - 18 Hole,1250.00,Design Only
 UFO,UFO Course Sign,45.00,Mounting Not Included
 CRS12x18,Color Rules Sign - 12"x18",69.00,Mounting Not Included
-FCRS,Framed Color Rules Sign - 8"x11",80.00
 BFS,Basket Flag - Standard Plug,30.00,For Use WITHOUT Number Plates
 BFNP,Basket Flag - Number Plate Plug,30.00,For Use WITH Number Plates
 ADD,Additional Discount,0.00
@@ -62,6 +65,7 @@ MS,Mach Shift,150.00
 MLFT,Mach Lite Fabric - Top,25.00
 MLFB,Mach Lite Fabric - Bottom,25.00
 MLFS,Mach Lite Fabric - Set,50.00
+MLP,Mach Lite Pin,5.00
 DL,D-Line Disc,11.99
 DLS,D-Line Stone Disc,14.99
 SP,Spark Disc,17.99
