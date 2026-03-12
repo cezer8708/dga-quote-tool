@@ -45,13 +45,14 @@ FPMX, Focal Point - Mach X,7.00
 CHM5,Chain Holder - Mach 5,250.00
 M5CO,Mach 5 Collar Only,495.00,For Use with Existing Anchors
 MXCO,Mach X Collar Only,595.00,For Use with Existing Anchors
-CustPrem,Custom Premium Disc,11.00
+CustPrem,Custom Stamp Premium Disc,11.00
+CustAtm,Custom Stamp Atmos Disc,12.00
 MLP,Mach Lite Portable,144.99
 MM,Mini Marker,3.00
 Sticker,DGA Sticker,0.50
 SmBan,Small Banner,20.00,15in x 36in
 LrgBan,Large Banner,40.00,24in x 72in
-CustBase,Custom Baseline Disc,7.00
+CustBase,Custom Stamped Baseline Disc,7.00
 TRVRS Color,TRVRS LT Bag (Color),54.99
 TRVRS Pattern,TRVRS LT Bag (Pattern),59.99
 StartBag,Starter Bag,19.99
@@ -60,6 +61,7 @@ TB-1,Trapper Basket 1,170.00
 MS,Mach Shift,150.00
 MLFT,Mach Lite Fabric - Top,25.00
 MLFB,Mach Lite Fabric - Bottom,25.00
+MLFS,Mach Lite Fabric - Set,50.00
 DL,D-Line Disc,11.99
 DLS,D-Line Stone Disc,14.99
 SP,Spark Disc,17.99
@@ -78,3 +80,4 @@ SEHMDS,"Steady" Ed Headrick Memorial Disc Set,200.00
 LHMFD,Lines of Headrick Memorial Freestyle Disc,50.00
 24PL,2024 ProLine Disc,11.99,CLOSEOUT
 24SP,2024 SP-Line Disc,11.99,CLOSEOUT
+MINI,Disc Golf Mini Marker,3.00
