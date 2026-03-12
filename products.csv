@@ -1,15 +1,15 @@
 SKU,Name,UnitPrice,Notes
-M2P,Mach 2 Pro - Portable,300.00,Includes 3-Spoke Portable Base
+M2P,Mach 2 Pro - Portable,300.00,Includes 3-Spoke Non-Wheeled Portable Base
 M2IG,Mach 2 Pro - In Ground,300.00,Includes In-Ground Install Kit
 M5STD,Mach 5 Standard,525.00,Includes Anchor and Collar
-M5P,Mach 5 Portable,525.00,Includes Portable Base
+M5P,Mach 5 Portable,525.00,Includes 4-Spoke Wheeled Portable Base
 M5NF,Mach 5 No Frills,495.00,Direct Cement
 M7STD,Mach 7 Standard,575.00,Includes Anchor and Collar
-M7P,Mach 7 Portable,575.00,Includes Portable Base
+M7P,Mach 7 Portable,575.00,Includes 4-Spoke Wheeled Portable Base
 M7NF,Mach 7 No Frills,545.00,Direct Cement
 MXSTD,Mach X Standard,625.00,Includes Anchor and Collar
 MXNF,Mach X No Frills,595.00,Direct Cement
-MXP,Mach X Portable,625.00,Includes Portable Base
+MXP,Mach X Portable,625.00,Includes 4-Spoke Wheeled Portable Base
 CD,Course Discount,-100.00
 NP,Number Plate - Stock,35.00
 NPB,Number Plate - Blank,30.00
