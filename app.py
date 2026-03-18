@@ -79,7 +79,6 @@ FREIGHT_NOTE_OPTIONS = [
     "Fork Lift Access",
     "Loading Dock Access",
     "Local Pickup",
-    "Limited Access",
 ]
 
 
@@ -1978,7 +1977,6 @@ def main_app():
     with fn3:
         st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
         st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
-        st.checkbox("Limited Access", key=_freight_note_key("Limited Access"))
 
     st.text_input(
         "Other Freight Notes",
