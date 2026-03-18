@@ -285,7 +285,7 @@ def start_new_quote():
     st.session_state["order_doc_number_pdf"] = ""
     st.session_state["order_po_number"] = ""
     st.session_state["order_operator"] = "CZ"
-    st.session_state["order_terms"] = "NET 30"
+    st.session_state["Authorization Code"] = "AP - "
     st.session_state["order_comm_to"] = ""
     st.session_state["order_check_number"] = ""
     st.session_state["order_date_received"] = get_pacific_now().strftime("%m/%d/%y")
@@ -321,7 +321,7 @@ st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("order_doc_number_pdf", "")
 st.session_state.setdefault("order_po_number", "")
 st.session_state.setdefault("order_operator", "CZ")
-st.session_state.setdefault("order_terms", "NET 30")
+st.session_state.setdefault("Authorization Code", "Ap -")
 st.session_state.setdefault("order_comm_to", "")
 st.session_state.setdefault("order_check_number", "")
 st.session_state.setdefault("order_date_received", get_pacific_now().strftime("%m/%d/%y"))
@@ -1582,7 +1582,7 @@ def main_app():
                         order_meta = payload.get("order_meta", {})
                         st.session_state["order_po_number"] = order_meta.get("po_number", "")
                         st.session_state["order_operator"] = order_meta.get("operator", "CZ")
-                        st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
+                        st.session_state["Authorization Code"] = order_meta.get("Authorization Code", "Ap -")
                         st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
                         st.session_state["order_check_number"] = order_meta.get("check_number", "")
                         st.session_state["order_date_received"] = order_meta.get(
