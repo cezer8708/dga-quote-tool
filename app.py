@@ -37,10 +37,6 @@ load_dotenv()
 
 
 def get_env(key, default=None, cast=str):
-    """
-    Helper to safely retrieve environment variables with casting.
-    Checks os.environ (local) first, then st.secrets (Streamlit Cloud).
-    """
     if key in st.secrets:
         val = st.secrets[key]
     else:
@@ -115,12 +111,6 @@ def fmt_money(value: float) -> str:
 
 @st.cache_resource(ttl=3600)
 def get_gsheet_client():
-    """
-    Authenticates with Google Sheets.
-    Priority:
-    1. Local 'service_account.json' file.
-    2. Streamlit Secrets 'gcp_service_account'.
-    """
     try:
         if os.path.exists("service_account.json"):
             return gspread.service_account(filename="service_account.json")
@@ -285,7 +275,7 @@ def start_new_quote():
     st.session_state["order_doc_number_pdf"] = ""
     st.session_state["order_po_number"] = ""
     st.session_state["order_operator"] = "CZ"
-    st.session_state["order_terms"] = "AP - "
+    st.session_state["order_auth_code"] = "AP - "
     st.session_state["order_comm_to"] = ""
     st.session_state["order_check_number"] = ""
     st.session_state["order_date_received"] = get_pacific_now().strftime("%m/%d/%y")
@@ -321,14 +311,13 @@ st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("order_doc_number_pdf", "")
 st.session_state.setdefault("order_po_number", "")
 st.session_state.setdefault("order_operator", "CZ")
-st.session_state.setdefault("order_terms", "AP - ")
+st.session_state.setdefault("order_auth_code", "AP - ")
 st.session_state.setdefault("order_comm_to", "")
 st.session_state.setdefault("order_check_number", "")
 st.session_state.setdefault("order_date_received", get_pacific_now().strftime("%m/%d/%y"))
 st.session_state.setdefault("pd_matches", [])
 st.session_state.setdefault("pd_expander_state", False)
 st.session_state.setdefault("show_pdf_preview", True)
-st.session_state.setdefault("pdf_single_page_warning", "")
 
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -885,7 +874,7 @@ def build_pdf(
             f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
             f"P.O. Number: {meta.get('po_number', '')}<br/>"
-            f"Authorization Code: {meta.get('terms', '')}<br/>"
+            f"Authorization Code: {meta.get('auth_code', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
         )
@@ -1338,7 +1327,7 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
         "order_doc_number": st.session_state.get("order_doc_number_pdf", quote_no),
         "po_number": st.session_state["order_po_number"],
         "operator": st.session_state["order_operator"],
-        "terms": st.session_state["order_terms"],
+        "auth_code": st.session_state["order_auth_code"],
         "commission_to": st.session_state["order_comm_to"],
         "check_number": st.session_state["order_check_number"],
         "date_received": st.session_state["order_date_received"],
@@ -1582,7 +1571,7 @@ def main_app():
                         order_meta = payload.get("order_meta", {})
                         st.session_state["order_po_number"] = order_meta.get("po_number", "")
                         st.session_state["order_operator"] = order_meta.get("operator", "CZ")
-                        st.session_state["order_terms"] = order_meta.get("terms", "NET 30")
+                        st.session_state["order_auth_code"] = order_meta.get("auth_code", order_meta.get("terms", "AP - "))
                         st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
                         st.session_state["order_check_number"] = order_meta.get("check_number", "")
                         st.session_state["order_date_received"] = order_meta.get(
@@ -1975,7 +1964,7 @@ def main_app():
                 current_operator = "CZ"
                 st.session_state["order_operator"] = "CZ"
             st.selectbox("Operator", operator_options, key="order_operator")
-            st.text_input("Authorization Code", key="order_terms")
+            st.text_input("Authorization Code", key="order_auth_code")
         with order_col2:
             st.text_input("Commission To", key="order_comm_to")
             st.text_input("Check Number", key="order_check_number")
