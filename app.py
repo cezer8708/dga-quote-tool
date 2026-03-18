@@ -885,7 +885,7 @@ def build_pdf(
             f"{customer.get('email', '')}<br/><br/>"
             f"<b>Purchase Order & Check Info:</b><br/>"
             f"P.O. Number: {meta.get('po_number', '')}<br/>"
-            f"Terms: {meta.get('terms', '')}<br/>"
+            f"Authorization Code: {meta.get('terms', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
         )
@@ -1975,7 +1975,7 @@ def main_app():
                 current_operator = "CZ"
                 st.session_state["order_operator"] = "CZ"
             st.selectbox("Operator", operator_options, key="order_operator")
-            st.text_input("Terms", key="order_terms")
+            st.text_input("Authorization Code", key="order_terms")
         with order_col2:
             st.text_input("Commission To", key="order_comm_to")
             st.text_input("Check Number", key="order_check_number")
