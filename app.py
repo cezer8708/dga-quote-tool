@@ -81,6 +81,9 @@ FREIGHT_NOTE_OPTIONS = [
     "Local Pickup",
 ]
 
+MANAGER_USERNAME = "CZ"
+MANAGER_PASSWORD = "65152"
+
 
 @st.cache_resource(ttl=None)
 def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | None:
@@ -183,6 +186,32 @@ def handle_commission_discount_toggle():
         st.session_state["active_discount_type"] = ""
 
 
+def clear_manager_credentials():
+    st.session_state["manager_username"] = ""
+    st.session_state["manager_password"] = ""
+
+
+def validate_manager_credentials() -> bool:
+    username = st.session_state.get("manager_username", "").strip()
+    password = st.session_state.get("manager_password", "").strip()
+    return username == MANAGER_USERNAME and password == MANAGER_PASSWORD
+
+
+def handle_manager_pricing_toggle():
+    if not st.session_state.get("manager_pricing_checkbox", False):
+        st.session_state["manager_pricing_authorized"] = False
+        clear_manager_credentials()
+
+
+def authorize_manager_pricing():
+    if validate_manager_credentials():
+        st.session_state["manager_pricing_authorized"] = True
+        st.session_state["manager_clear_credentials_on_rerun"] = True
+        st.rerun()
+    else:
+        st.session_state["manager_pricing_authorized"] = False
+
+
 def calculate_discountable_subtotal(items: list[dict]) -> float:
     total = 0.0
     for item in items:
@@ -205,10 +234,16 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
     return round(max(total, 0.0), 2)
 
 
-def calculate_ten_percent_discount(items: list[dict], discount_type: str) -> float:
+def calculate_primary_discount(items: list[dict], discount_type: str) -> float:
     if not discount_type:
         return 0.0
     return round(calculate_discountable_subtotal(items) * 0.10, 2)
+
+
+def calculate_manager_discount(discountable_base: float, enabled: bool) -> float:
+    if not enabled:
+        return 0.0
+    return round(max(discountable_base, 0.0) * 0.05, 2)
 
 
 @st.cache_resource(ttl=3600)
@@ -372,6 +407,11 @@ def start_new_quote():
         st.session_state[_freight_note_key(label)] = False
 
     sync_discount_checkboxes_from_type("")
+    st.session_state["manager_pricing_checkbox"] = False
+    st.session_state["manager_pricing_authorized"] = False
+    st.session_state["manager_clear_credentials_on_rerun"] = False
+    clear_manager_credentials()
+
     st.session_state["tax_rate_pct_input"] = 0.0
     st.session_state["sc_county_checkbox"] = False
     st.session_state["footer_notes"] = (
@@ -420,6 +460,12 @@ for label in FREIGHT_NOTE_OPTIONS:
 st.session_state.setdefault("active_discount_type", "")
 st.session_state.setdefault("team_discount_checkbox", False)
 st.session_state.setdefault("commission_discount_checkbox", False)
+
+st.session_state.setdefault("manager_pricing_checkbox", False)
+st.session_state.setdefault("manager_pricing_authorized", False)
+st.session_state.setdefault("manager_username", "")
+st.session_state.setdefault("manager_password", "")
+st.session_state.setdefault("manager_clear_credentials_on_rerun", False)
 
 st.session_state.setdefault("tax_rate_pct_input", 0.0)
 st.session_state.setdefault("sc_county_checkbox", False)
@@ -942,8 +988,9 @@ def build_pdf(
     freight_notes_meta = _prepare_text_for_pdf(meta.get("freight_notes", ""), compact_level, "freight")
     items = _prepare_items_for_pdf(items, compact_level)
 
-    discount_label = totals.get("discount_label", "")
-    discount_amount = totals.get("ten_percent_discount", 0.0)
+    primary_discount_label = totals.get("discount_label", "")
+    primary_discount_amount = totals.get("ten_percent_discount", 0.0)
+    manager_discount_amount = totals.get("manager_discount", 0.0)
 
     if template == "order":
         if COMPANY_LOGO_PATH:
@@ -1070,8 +1117,10 @@ def build_pdf(
         story += [Spacer(1, block_spacer_med)]
 
         sub_rows = [["Subtotal:", fmt_money(totals.get("subtotal", 0.0))]]
-        if discount_label and discount_amount > 0:
-            sub_rows.append([f"{discount_label}:", fmt_money(-discount_amount)])
+        if primary_discount_label and primary_discount_amount > 0:
+            sub_rows.append([f"{primary_discount_label}:", fmt_money(-primary_discount_amount)])
+        if manager_discount_amount > 0:
+            sub_rows.append(["Manager Pricing:", fmt_money(-manager_discount_amount)])
         sub_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
@@ -1271,8 +1320,10 @@ def build_pdf(
         totals_width = 3.0 * inch if compact_level < 2 else min(3.2 * inch, content_width)
 
         totals_rows = [["Subtotal:", fmt_money(totals.get("subtotal", 0.0))]]
-        if discount_label and discount_amount > 0:
-            totals_rows.append([f"{discount_label}:", fmt_money(-discount_amount)])
+        if primary_discount_label and primary_discount_amount > 0:
+            totals_rows.append([f"{primary_discount_label}:", fmt_money(-primary_discount_amount)])
+        if manager_discount_amount > 0:
+            totals_rows.append(["Manager Pricing:", fmt_money(-manager_discount_amount)])
         totals_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
@@ -1453,8 +1504,9 @@ def get_current_payload(
     sales_tax: float,
     grand_total: float,
     tax_rate: float,
-    ten_percent_discount: float,
-    discount_label: str,
+    primary_discount_amount: float,
+    primary_discount_label: str,
+    manager_discount_amount: float,
 ) -> dict:
     quote_no = st.session_state["quote_no"]
 
@@ -1478,8 +1530,9 @@ def get_current_payload(
     }
     totals = {
         "subtotal": subtotal,
-        "ten_percent_discount": ten_percent_discount,
-        "discount_label": discount_label,
+        "ten_percent_discount": primary_discount_amount,
+        "discount_label": primary_discount_label,
+        "manager_discount": manager_discount_amount,
         "sales_tax": sales_tax,
         "grand_total": grand_total,
         "tax_rate_pct": tax_rate,
@@ -1490,6 +1543,7 @@ def get_current_payload(
     }
     discount_meta = {
         "active_discount_type": st.session_state["active_discount_type"],
+        "manager_pricing_authorized": st.session_state["manager_pricing_authorized"],
     }
 
     return {
@@ -1655,6 +1709,10 @@ def main_app():
         st.session_state["rerun_flag"] = False
         st.rerun()
 
+    if st.session_state.get("manager_clear_credentials_on_rerun", False):
+        clear_manager_credentials()
+        st.session_state["manager_clear_credentials_on_rerun"] = False
+
     lookup_col1, lookup_col2, lookup_col_stack = st.columns([1.0, 1.4, 0.7])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
@@ -1722,6 +1780,12 @@ def main_app():
                             active_discount_type = "team"
                         sync_discount_checkboxes_from_type(active_discount_type)
 
+                        manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
+                        st.session_state["manager_pricing_authorized"] = manager_authorized
+                        st.session_state["manager_pricing_checkbox"] = manager_authorized
+                        st.session_state["manager_clear_credentials_on_rerun"] = False
+                        clear_manager_credentials()
+
                         st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
 
                         order_meta = payload.get("order_meta", {})
@@ -1775,14 +1839,17 @@ def main_app():
 
             subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
             discount_type = st.session_state["active_discount_type"]
-            discount_label = get_discount_label(discount_type)
-            ten_percent_discount = calculate_ten_percent_discount(
-                st.session_state["line_items"],
-                discount_type
+            primary_discount_label = get_discount_label(discount_type)
+            discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
+            primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
+            manager_discount_amount = calculate_manager_discount(
+                discountable_base,
+                st.session_state["manager_pricing_authorized"]
             )
+
             drop_ship_fee = st.session_state["drop_fee_input"]
             freight = st.session_state["freight_fee_input"]
-            pre_tax = subtotal - ten_percent_discount + float(drop_ship_fee) + float(freight)
+            pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
             sales_tax = round(pre_tax * tax_rate, 2)
             grand_total = round(pre_tax + sales_tax, 2)
 
@@ -1793,8 +1860,9 @@ def main_app():
                 sales_tax,
                 grand_total,
                 tax_rate,
-                ten_percent_discount,
-                discount_label,
+                primary_discount_amount,
+                primary_discount_label,
+                manager_discount_amount,
             )
 
             try:
@@ -2086,7 +2154,7 @@ def main_app():
     st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
     st.subheader("Fees, Tax & Totals")
-    cc1, cc2, cc3, cc4, cc5, cc6 = st.columns(6)
+    cc1, cc2, cc3, cc4, cc5, cc6, cc7 = st.columns(7)
     with cc1:
         drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
     with cc2:
@@ -2099,6 +2167,22 @@ def main_app():
         st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
     with cc6:
         st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
+    with cc7:
+        st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
+
+    if st.session_state["manager_pricing_checkbox"]:
+        if not st.session_state["manager_pricing_authorized"]:
+            mp1, mp2, mp3 = st.columns([1, 1, 0.8])
+            with mp1:
+                st.text_input("Manager Username", key="manager_username")
+            with mp2:
+                st.text_input("Manager Password", key="manager_password", type="password")
+            with mp3:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("Authorize Manager Pricing", key="btn_authorize_manager"):
+                    authorize_manager_pricing()
+        else:
+            st.success("Manager pricing authorized.")
 
     st.markdown("**Freight Notes**")
     fn1, fn2, fn3 = st.columns(3)
@@ -2124,28 +2208,36 @@ def main_app():
 
     subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
     discount_type = st.session_state["active_discount_type"]
-    discount_label = get_discount_label(discount_type)
-    ten_percent_discount = calculate_ten_percent_discount(
-        st.session_state["line_items"],
-        discount_type
+    primary_discount_label = get_discount_label(discount_type)
+    discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
+    primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
+    manager_discount_amount = calculate_manager_discount(
+        discountable_base,
+        st.session_state["manager_pricing_authorized"]
     )
-    pre_tax = subtotal - ten_percent_discount + float(drop_ship_fee) + float(freight)
+
+    pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
     sales_tax = round(pre_tax * tax_rate, 2)
     grand_total = round(pre_tax + sales_tax, 2)
 
-    s1, s2, s3, s4, s5 = st.columns(5)
+    s1, s2, s3, s4, s5, s6 = st.columns(6)
     with s1:
         st.metric("Subtotal", f"${subtotal:,.2f}")
     with s2:
-        if discount_label and ten_percent_discount > 0:
-            st.metric(discount_label, f"-${ten_percent_discount:,.2f}")
+        if primary_discount_label and primary_discount_amount > 0:
+            st.metric(primary_discount_label, f"-${primary_discount_amount:,.2f}")
         else:
-            st.metric("Discount", "$0.00")
+            st.metric("Primary Discount", "$0.00")
     with s3:
-        st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
+        if manager_discount_amount > 0:
+            st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
+        else:
+            st.metric("Manager Pricing", "$0.00")
     with s4:
-        st.metric("Freight", f"${freight:,.2f}")
+        st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
     with s5:
+        st.metric("Freight", f"${freight:,.2f}")
+    with s6:
         st.metric("Grand Total", f"${grand_total:,.2f}")
 
     qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
@@ -2191,8 +2283,9 @@ def main_app():
         sales_tax,
         grand_total,
         tax_rate,
-        ten_percent_discount,
-        discount_label,
+        primary_discount_amount,
+        primary_discount_label,
+        manager_discount_amount,
     )
     order_meta = payload["order_meta"]
 
