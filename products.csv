@@ -1,98 +1,100 @@
 SKU,Name,UnitPrice,Notes
-M2P,Mach 2 Pro - Portable,300.00,Includes 3-Spoke Non-Wheeled Portable Base
-M2IG,Mach 2 Pro - In Ground,300.00,Includes In-Ground Install Kit
-M5STD,Mach 5 Standard,525.00,Includes Anchor and Collar
-M5P,Mach 5 Portable,525.00,Includes 4-Spoke Wheeled Portable Base
-M5NF,Mach 5 No Frills,495.00,Direct Cement
-M7STD,Mach 7 Standard,575.00,Includes Anchor and Collar
-M7P,Mach 7 Portable,575.00,Includes 4-Spoke Wheeled Portable Base
-M7NF,Mach 7 No Frills,545.00,Direct Cement
-MXSTD,Mach X Standard,625.00,Includes Anchor and Collar
-MXNF,Mach X No Frills,595.00,Direct Cement
-MXP,Mach X Portable,625.00,Includes 4-Spoke Wheeled Portable Base
-CD,Course Discount,-100.00
-NP,Number Plate - Stock,35.00
-NPB,Number Plate - Blank,30.00
-PC-Stock,Powder Coat Fee - Stock,90.00
-PC-Custom,Powder Coat Fee - Custom,120.00
-AA,Anchor,30.00
-CO,Collar,20.00
-IGK,In Ground Install kit,45.00
-M2Collar,Mach 2 Collar,25.00
-TSP,Tee Sign Pole,30.00
-STDPole,Standard Pole,45.00
-PPole,Portable Pole,40.00
+24PL,2024 ProLine Disc,11.99,CLOSEOUT
+24SP,2024 SP-Line Disc,11.99,CLOSEOUT
+24TS,2024 Tour Series Disc,14.99,CLOSEOUT
+25TS,2025 Tour Series Disc,19.99,CLOSEOUT
 2PP,Mach 2 Pole,40.00,2 Piece
 2PPB,Mach 2 Pole - Bottom,20.00,Bottom
 2PPT,Mach 2 Pole - Top,20.00,Top
-PE,Pole Extension,60.00
-PBase,Portable Base - Wheel,60.00,4-Spoke
-CNP,Number Plate - Custom,55.00,Design Not Included
-CW,Mach 7 Wrap - Custom,35.00,Design Not Included
-BCTS,Basic Color Tee Sign - 5"x10",55.00,Includes Design - Mounting Not Included
-CTS9x12,Color Tee Sign - 9"x12",89.00,Includes Design - Mounting Not Included
-CTS9x12RP,Color Tee Sign - 9"x12" Reprint,76.00,REPRINRT - Mounting Not Included
-CTS12x18,Color Tee Sign - 12"x18",115.00,Includes Design - Mounting Not Included
-CRS12x18RP,Color Tee Sign - 12"x18" Reprint,102,REPRINT - Mounting Not Included
-CTS8x11,Color Tee Sign - 8"x11",79.00
-FCSS,Framed Color Sponsor Sign,155.00,Two Framed 8"x11" Panels with Mounting Pole
-FCCRS,Framed Combo Color and Rules Sign,165.00,Two Framed 8"x11" Panel with Mounting Pole
-CM9,Course Map - 9 Hole,700.00,Design Only
-CM18,Course Map - 18 Hole,1250.00,Design Only
-UFO,UFO Course Sign,45.00,Mounting Not Included
-CRS12x18,Color Rules Sign - 12"x18",69.00,Mounting Not Included
-BFS,Basket Flag - Standard Plug,30.00,For Use WITHOUT Number Plates
-BFNP,Basket Flag - Number Plate Plug,30.00,For Use WITH Number Plates
+AA,Anchor,30.00
 ADD,Additional Discount,0.00
+ASB,Assembly Fee,12.00,Assembled for Pick-Up
+AT,Atmos Disc,19.99
+BDNP,DGA Logo Decal,4.00,For Number Plate
+BCTS,Basic Color Tee Sign - 5"x10",55.00,Includes Design - Mounting Not Included
 BCTSRP,Tee Sign - 5"x10" Reprint,49.50
-FPM7,Focal Point - Mach 7,7.00
-M7CO,Mach 7 Collar Only,545.00,For Use with Existing Anchors
-FPM5,Focal Point - Mach 5,7.00
-FPMX, Focal Point - Mach X,7.00
+BFNP,Basket Flag - Number Plate Plug,30.00,For Use WITH Number Plates
+BFS,Basket Flag - Standard Plug,30.00,For Use WITHOUT Number Plates
+BH,Basket Hardware,3.50,Includes 3 each through bolt - washer - lock bolt - lock nut
 CHM5,Chain Holder - Mach 5,250.00
-M5CO,Mach 5 Collar Only,495.00,For Use with Existing Anchors
-MXCO,Mach X Collar Only,595.00,For Use with Existing Anchors
-CustPrem,Custom Stamp Premium Disc,11.00
+CM18,Course Map - 18 Hole,1250.00,Design Only
+CM9,Course Map - 9 Hole,700.00,Design Only
+CO,Collar,20.00
+CNP,Number Plate - Custom,55.00,Design Not Included
+CRS12x18,Color Rules Sign - 12"x18",69.00,Mounting Not Included
+CRS12x18RP,Color Tee Sign - 12"x18" Reprint,102,REPRINT - Mounting Not Included
+CSP,Cloud Spark Disc,17.99
+CTS12x18,Color Tee Sign - 12"x18",115.00,Includes Design - Mounting Not Included
+CTS8x11,Color Tee Sign - 8"x11",79.00
+CTS9x12,Color Tee Sign - 9"x12",89.00,Includes Design - Mounting Not Included
+CTS9x12RP,Color Tee Sign - 9"x12" Reprint,76.00,REPRINT - Mounting Not Included
 CustAtm,Custom Stamp Atmos Disc,12.00
-MLP,Mach Lite Portable,144.99
-MM,Mini Marker,3.00
-Sticker,DGA Sticker,0.50
-SmBan,Small Banner,20.00,15in x 36in
-LrgBan,Large Banner,40.00,24in x 72in
 CustBase,Custom Stamped Baseline Disc,7.00
-TRVRS Color,TRVRS LT Bag (Color),54.99
-TRVRS Pattern,TRVRS LT Bag (Pattern),59.99
-StartBag,Starter Bag,19.99
-TB-2,Trapper Basket 2,180.00
-TB-1,Trapper Basket 1,170.00
-MS,Mach Shift,150.00
-MLFT,Mach Lite Fabric - Top,25.00
-MLFB,Mach Lite Fabric - Bottom,25.00
-MLFS,Mach Lite Fabric - Set,50.00
-MLP,Mach Lite Pin,5.00
+CustPrem,Custom Stamp Premium Disc,11.00
+CUST,Custom Artwork Fee,80.00,Includes Artwork Set-Up and Hot-Stamp Fee
+CW,Mach 7 Wrap - Custom,35.00,Design Not Included
+DDR,DisClaimer Disc Retreiver Tool,39.99
 DL,D-Line Disc,11.99
 DLS,D-Line Stone Disc,14.99
-SP,Spark Disc,17.99
-CSP,Cloud Sprk Disc,17.99
-PL,ProLine Disc,17.99
-AT,Atmos Disc,19.99
-SIG,Signature Line Disc,15.99
-DDR,DisClaimer Disc Retreiver Tool,39.99
-CUST,Custom Artwork Fee,80.00,Includes Artwork Set-Up and Hot-Stamp Fee
-25TS,2025 Tour Series Disc,19.99,CLOSEOUT
-24TS,2024 Tour Series Disc,14.99,CLOSEOUT
-MNF,Midnight Flyer,21.99
-M10,DGA Premium Mystery Box - 10 Pack,99.99,Molds Vary
-M3MB,DGA Premium Mystery Box - 3 Pack,35.99,Molds Vary
-SEHMDS,"Steady" Ed Headrick Memorial Disc Set,200.00
-LHMFD,Lines of Headrick Memorial Freestyle Disc,50.00
-24PL,2024 ProLine Disc,11.99,CLOSEOUT
-24SP,2024 SP-Line Disc,11.99,CLOSEOUT
-MINI,Disc Golf Mini Marker,3.00
-RND,Red Number Decal,3.00
-BDNP,DGA Logo Decal,4.00,For Number Plate
-TRIM,Number Plate Trim,4.00
-BH,Basket Hardware,3.50,Includes 3 each through bolt - washer - lock bolt - lock nut
 DMIS,D-Line Misprint Disc,7.00,CLOSEOUT
+FCCRS,Framed Combo Color and Rules Sign,165.00,Two Framed 8"x11" Panel with Mounting Pole
+FCSS,Framed Color Sponsor Sign,155.00,Two Framed 8"x11" Panels with Mounting Pole
+FPM2,Focal Point - Mach 2,7.00
+FPM2P,Focal Point - Mach 2 Pro,7.00
+FPM5,Focal Point - Mach 5,7.00
+FPM7,Focal Point - Mach 7,7.00
+FPMX,Focal Point - Mach X,7.00
+FPMXP,Focal Point - Mach X Pro,7.00
+IGK,In Ground Install kit,45.00
+LHMFD,Lines of Headrick Memorial Freestyle Disc,50.00
+LrgBan,Large Banner,40.00,24in x 72in
+M10,DGA Premium Mystery Box - 10 Pack,99.99,Molds Vary
+M2Collar,Mach 2 Collar,25.00
+M2IG,Mach 2 Pro - In Ground,300.00,Includes In-Ground Install Kit
+M2P,Mach 2 Pro - Portable,300.00,Includes 3-Spoke Non-Wheeled Portable Base
+M3MB,DGA Premium Mystery Box - 3 Pack,35.99,Molds Vary
+M5CO,Mach 5 Collar Only,495.00,For Use with Existing Anchors
+M5NF,Mach 5 No Frills,495.00,Direct Cement
+M5P,Mach 5 Portable,525.00,Includes 4-Spoke Wheeled Portable Base
+M5STD,Mach 5 Standard,525.00,Includes Anchor and Collar
+M7CO,Mach 7 Collar Only,545.00,For Use with Existing Anchors
+M7NF,Mach 7 No Frills,545.00,Direct Cement
+M7P,Mach 7 Portable,575.00,Includes 4-Spoke Wheeled Portable Base
+M7STD,Mach 7 Standard,575.00,Includes Anchor and Collar
+MINI,Disc Golf Mini Marker,3.00
+MLFB,Mach Lite Fabric - Bottom,25.00
+MLFS,Mach Lite Fabric - Set,50.00
+MLFT,Mach Lite Fabric - Top,25.00
+MLP,Mach Lite Portable,144.99
+MLPin,Mach Lite Pin,5.00
+MM,Mini Marker,3.00
+MNF,Midnight Flyer,21.99
+MS,Mach Shift,150.00
+MXCO,Mach X Collar Only,595.00,For Use with Existing Anchors
+MXNF,Mach X No Frills,595.00,Direct Cement
+MXP,Mach X Portable,625.00,Includes 4-Spoke Wheeled Portable Base
+MXSTD,Mach X Standard,625.00,Includes Anchor and Collar
+NP,Number Plate - Stock,35.00
+NPB,Number Plate - Blank,30.00
+PC-Custom,Powder Coat Fee - Custom,120.00
+PC-Stock,Powder Coat Fee - Stock,90.00
+PE,Pole Extension,60.00
+PL,ProLine Disc,17.99
 PMIS,Premium Misprint Disc,9.00,CLOSEOUT
-ASB,Assembly Fee,12.00,Assembled for Pick-Up
+PBase,Portable Base - Wheel,60.00,4-Spoke
+PPole,Portable Pole,40.00
+RND,Red Number Decal,3.00
+SEHMDS,"Steady" Ed Headrick Memorial Disc Set,200.00
+SIG,Signature Line Disc,15.99
+SmBan,Small Banner,20.00,15in x 36in
+SP,Spark Disc,17.99
+StartBag,Starter Bag,19.99
+STDPole,Standard Pole,45.00
+Sticker,DGA Sticker,0.50
+TB-1,Trapper Basket 1,170.00
+TB-2,Trapper Basket 2,180.00
+TRIM,Number Plate Trim,4.00
+TRVRS Color,TRVRS LT Bag (Color),54.99
+TRVRS Pattern,TRVRS LT Bag (Pattern),59.99
+TSP,Tee Sign Pole,30.00
+UFO,UFO Course Sign,45.00,Mounting Not Included

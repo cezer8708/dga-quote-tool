@@ -72,6 +72,16 @@ else:
 
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 
+FREIGHT_NOTE_OPTIONS = [
+    "Business Address",
+    "Residential Address",
+    "Lift Gate Needed",
+    "Fork Lift Access",
+    "Loading Dock Access",
+    "Local Pickup",
+    "Limited Access",
+]
+
 
 @st.cache_resource(ttl=None)
 def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | None:
@@ -107,6 +117,41 @@ COMPANY_LOGO_PATH = _get_logo_path_robustly()
 
 def fmt_money(value: float) -> str:
     return f"${value:,.2f}"
+
+
+def _freight_note_key(label: str) -> str:
+    slug = label.lower().replace(" ", "_").replace("-", "_")
+    return f"freight_note_{slug}"
+
+
+def sync_freight_checkboxes_from_text(text: str):
+    text_upper = (text or "").upper()
+
+    for label in FREIGHT_NOTE_OPTIONS:
+        st.session_state[_freight_note_key(label)] = label.upper() in text_upper
+
+    remaining = text or ""
+    for label in FREIGHT_NOTE_OPTIONS:
+        remaining = re.sub(re.escape(label), "", remaining, flags=re.IGNORECASE)
+
+    remaining = re.sub(r"\s*,\s*,+", ", ", remaining)
+    remaining = re.sub(r"^\s*,\s*|\s*,\s*$", "", remaining).strip()
+    st.session_state["freight_notes_other"] = remaining
+
+
+def get_selected_freight_notes() -> str:
+    selected = [
+        label for label in FREIGHT_NOTE_OPTIONS
+        if st.session_state.get(_freight_note_key(label), False)
+    ]
+
+    other = st.session_state.get("freight_notes_other", "").strip()
+
+    if selected and other:
+        return ", ".join(selected + [other])
+    if selected:
+        return ", ".join(selected)
+    return other
 
 
 @st.cache_resource(ttl=3600)
@@ -265,6 +310,10 @@ def start_new_quote():
     st.session_state["drop_fee_input"] = 0.0
     st.session_state["freight_fee_input"] = 0.0
     st.session_state["freight_notes"] = ""
+    st.session_state["freight_notes_other"] = ""
+    for label in FREIGHT_NOTE_OPTIONS:
+        st.session_state[_freight_note_key(label)] = False
+
     st.session_state["tax_rate_pct_input"] = 0.0
     st.session_state["sc_county_checkbox"] = False
     st.session_state["footer_notes"] = (
@@ -305,9 +354,13 @@ st.session_state.setdefault("footer_notes", (
 ))
 st.session_state.setdefault("drop_fee_input", 0.0)
 st.session_state.setdefault("freight_fee_input", 0.0)
+st.session_state.setdefault("freight_notes", "")
+st.session_state.setdefault("freight_notes_other", "")
+for label in FREIGHT_NOTE_OPTIONS:
+    st.session_state.setdefault(_freight_note_key(label), False)
+
 st.session_state.setdefault("tax_rate_pct_input", 0.0)
 st.session_state.setdefault("sc_county_checkbox", False)
-st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("order_doc_number_pdf", "")
 st.session_state.setdefault("order_po_number", "")
 st.session_state.setdefault("order_operator", "CZ")
@@ -1323,6 +1376,8 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
                         tax_rate: float) -> dict:
     quote_no = st.session_state["quote_no"]
 
+    st.session_state["freight_notes"] = get_selected_freight_notes()
+
     order_meta = {
         "order_doc_number": st.session_state.get("order_doc_number_pdf", quote_no),
         "po_number": st.session_state["order_po_number"],
@@ -1563,6 +1618,8 @@ def main_app():
                         st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
                         st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
                         st.session_state["freight_notes"] = payload.get("freight_notes", "")
+                        sync_freight_checkboxes_from_text(st.session_state["freight_notes"])
+
                         tax_meta = payload.get("tax_meta", {})
                         st.session_state["tax_rate_pct_input"] = float(tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
                         st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
@@ -1910,11 +1967,26 @@ def main_app():
     with cc4:
         st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
 
-    st.text_area(
-        "Freight Notes (optional)",
-        key="freight_notes",
-        placeholder="e.g., XPO, quote #12345, residential w/ liftgate, 2 pallets, ETA 5–7 biz days"
+    st.markdown("**Freight Notes**")
+    fn1, fn2, fn3 = st.columns(3)
+    with fn1:
+        st.checkbox("Business Address", key=_freight_note_key("Business Address"))
+        st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
+    with fn2:
+        st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
+        st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
+    with fn3:
+        st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
+        st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
+        st.checkbox("Limited Access", key=_freight_note_key("Limited Access"))
+
+    st.text_input(
+        "Other Freight Notes",
+        key="freight_notes_other",
+        placeholder="Optional extra freight details"
     )
+
+    st.session_state["freight_notes"] = get_selected_freight_notes()
 
     tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] else float(st.session_state["tax_rate_pct_input"]) / 100.0
 
