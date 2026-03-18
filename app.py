@@ -75,7 +75,7 @@ GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 FREIGHT_NOTE_OPTIONS = [
     "Business Address",
     "Residential Address",
-    "Lift Gate Needed",
+    "Lift Gate Need",
     "Fork Lift Access",
     "Loading Dock Access",
     "Local Pickup",
@@ -151,6 +151,64 @@ def get_selected_freight_notes() -> str:
     if selected:
         return ", ".join(selected)
     return other
+
+
+def get_discount_label(discount_type: str) -> str:
+    if discount_type == "team":
+        return "Team Discount"
+    if discount_type == "commission":
+        return "Commission Discount"
+    return ""
+
+
+def sync_discount_checkboxes_from_type(discount_type: str):
+    st.session_state["team_discount_checkbox"] = discount_type == "team"
+    st.session_state["commission_discount_checkbox"] = discount_type == "commission"
+    st.session_state["active_discount_type"] = discount_type
+
+
+def handle_team_discount_toggle():
+    if st.session_state.get("team_discount_checkbox", False):
+        st.session_state["commission_discount_checkbox"] = False
+        st.session_state["active_discount_type"] = "team"
+    elif st.session_state.get("active_discount_type") == "team":
+        st.session_state["active_discount_type"] = ""
+
+
+def handle_commission_discount_toggle():
+    if st.session_state.get("commission_discount_checkbox", False):
+        st.session_state["team_discount_checkbox"] = False
+        st.session_state["active_discount_type"] = "commission"
+    elif st.session_state.get("active_discount_type") == "commission":
+        st.session_state["active_discount_type"] = ""
+
+
+def calculate_discountable_subtotal(items: list[dict]) -> float:
+    total = 0.0
+    for item in items:
+        if not item.get("previewChecked", True):
+            continue
+
+        if item.get("sku") == "CD":
+            total += float(item.get("total", 0.0))
+            continue
+
+        if item.get("exclude_from_10_discount", False):
+            continue
+
+        line_total = float(item.get("total", 0.0))
+        if line_total <= 0:
+            continue
+
+        total += line_total
+
+    return round(max(total, 0.0), 2)
+
+
+def calculate_ten_percent_discount(items: list[dict], discount_type: str) -> float:
+    if not discount_type:
+        return 0.0
+    return round(calculate_discountable_subtotal(items) * 0.10, 2)
 
 
 @st.cache_resource(ttl=3600)
@@ -313,6 +371,7 @@ def start_new_quote():
     for label in FREIGHT_NOTE_OPTIONS:
         st.session_state[_freight_note_key(label)] = False
 
+    sync_discount_checkboxes_from_type("")
     st.session_state["tax_rate_pct_input"] = 0.0
     st.session_state["sc_county_checkbox"] = False
     st.session_state["footer_notes"] = (
@@ -357,6 +416,10 @@ st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("freight_notes_other", "")
 for label in FREIGHT_NOTE_OPTIONS:
     st.session_state.setdefault(_freight_note_key(label), False)
+
+st.session_state.setdefault("active_discount_type", "")
+st.session_state.setdefault("team_discount_checkbox", False)
+st.session_state.setdefault("commission_discount_checkbox", False)
 
 st.session_state.setdefault("tax_rate_pct_input", 0.0)
 st.session_state.setdefault("sc_county_checkbox", False)
@@ -687,6 +750,7 @@ def ensure_course_discount(items: list[dict]) -> bool:
             "Notes": discount_note,
             "prev_sku": "CD",
             "previewChecked": True,
+            "exclude_from_10_discount": True,
         }
 
         if idx == -1:
@@ -878,6 +942,9 @@ def build_pdf(
     freight_notes_meta = _prepare_text_for_pdf(meta.get("freight_notes", ""), compact_level, "freight")
     items = _prepare_items_for_pdf(items, compact_level)
 
+    discount_label = totals.get("discount_label", "")
+    discount_amount = totals.get("ten_percent_discount", 0.0)
+
     if template == "order":
         if COMPANY_LOGO_PATH:
             logo = Image(COMPANY_LOGO_PATH, width=logo_w, height=logo_h)
@@ -1002,12 +1069,16 @@ def build_pdf(
 
         story += [Spacer(1, block_spacer_med)]
 
-        sub_tbl_w = 2.5 * inch
-        t_sub = Table([
-            ["Subtotal:", fmt_money(totals.get("subtotal", 0.0))],
+        sub_rows = [["Subtotal:", fmt_money(totals.get("subtotal", 0.0))]]
+        if discount_label and discount_amount > 0:
+            sub_rows.append([f"{discount_label}:", fmt_money(-discount_amount)])
+        sub_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
-        ], colWidths=[sub_tbl_w * 0.6, sub_tbl_w * 0.4])
+        ])
+
+        sub_tbl_w = 2.5 * inch
+        t_sub = Table(sub_rows, colWidths=[sub_tbl_w * 0.6, sub_tbl_w * 0.4])
         t_sub.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
@@ -1199,13 +1270,17 @@ def build_pdf(
         acc_width = 3.5 * inch if compact_level < 2 else 0
         totals_width = 3.0 * inch if compact_level < 2 else min(3.2 * inch, content_width)
 
-        t_totals = Table([
-            ["Subtotal:", fmt_money(totals.get("subtotal", 0.0))],
+        totals_rows = [["Subtotal:", fmt_money(totals.get("subtotal", 0.0))]]
+        if discount_label and discount_amount > 0:
+            totals_rows.append([f"{discount_label}:", fmt_money(-discount_amount)])
+        totals_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
             ["**GRAND TOTAL:**", f"**{fmt_money(totals.get('grand_total', 0.0))}**"],
-        ], colWidths=[totals_width * 0.65, totals_width * 0.35])
+        ])
+
+        t_totals = Table(totals_rows, colWidths=[totals_width * 0.65, totals_width * 0.35])
         t_totals.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
@@ -1371,8 +1446,16 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     )
 
 
-def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, sales_tax: float, grand_total: float,
-                        tax_rate: float) -> dict:
+def get_current_payload(
+    subtotal: float,
+    drop_ship_fee: float,
+    freight: float,
+    sales_tax: float,
+    grand_total: float,
+    tax_rate: float,
+    ten_percent_discount: float,
+    discount_label: str,
+) -> dict:
     quote_no = st.session_state["quote_no"]
 
     st.session_state["freight_notes"] = get_selected_freight_notes()
@@ -1395,6 +1478,8 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
     }
     totals = {
         "subtotal": subtotal,
+        "ten_percent_discount": ten_percent_discount,
+        "discount_label": discount_label,
         "sales_tax": sales_tax,
         "grand_total": grand_total,
         "tax_rate_pct": tax_rate,
@@ -1402,6 +1487,9 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
     tax_meta = {
         "tax_rate_pct_input": st.session_state["tax_rate_pct_input"],
         "sc_county_checkbox": st.session_state["sc_county_checkbox"],
+    }
+    discount_meta = {
+        "active_discount_type": st.session_state["active_discount_type"],
     }
 
     return {
@@ -1412,6 +1500,7 @@ def get_current_payload(subtotal: float, drop_ship_fee: float, freight: float, s
         "fees": fees,
         "totals": totals,
         "tax_meta": tax_meta,
+        "discount_meta": discount_meta,
         "freight_notes": st.session_state["freight_notes"],
         "footer_notes": st.session_state["footer_notes"],
         "order_meta": order_meta,
@@ -1487,6 +1576,7 @@ def add_item_callback(sku: str = ""):
         "Notes": notes,
         "prev_sku": "",
         "previewChecked": True,
+        "exclude_from_10_discount": False,
     })
 
     st.session_state[f"Notes_input_{new_id}"] = notes
@@ -1613,6 +1703,9 @@ def main_app():
 
                         st.session_state["customer"] = payload.get("customer", {})
                         st.session_state["line_items"] = payload.get("line_items", [])
+                        for item in st.session_state["line_items"]:
+                            item.setdefault("exclude_from_10_discount", False)
+
                         fees = payload.get("fees", {})
                         st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
                         st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
@@ -1622,6 +1715,13 @@ def main_app():
                         tax_meta = payload.get("tax_meta", {})
                         st.session_state["tax_rate_pct_input"] = float(tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
                         st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
+
+                        discount_meta = payload.get("discount_meta", {})
+                        active_discount_type = discount_meta.get("active_discount_type", "")
+                        if not active_discount_type and discount_meta.get("apply_10_discount", False):
+                            active_discount_type = "team"
+                        sync_discount_checkboxes_from_type(active_discount_type)
+
                         st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
 
                         order_meta = payload.get("order_meta", {})
@@ -1674,13 +1774,28 @@ def main_app():
                 tax_rate = tax_input / 100 if tax_input > 0 else 0.0
 
             subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
+            discount_type = st.session_state["active_discount_type"]
+            discount_label = get_discount_label(discount_type)
+            ten_percent_discount = calculate_ten_percent_discount(
+                st.session_state["line_items"],
+                discount_type
+            )
             drop_ship_fee = st.session_state["drop_fee_input"]
             freight = st.session_state["freight_fee_input"]
-            pre_tax = subtotal + float(drop_ship_fee) + float(freight)
+            pre_tax = subtotal - ten_percent_discount + float(drop_ship_fee) + float(freight)
             sales_tax = round(pre_tax * tax_rate, 2)
             grand_total = round(pre_tax + sales_tax, 2)
 
-            preview_payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
+            preview_payload = get_current_payload(
+                subtotal,
+                drop_ship_fee,
+                freight,
+                sales_tax,
+                grand_total,
+                tax_rate,
+                ten_percent_discount,
+                discount_label,
+            )
 
             try:
                 pdf_data, compact_level_used = generate_single_page_pdf(
@@ -1802,8 +1917,10 @@ def main_app():
 
     for i in range(len(st.session_state["line_items"])):
         row = st.session_state["line_items"][i]
+        row.setdefault("exclude_from_10_discount", False)
         is_course_discount = row.get("sku") == "CD"
         is_preview_checked = row.get("previewChecked", True)
+        is_excluded_from_10 = row.get("exclude_from_10_discount", False)
 
         can_move_up = i > 0
         can_move_down = i < len(st.session_state["line_items"]) - 1
@@ -1818,7 +1935,7 @@ def main_app():
 
         item_container = st.container(border=True)
         with item_container:
-            header_col1, header_col2, header_col3, header_col4, header_col5 = st.columns([0.8, 0.4, 0.4, 0.4, 1.2])
+            header_col1, header_col2, header_col3, header_col4, header_col5, header_col6 = st.columns([0.8, 0.4, 0.4, 0.4, 1.1, 1.4])
 
             with header_col1:
                 st.markdown(f"**Item {i + 1}**")
@@ -1850,6 +1967,19 @@ def main_app():
                     if new_checked_state != is_preview_checked:
                         row["previewChecked"] = new_checked_state
                         st.session_state["rerun_flag"] = True
+
+            with header_col6:
+                if is_course_discount:
+                    st.checkbox("Exclude From 10% Discount", value=True, disabled=True, key=f"exclude_10_{row['id']}")
+                    row["exclude_from_10_discount"] = True
+                else:
+                    new_exclude_state = st.checkbox(
+                        "Exclude From 10% Discount",
+                        value=is_excluded_from_10,
+                        key=f"exclude_10_{row['id']}"
+                    )
+                    if new_exclude_state != is_excluded_from_10:
+                        row["exclude_from_10_discount"] = new_exclude_state
 
             c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
 
@@ -1956,7 +2086,7 @@ def main_app():
     st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
     st.subheader("Fees, Tax & Totals")
-    cc1, cc2, cc3, cc4 = st.columns(4)
+    cc1, cc2, cc3, cc4, cc5, cc6 = st.columns(6)
     with cc1:
         drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
     with cc2:
@@ -1965,6 +2095,10 @@ def main_app():
         st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
     with cc4:
         st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
+    with cc5:
+        st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
+    with cc6:
+        st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
 
     st.markdown("**Freight Notes**")
     fn1, fn2, fn3 = st.columns(3)
@@ -1972,7 +2106,7 @@ def main_app():
         st.checkbox("Business Address", key=_freight_note_key("Business Address"))
         st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
     with fn2:
-        st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
+        st.checkbox("Lift Gate Need", key=_freight_note_key("Lift Gate Need"))
         st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
     with fn3:
         st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
@@ -1989,18 +2123,29 @@ def main_app():
     tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] else float(st.session_state["tax_rate_pct_input"]) / 100.0
 
     subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
-    pre_tax = subtotal + float(drop_ship_fee) + float(freight)
+    discount_type = st.session_state["active_discount_type"]
+    discount_label = get_discount_label(discount_type)
+    ten_percent_discount = calculate_ten_percent_discount(
+        st.session_state["line_items"],
+        discount_type
+    )
+    pre_tax = subtotal - ten_percent_discount + float(drop_ship_fee) + float(freight)
     sales_tax = round(pre_tax * tax_rate, 2)
     grand_total = round(pre_tax + sales_tax, 2)
 
-    s1, s2, s3, s4 = st.columns(4)
+    s1, s2, s3, s4, s5 = st.columns(5)
     with s1:
         st.metric("Subtotal", f"${subtotal:,.2f}")
     with s2:
-        st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
+        if discount_label and ten_percent_discount > 0:
+            st.metric(discount_label, f"-${ten_percent_discount:,.2f}")
+        else:
+            st.metric("Discount", "$0.00")
     with s3:
-        st.metric("Freight", f"${freight:,.2f}")
+        st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
     with s4:
+        st.metric("Freight", f"${freight:,.2f}")
+    with s5:
         st.metric("Grand Total", f"${grand_total:,.2f}")
 
     qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
@@ -2031,7 +2176,6 @@ def main_app():
             operator_options = ["CZ", "MP", "KG"]
             current_operator = st.session_state.get("order_operator", "CZ")
             if current_operator not in operator_options:
-                current_operator = "CZ"
                 st.session_state["order_operator"] = "CZ"
             st.selectbox("Operator", operator_options, key="order_operator")
             st.text_input("Authorization Code", key="order_auth_code")
@@ -2040,7 +2184,16 @@ def main_app():
             st.text_input("Check Number", key="order_check_number")
             st.text_input("Date Received", key="order_date_received")
 
-    payload = get_current_payload(subtotal, drop_ship_fee, freight, sales_tax, grand_total, tax_rate)
+    payload = get_current_payload(
+        subtotal,
+        drop_ship_fee,
+        freight,
+        sales_tax,
+        grand_total,
+        tax_rate,
+        ten_percent_discount,
+        discount_label,
+    )
     order_meta = payload["order_meta"]
 
     pdf_col1, pdf_col2 = st.columns(2)
