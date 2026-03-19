@@ -79,6 +79,8 @@ FREIGHT_NOTE_OPTIONS = [
     "Fork Lift Access",
     "Loading Dock Access",
     "Local Pickup",
+    "UPS",
+    "Ground Freight",
 ]
 
 MANAGER_USERNAME = "CZ"
@@ -161,18 +163,23 @@ def get_discount_label(discount_type: str) -> str:
         return "Team Discount"
     if discount_type == "commission":
         return "Commission Discount"
+    if discount_type == "discount":
+        note = st.session_state.get("discount_note", "").strip()
+        return f"{note} Discount" if note else "Discount"
     return ""
 
 
 def sync_discount_checkboxes_from_type(discount_type: str):
     st.session_state["team_discount_checkbox"] = discount_type == "team"
     st.session_state["commission_discount_checkbox"] = discount_type == "commission"
+    st.session_state["discount_checkbox"] = discount_type == "discount"
     st.session_state["active_discount_type"] = discount_type
 
 
 def handle_team_discount_toggle():
     if st.session_state.get("team_discount_checkbox", False):
         st.session_state["commission_discount_checkbox"] = False
+        st.session_state["discount_checkbox"] = False
         st.session_state["active_discount_type"] = "team"
     elif st.session_state.get("active_discount_type") == "team":
         st.session_state["active_discount_type"] = ""
@@ -181,9 +188,20 @@ def handle_team_discount_toggle():
 def handle_commission_discount_toggle():
     if st.session_state.get("commission_discount_checkbox", False):
         st.session_state["team_discount_checkbox"] = False
+        st.session_state["discount_checkbox"] = False
         st.session_state["active_discount_type"] = "commission"
     elif st.session_state.get("active_discount_type") == "commission":
         st.session_state["active_discount_type"] = ""
+
+
+def handle_discount_toggle():
+    if st.session_state.get("discount_checkbox", False):
+        st.session_state["team_discount_checkbox"] = False
+        st.session_state["commission_discount_checkbox"] = False
+        st.session_state["active_discount_type"] = "discount"
+    elif st.session_state.get("active_discount_type") == "discount":
+        st.session_state["active_discount_type"] = ""
+        st.session_state["discount_note"] = ""
 
 
 def clear_manager_credentials():
@@ -407,6 +425,7 @@ def start_new_quote():
         st.session_state[_freight_note_key(label)] = False
 
     sync_discount_checkboxes_from_type("")
+    st.session_state["discount_note"] = ""
     st.session_state["manager_pricing_checkbox"] = False
     st.session_state["manager_pricing_authorized"] = False
     st.session_state["manager_clear_credentials_on_rerun"] = False
@@ -460,6 +479,8 @@ for label in FREIGHT_NOTE_OPTIONS:
 st.session_state.setdefault("active_discount_type", "")
 st.session_state.setdefault("team_discount_checkbox", False)
 st.session_state.setdefault("commission_discount_checkbox", False)
+st.session_state.setdefault("discount_checkbox", False)
+st.session_state.setdefault("discount_note", "")
 
 st.session_state.setdefault("manager_pricing_checkbox", False)
 st.session_state.setdefault("manager_pricing_authorized", False)
@@ -1543,6 +1564,7 @@ def get_current_payload(
     }
     discount_meta = {
         "active_discount_type": st.session_state["active_discount_type"],
+        "discount_note": st.session_state["discount_note"],
         "manager_pricing_authorized": st.session_state["manager_pricing_authorized"],
     }
 
@@ -1779,6 +1801,7 @@ def main_app():
                         if not active_discount_type and discount_meta.get("apply_10_discount", False):
                             active_discount_type = "team"
                         sync_discount_checkboxes_from_type(active_discount_type)
+                        st.session_state["discount_note"] = discount_meta.get("discount_note", "")
 
                         manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
                         st.session_state["manager_pricing_authorized"] = manager_authorized
@@ -1881,11 +1904,12 @@ def main_app():
                     st.caption("Preview is using compact single-page mode.")
 
                 base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
+                preview_nonce = uuid.uuid4().hex
                 pdf_display = f"""
                 <div class="pdf-iframe-container" style="height: 80vh;">
                     <iframe
-                        src="data:application/pdf;base64,{base64_pdf}"
-                        title="PDF Preview"
+                        src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
+                        title="PDF Preview {preview_nonce}"
                         style="width: 100%; height: 100%; border: none;">
                     </iframe>
                 </div>
@@ -2154,7 +2178,7 @@ def main_app():
     st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
     st.subheader("Fees, Tax & Totals")
-    cc1, cc2, cc3, cc4, cc5, cc6, cc7 = st.columns(7)
+    cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
     with cc1:
         drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
     with cc2:
@@ -2168,7 +2192,12 @@ def main_app():
     with cc6:
         st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
     with cc7:
+        st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
+    with cc8:
         st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
+
+    if st.session_state["active_discount_type"] == "discount":
+        st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
 
     if st.session_state["manager_pricing_checkbox"]:
         if not st.session_state["manager_pricing_authorized"]:
@@ -2185,7 +2214,7 @@ def main_app():
             st.success("Manager pricing authorized.")
 
     st.markdown("**Freight Notes**")
-    fn1, fn2, fn3 = st.columns(3)
+    fn1, fn2, fn3, fn4 = st.columns(4)
     with fn1:
         st.checkbox("Business Address", key=_freight_note_key("Business Address"))
         st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
@@ -2195,6 +2224,9 @@ def main_app():
     with fn3:
         st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
         st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
+    with fn4:
+        st.checkbox("UPS", key=_freight_note_key("UPS"))
+        st.checkbox("Ground Freight", key=_freight_note_key("Ground Freight"))
 
     st.text_input(
         "Other Freight Notes",
@@ -2289,14 +2321,25 @@ def main_app():
     )
     order_meta = payload["order_meta"]
 
+    def discount_note_valid() -> bool:
+        if st.session_state["active_discount_type"] != "discount":
+            return True
+        return bool(st.session_state.get("discount_note", "").strip())
+
     pdf_col1, pdf_col2 = st.columns(2)
 
     if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
-        handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
+        if not discount_note_valid():
+            pdf_col1.error("Discount Reason is required when Discount is selected.")
+        else:
+            handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
     if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        order_doc_number = st.session_state["order_doc_number_pdf"]
-        handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
+        if not discount_note_valid():
+            pdf_col2.error("Discount Reason is required when Discount is selected.")
+        else:
+            order_doc_number = st.session_state["order_doc_number_pdf"]
+            handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 if __name__ == "__main__":
