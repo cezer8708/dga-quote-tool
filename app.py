@@ -800,6 +800,36 @@ def find_course_discount_index(items: list[dict]) -> int:
     return -1
 
 
+def find_last_course_discount_anchor_index(items: list[dict]) -> int:
+    anchor_index = -1
+    for idx, item in enumerate(items):
+        if item.get("sku") == "CD":
+            continue
+        if is_basket_5_7_X(item):
+            anchor_index = idx
+    return anchor_index
+
+
+def ensure_course_discount_position(items: list[dict] = None):
+    if items is None:
+        items = st.session_state["line_items"]
+
+    discount_idx = find_course_discount_index(items)
+    if discount_idx == -1:
+        return
+
+    anchor_idx = find_last_course_discount_anchor_index(items)
+    if anchor_idx == -1:
+        return
+
+    discount_item = items.pop(discount_idx)
+    if discount_idx < anchor_idx:
+        anchor_idx -= 1
+
+    insert_at = anchor_idx + 1
+    items.insert(insert_at, discount_item)
+
+
 def ensure_course_discount(items: list[dict]) -> bool:
     qty = eligible_qty_for_discount(items)
     idx = find_course_discount_index(items)
@@ -827,24 +857,13 @@ def ensure_course_discount(items: list[dict]) -> bool:
             items[idx] = disc_line
             modified = True
 
-        if modified:
-            ensure_course_discount_stays_last(items)
+        ensure_course_discount_position(items)
 
     elif idx != -1:
         items.pop(idx)
         modified = True
 
     return modified
-
-
-def ensure_course_discount_stays_last(items: list[dict] = None):
-    if items is None:
-        items = st.session_state["line_items"]
-
-    idx = find_course_discount_index(items)
-    if idx != -1 and idx != len(items) - 1:
-        discount_item = items.pop(idx)
-        items.append(discount_item)
 
 
 def _company_right_block(styles):
@@ -1597,18 +1616,9 @@ def move_item(item_id: str, direction: str):
     elif direction == "down" and current_index < len(items) - 1:
         new_index = current_index + 1
 
-    discount_idx = find_course_discount_index(items)
-
-    if current_index == discount_idx and direction == "up":
-        return
-
-    if new_index == discount_idx and discount_idx == len(items) - 1:
-        if direction == "down":
-            return
-
     if new_index != current_index:
         items[current_index], items[new_index] = items[new_index], items[current_index]
-        ensure_course_discount_stays_last(items)
+        ensure_course_discount_position(items)
         st.session_state["rerun_flag"] = True
 
 
@@ -1656,6 +1666,7 @@ def add_item_callback(sku: str = ""):
     })
 
     st.session_state[f"Notes_input_{new_id}"] = notes
+    ensure_course_discount_position(st.session_state["line_items"])
     st.session_state["rerun_flag"] = True
 
 
@@ -2006,6 +2017,7 @@ def main_app():
     sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
 
     ensure_course_discount(st.session_state["line_items"])
+    ensure_course_discount_position(st.session_state["line_items"])
 
     for i in range(len(st.session_state["line_items"])):
         row = st.session_state["line_items"][i]
@@ -2016,14 +2028,6 @@ def main_app():
 
         can_move_up = i > 0
         can_move_down = i < len(st.session_state["line_items"]) - 1
-
-        if is_course_discount and i == len(st.session_state["line_items"]) - 1:
-            can_move_up = False
-            can_move_down = False
-
-        if not is_course_discount and i == len(st.session_state["line_items"]) - 2 and find_course_discount_index(
-                st.session_state["line_items"]) == len(st.session_state["line_items"]) - 1:
-            can_move_down = False
 
         item_container = st.container(border=True)
         with item_container:
