@@ -887,6 +887,9 @@ def _build_pdf_brand_header(
     info_right: str,
     compact_level: int,
 ):
+    section_fill = colors.HexColor("#E7F0FB")
+    section_border = colors.HexColor("#B8CAE6")
+
     if compact_level == 0:
         logo_display_w = 1.7 * inch
         logo_display_h = 1.05 * inch
@@ -948,15 +951,6 @@ def _build_pdf_brand_header(
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
     ]))
 
-    kicker_para = Paragraph(
-        f'<font color="#2D6FC2"><b>{subtitle}</b></font>',
-        ParagraphStyle(
-            "PdfHeaderKicker",
-            parent=styles["Normal"],
-            fontSize=kicker_font,
-            leading=kicker_font + 1,
-        )
-    )
     title_para = Paragraph(
         f"<b>{title}</b>",
         ParagraphStyle(
@@ -975,14 +969,23 @@ def _build_pdf_brand_header(
             leading=detail_leading,
         )
     )
-    right_block = Table(
-        [
-            [kicker_para],
-            [title_para],
-            [detail_para],
-        ],
-        colWidths=[right_col_width]
-    )
+    right_rows = []
+    if subtitle.strip():
+        kicker_para = Paragraph(
+            f'<font color="#2D6FC2"><b>{subtitle}</b></font>',
+            ParagraphStyle(
+                "PdfHeaderKicker",
+                parent=styles["Normal"],
+                fontSize=kicker_font,
+                leading=kicker_font + 1,
+            )
+        )
+        right_rows.append([kicker_para])
+    right_rows.extend([
+        [title_para],
+        [detail_para],
+    ])
+    right_block = Table(right_rows, colWidths=[right_col_width])
     right_block.setStyle(TableStyle([
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
@@ -1023,9 +1026,9 @@ def _build_pdf_brand_header(
 
     info_table = Table([[info_left_para, info_right_para]], colWidths=[content_width * 0.53, content_width * 0.47])
     info_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#E7F0FB")),
-        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
+        ("BACKGROUND", (0, 0), (-1, -1), section_fill),
+        ("BOX", (0, 0), (-1, -1), 0.5, section_border),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, section_border),
         ("LEFTPADDING", (0, 0), (-1, -1), info_pad_h),
         ("RIGHTPADDING", (0, 0), (-1, -1), info_pad_h),
         ("TOPPADDING", (0, 0), (-1, -1), info_pad_v),
@@ -1089,6 +1092,7 @@ def build_pdf(
     compact_level: int = 0,
 ):
     meta = meta or {}
+    pdf_section_fill = colors.HexColor("#E7F0FB")
 
     if compact_level == 0:
         left_margin = right_margin = 36
@@ -1200,7 +1204,7 @@ def build_pdf(
             logo_w,
             logo_h,
             "DGA Order",
-            "WHOLESALE CUSTOM ORDERING",
+            "",
             f"Order: {doc_number}",
             f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
             compact_level,
@@ -1287,7 +1291,7 @@ def build_pdf(
         t_li.setStyle(TableStyle([
             ("BOX", (0, 0), (-1, -1), 0.75, colors.black),
             ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("BACKGROUND", (0, 0), (-1, 0), pdf_section_fill),
             ("ALIGN", (0, 1), (0, -1), "CENTER"),
             ("ALIGN", (2, 1), (3, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -1335,7 +1339,7 @@ def build_pdf(
         t_grand.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-            ("BACKGROUND", (0, -1), (-1, -1), colors.lightgrey),
+            ("BACKGROUND", (0, -1), (-1, -1), pdf_section_fill),
             ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("LEFTPADDING", (0, 0), (-1, -1), 6),
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
@@ -1368,7 +1372,7 @@ def build_pdf(
             logo_w,
             logo_h,
             "DGA Quote",
-            "WHOLESALE CUSTOM ORDERING",
+            "",
             f"Quote: {doc_number}",
             f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
             compact_level,
@@ -1429,7 +1433,7 @@ def build_pdf(
         t_li = Table(data, colWidths=li_cols, repeatRows=1)
         t_li.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("BACKGROUND", (0, 0), (-1, 0), pdf_section_fill),
             ("ALIGN", (0, 1), (0, -1), "CENTER"),
             ("ALIGN", (2, 1), (3, -1), "RIGHT"),
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -1468,7 +1472,7 @@ def build_pdf(
         t_totals.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-            ("BACKGROUND", (0, -1), (-1, -1), colors.lightgrey),
+            ("BACKGROUND", (0, -1), (-1, -1), pdf_section_fill),
             ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
             ("TOPPADDING", (0, 0), (-1, -1), row_top_pad),
             ("BOTTOMPADDING", (0, 0), (-1, -1), row_bottom_pad),
@@ -1494,7 +1498,7 @@ def build_pdf(
             acc_tbl = Table(acc_data, colWidths=[acc_width * 0.7, acc_width * 0.3])
             acc_tbl.setStyle(TableStyle([
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+                ("BACKGROUND", (0, 0), (-1, 0), pdf_section_fill),
                 ("SPAN", (0, 0), (-1, 0)),
                 ("SPAN", (0, -1), (-1, -1)),
                 ("ALIGN", (1, 1), (1, -2), "RIGHT"),
