@@ -1248,34 +1248,13 @@ def build_pdf(
             compact_level,
         )
 
-        grouped_info_text = (
-            f"Operator: {meta.get('operator', '')}<br/>"
-            f"Commission to: {meta.get('commission_to', '')}"
-        )
-        grouped_para = Paragraph(grouped_info_text, styles["LeftInfo"])
-
-        info_tbl = Table([[grouped_para, ""]], colWidths=[content_width / 2, content_width / 2])
-        info_tbl.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("ALIGN", (0, 0), (0, 0), "LEFT"),
-        ]))
-        info_tbl.hAlign = "LEFT"
-        story += [info_tbl, Spacer(1, block_spacer_small)]
-
         ship_block_order = (
             f"{customer.get('company', '')}<br/>"
             f"{customer.get('name', '')}<br/>"
             f"{customer.get('ship_addr1', '')}<br/>"
             f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
             f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}<br/><br/>"
-            f"<b>Purchase Order & Check Info:</b><br/>"
-            f"P.O. Number: {meta.get('po_number', '')}<br/>"
-            f"Authorization Code: {meta.get('auth_code', '')}<br/>"
-            f"Check Number: {meta.get('check_number', '')}<br/>"
-            f"Date Received: {meta.get('date_received', '')}"
+            f"{customer.get('email', '')}"
         )
 
         bill_block_order = (
@@ -1287,13 +1266,24 @@ def build_pdf(
             f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
-        addr_card_width = content_width / 2 - 4
+        po_block_order = (
+            f"Operator: {meta.get('operator', '')}<br/>"
+            f"P.O. Number: {meta.get('po_number', '')}<br/>"
+            f"Authorization Code: {meta.get('auth_code', '')}<br/>"
+            f"Check Number: {meta.get('check_number', '')}<br/>"
+            f"Date Received: {meta.get('date_received', '')}"
+        )
+
+        card_gap = 4
+        card_col_width = content_width / 3
+        addr_card_width = card_col_width - card_gap
         addr_table = Table(
             [[
                 _build_address_card("Shipping Address", Paragraph(ship_block_order, addr_style), addr_card_width, max(8, addr_font)),
                 _build_address_card("Billing Address", Paragraph(bill_block_order, addr_style), addr_card_width, max(8, addr_font)),
+                _build_address_card("Purchase Order & Check Info", Paragraph(po_block_order, addr_style), addr_card_width, max(8, addr_font)),
             ]],
-            colWidths=[content_width / 2, content_width / 2]
+            colWidths=[card_col_width, card_col_width, card_col_width]
         )
         addr_table.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
@@ -1403,6 +1393,12 @@ def build_pdf(
         ]))
         final_wrapper.hAlign = "LEFT"
         story += [final_wrapper]
+
+        if meta.get("commission_to", "").strip():
+            story += [
+                Spacer(1, block_spacer_small),
+                Paragraph(f"<b>Commission to:</b> {meta.get('commission_to', '')}", notes_style_2),
+            ]
 
     else:
         story += _build_pdf_brand_header(
