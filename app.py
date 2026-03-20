@@ -902,6 +902,7 @@ def _build_pdf_brand_header(
         info_font = 10
         info_pad_v = 4
         info_pad_h = 6
+        right_top_pad = 14
     elif compact_level == 1:
         logo_display_w = 1.45 * inch
         logo_display_h = 0.9 * inch
@@ -914,6 +915,7 @@ def _build_pdf_brand_header(
         info_font = 9
         info_pad_v = 3
         info_pad_h = 5
+        right_top_pad = 10
     else:
         logo_display_w = 1.2 * inch
         logo_display_h = 0.74 * inch
@@ -926,6 +928,7 @@ def _build_pdf_brand_header(
         info_font = 8
         info_pad_v = 2
         info_pad_h = 4
+        right_top_pad = 7
 
     detail_line_1 = f"{COMPANY['addr1']}  |  {COMPANY['city']}, {COMPANY['state']} {COMPANY['zip']}"
     detail_line_2 = f"{COMPANY['phone']}  |  {COMPANY['web']}"
@@ -989,10 +992,10 @@ def _build_pdf_brand_header(
     right_block.setStyle(TableStyle([
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), right_top_pad),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
     ]))
 
     header_table = Table([[left_block, right_block]], colWidths=[left_col_width, right_col_width])
@@ -1002,6 +1005,7 @@ def _build_pdf_brand_header(
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
     ]))
     header_table.hAlign = "LEFT"
 
