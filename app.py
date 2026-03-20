@@ -445,7 +445,7 @@ def start_new_quote():
     st.session_state["order_auth_code"] = "AP - "
     st.session_state["order_comm_to"] = ""
     st.session_state["order_check_number"] = ""
-    st.session_state["order_date_received"] = get_pacific_now().strftime("%m/%d/%y")
+    st.session_state["order_date_received"] = ""
 
     st.session_state["quote_no"] = new_quote_number()
     st.session_state["customer_key_suffix"] += 1
@@ -497,7 +497,7 @@ st.session_state.setdefault("order_operator", "CZ")
 st.session_state.setdefault("order_auth_code", "AP - ")
 st.session_state.setdefault("order_comm_to", "")
 st.session_state.setdefault("order_check_number", "")
-st.session_state.setdefault("order_date_received", get_pacific_now().strftime("%m/%d/%y"))
+st.session_state.setdefault("order_date_received", "")
 st.session_state.setdefault("pd_matches", [])
 st.session_state.setdefault("pd_expander_state", False)
 st.session_state.setdefault("show_pdf_preview", True)
@@ -2018,10 +2018,7 @@ def main_app():
                         st.session_state["order_auth_code"] = order_meta.get("auth_code", order_meta.get("terms", "AP - "))
                         st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
                         st.session_state["order_check_number"] = order_meta.get("check_number", "")
-                        st.session_state["order_date_received"] = order_meta.get(
-                            "date_received",
-                            get_pacific_now().strftime("%m/%d/%y")
-                        )
+                        st.session_state["order_date_received"] = order_meta.get("date_received", "")
 
                         loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
                         st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
