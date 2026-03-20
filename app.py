@@ -363,6 +363,53 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         return False
 
 
+def _quote_customer_search_blob(payload: dict) -> str:
+    customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    parts = [
+        customer.get("company", ""),
+        customer.get("name", ""),
+        customer.get("email", ""),
+        customer.get("phone", ""),
+        customer.get("bill_company", ""),
+        customer.get("bill_name", ""),
+        customer.get("bill_email", ""),
+        customer.get("bill_phone", ""),
+    ]
+    return " ".join(str(part).strip().lower() for part in parts if part)
+
+
+def search_saved_quotes(df: pd.DataFrame, term: str) -> pd.DataFrame:
+    search_term = (term or "").strip().lower()
+    if df.empty or not search_term:
+        return pd.DataFrame()
+
+    working_df = df.copy()
+    working_df["Search Blob"] = working_df["Payload"].apply(_quote_customer_search_blob)
+    matches = working_df[working_df["Search Blob"].str.contains(search_term, na=False)].copy()
+
+    if "Date" in matches.columns:
+        matches = matches.sort_values(by="Date", ascending=False, na_position="last")
+
+    return matches
+
+
+def format_saved_quote_match(row: pd.Series) -> str:
+    payload = row.get("Payload", {}) or {}
+    customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    doc_number = row.get("Quote #", "")
+    date_text = str(row.get("Date", "") or "")[:10]
+    company = customer.get("company", "") or customer.get("bill_company", "")
+    name = customer.get("name", "") or customer.get("bill_name", "")
+    email = customer.get("email", "") or customer.get("bill_email", "")
+
+    details = " | ".join(part for part in [company, name, email] if part)
+    if date_text and details:
+        return f"{doc_number} | {date_text} | {details}"
+    if details:
+        return f"{doc_number} | {details}"
+    return str(doc_number)
+
+
 @st.cache_data
 def load_products(path: str = "products.csv") -> pd.DataFrame:
     try:
@@ -512,6 +559,8 @@ st.session_state.setdefault("order_date_received", "")
 st.session_state.setdefault("pd_matches", [])
 st.session_state.setdefault("pd_expander_state", False)
 st.session_state.setdefault("show_pdf_preview", True)
+st.session_state.setdefault("person_quote_search", "")
+st.session_state.setdefault("person_quote_match_label", "")
 
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -1898,6 +1947,57 @@ def search_pipedrive_callback():
         st.session_state["pd_matches"] = []
 
 
+def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
+    st.session_state["quote_no"] = selected_quote_no
+    st.session_state["customer"] = payload.get("customer", {})
+    st.session_state["line_items"] = payload.get("line_items", [])
+    for item in st.session_state["line_items"]:
+        item.setdefault("exclude_from_10_discount", False)
+
+    fees = payload.get("fees", {})
+    st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
+    st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
+    st.session_state["freight_notes"] = payload.get("freight_notes", "")
+    sync_freight_checkboxes_from_text(st.session_state["freight_notes"])
+
+    tax_meta = payload.get("tax_meta", {})
+    st.session_state["tax_rate_pct_input"] = float(tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
+    st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
+
+    discount_meta = payload.get("discount_meta", {})
+    active_discount_type = discount_meta.get("active_discount_type", "")
+    if not active_discount_type and discount_meta.get("apply_10_discount", False):
+        active_discount_type = "team"
+    sync_discount_checkboxes_from_type(active_discount_type)
+    st.session_state["discount_note"] = discount_meta.get("discount_note", "")
+
+    manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
+    st.session_state["manager_pricing_authorized"] = manager_authorized
+    st.session_state["manager_pricing_checkbox"] = manager_authorized
+    st.session_state["manager_clear_credentials_on_rerun"] = False
+    clear_manager_credentials()
+
+    st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+
+    order_meta = payload.get("order_meta", {})
+    st.session_state["order_po_number"] = order_meta.get("po_number", "")
+    st.session_state["order_operator"] = order_meta.get("operator", "CZ")
+    st.session_state["order_auth_code"] = order_meta.get("auth_code", order_meta.get("terms", "AP - "))
+    st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
+    st.session_state["order_check_number"] = order_meta.get("check_number", "")
+    st.session_state["order_date_received"] = order_meta.get("date_received", "")
+
+    loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
+    st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
+
+    for item in st.session_state["line_items"]:
+        item_id = item.get("id")
+        if item_id:
+            st.session_state[f"Notes_input_{item_id}"] = item.get("Notes", item.get("notes", ""))
+
+    st.session_state["customer_key_suffix"] += 1
+
+
 def main_app():
     header_col1, header_col2 = st.columns([1.1, 3.2])
     with header_col1:
@@ -1987,8 +2087,6 @@ def main_app():
 
             if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
                 if selected_quote_no != "(New Quote)":
-                    st.session_state["quote_no"] = selected_quote_no
-
                     try:
                         target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
 
@@ -1997,54 +2095,7 @@ def main_app():
                             return
 
                         payload = target_row_df.iloc[-1]["Payload"]
-
-                        st.session_state["customer"] = payload.get("customer", {})
-                        st.session_state["line_items"] = payload.get("line_items", [])
-                        for item in st.session_state["line_items"]:
-                            item.setdefault("exclude_from_10_discount", False)
-
-                        fees = payload.get("fees", {})
-                        st.session_state["drop_fee_input"] = float(fees.get("drop_ship_fee", 0.0))
-                        st.session_state["freight_fee_input"] = float(fees.get("freight", 0.0))
-                        st.session_state["freight_notes"] = payload.get("freight_notes", "")
-                        sync_freight_checkboxes_from_text(st.session_state["freight_notes"])
-
-                        tax_meta = payload.get("tax_meta", {})
-                        st.session_state["tax_rate_pct_input"] = float(tax_meta.get("tax_rate_pct_input", DEFAULT_TAX * 100))
-                        st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
-
-                        discount_meta = payload.get("discount_meta", {})
-                        active_discount_type = discount_meta.get("active_discount_type", "")
-                        if not active_discount_type and discount_meta.get("apply_10_discount", False):
-                            active_discount_type = "team"
-                        sync_discount_checkboxes_from_type(active_discount_type)
-                        st.session_state["discount_note"] = discount_meta.get("discount_note", "")
-
-                        manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
-                        st.session_state["manager_pricing_authorized"] = manager_authorized
-                        st.session_state["manager_pricing_checkbox"] = manager_authorized
-                        st.session_state["manager_clear_credentials_on_rerun"] = False
-                        clear_manager_credentials()
-
-                        st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
-
-                        order_meta = payload.get("order_meta", {})
-                        st.session_state["order_po_number"] = order_meta.get("po_number", "")
-                        st.session_state["order_operator"] = order_meta.get("operator", "CZ")
-                        st.session_state["order_auth_code"] = order_meta.get("auth_code", order_meta.get("terms", "AP - "))
-                        st.session_state["order_comm_to"] = order_meta.get("commission_to", "")
-                        st.session_state["order_check_number"] = order_meta.get("check_number", "")
-                        st.session_state["order_date_received"] = order_meta.get("date_received", "")
-
-                        loaded_doc_number = order_meta.get("order_doc_number", st.session_state["quote_no"])
-                        st.session_state["order_doc_number_pdf"] = loaded_doc_number or st.session_state["quote_no"]
-
-                        for item in st.session_state["line_items"]:
-                            item_id = item.get("id")
-                            if item_id:
-                                st.session_state[f"Notes_input_{item_id}"] = item.get("Notes", item.get("notes", ""))
-
-                        st.session_state["customer_key_suffix"] += 1
+                        load_quote_payload_into_session(payload, selected_quote_no)
 
                         st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
                         st.rerun()
@@ -2062,6 +2113,41 @@ def main_app():
             if st.button("New Version", use_container_width=True, type="primary",
                          help="Create a new version number based on the current quote."):
                 assign_new_quote_version()
+
+    with st.expander("Search saved quotes by person, company, or email", expanded=bool(st.session_state.get("person_quote_search", ""))):
+        st.text_input(
+            "Search saved quotes",
+            key="person_quote_search",
+            placeholder="e.g. Cesar Zermeno, discgolf.com, cesar@discgolf.com",
+        )
+
+        person_matches_df = search_saved_quotes(all_quotes_df, st.session_state.get("person_quote_search", ""))
+        if st.session_state.get("person_quote_search", "").strip():
+            if person_matches_df.empty:
+                st.info("No saved quotes matched that person/company/email search.")
+            else:
+                match_labels = [format_saved_quote_match(row) for _, row in person_matches_df.iterrows()]
+                default_match_index = 0
+                current_match_label = st.session_state.get("person_quote_match_label", "")
+                if current_match_label in match_labels:
+                    default_match_index = match_labels.index(current_match_label)
+
+                selected_match_label = st.selectbox(
+                    "Matching saved quotes",
+                    match_labels,
+                    index=default_match_index,
+                    key="person_quote_match_select",
+                )
+                st.session_state["person_quote_match_label"] = selected_match_label
+
+                if st.button("Load Matching Quote", key="btn_load_person_quote_match"):
+                    selected_index = match_labels.index(selected_match_label)
+                    selected_row = person_matches_df.iloc[selected_index]
+                    selected_quote_no = selected_row["Quote #"]
+                    payload = selected_row["Payload"]
+                    load_quote_payload_into_session(payload, selected_quote_no)
+                    st.success(f"Loaded document **{selected_quote_no}** from saved quote search.")
+                    st.rerun()
 
     with st.sidebar:
         st.header("PDF Preview")
