@@ -888,6 +888,7 @@ def _build_pdf_brand_header(
     info_right: str,
     compact_level: int,
     info_third: str = "",
+    info_col_widths: list[float] | None = None,
 ):
     section_fill = colors.HexColor("#E7F0FB")
     section_border = colors.HexColor("#B8CAE6")
@@ -1050,12 +1051,14 @@ def _build_pdf_brand_header(
                 leading=info_font + 1,
             )
         )
+        info_widths = info_col_widths or [content_width / 3, content_width / 3, content_width / 3]
         info_table = Table(
             [[info_left_para, info_right_para, info_third_para]],
-            colWidths=[content_width * 0.40, content_width * 0.33, content_width * 0.27]
+            colWidths=info_widths
         )
     else:
-        info_table = Table([[info_left_para, info_right_para]], colWidths=[content_width * 0.53, content_width * 0.47])
+        info_widths = info_col_widths or [content_width * 0.53, content_width * 0.47]
+        info_table = Table([[info_left_para, info_right_para]], colWidths=info_widths)
     info_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), section_fill),
         ("BOX", (0, 0), (-1, -1), 0.5, section_border),
@@ -1071,7 +1074,15 @@ def _build_pdf_brand_header(
     return [header_table, Spacer(1, header_gap), info_table, Spacer(1, header_gap)]
 
 
-def _build_address_card(title: str, body: Paragraph, width: float, header_font: int, body_pad: int = 6):
+def _build_address_card(
+    title: str,
+    body: Paragraph,
+    width: float,
+    header_font: int,
+    body_pad: int = 6,
+    body_min_height: float | None = None,
+):
+    row_heights = None if body_min_height is None else [None, body_min_height]
     card = Table(
         [
             [Paragraph(f"<b>{title}</b>", ParagraphStyle(
@@ -1082,7 +1093,8 @@ def _build_address_card(title: str, body: Paragraph, width: float, header_font: 
             ))],
             [body],
         ],
-        colWidths=[width]
+        colWidths=[width],
+        rowHeights=row_heights,
     )
     card.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#E7F0FB")),
@@ -1304,11 +1316,23 @@ def build_pdf(
 
         card_col_width = content_width / 3
         addr_card_width = card_col_width
+        card_body_width = addr_card_width - 12
+
+        ship_para = Paragraph(ship_block_order, addr_style)
+        bill_para = Paragraph(bill_block_order, addr_style)
+        po_para = Paragraph(po_block_order, addr_style)
+
+        order_card_body_height = max(
+            ship_para.wrap(card_body_width, 1000)[1],
+            bill_para.wrap(card_body_width, 1000)[1],
+            po_para.wrap(card_body_width, 1000)[1],
+        ) + 10
+
         addr_table = Table(
             [[
-                _build_address_card("Shipping Address", Paragraph(ship_block_order, addr_style), addr_card_width, max(8, addr_font)),
-                _build_address_card("Billing Address", Paragraph(bill_block_order, addr_style), addr_card_width, max(8, addr_font)),
-                _build_address_card("Purchase Order & Check Info", Paragraph(po_block_order, addr_style), addr_card_width, max(8, addr_font)),
+                _build_address_card("Shipping Address", ship_para, addr_card_width, max(8, addr_font), body_min_height=order_card_body_height),
+                _build_address_card("Billing Address", bill_para, addr_card_width, max(8, addr_font), body_min_height=order_card_body_height),
+                _build_address_card("Purchase Order & Check Info", po_para, addr_card_width, max(8, addr_font), body_min_height=order_card_body_height),
             ]],
             colWidths=[card_col_width, card_col_width, card_col_width]
         )
@@ -1432,6 +1456,7 @@ def build_pdf(
             f"Quote: {doc_number}",
             f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
             compact_level,
+            info_col_widths=[content_width / 2, content_width / 2],
         )
 
         ship_block = (
@@ -1453,9 +1478,16 @@ def build_pdf(
         )
 
         addr_card_width = content_width / 2
+        quote_card_body_width = addr_card_width - 12
+        ship_para = Paragraph(ship_block, addr_style)
+        bill_para = Paragraph(bill_block, addr_style)
+        quote_card_body_height = max(
+            ship_para.wrap(quote_card_body_width, 1000)[1],
+            bill_para.wrap(quote_card_body_width, 1000)[1],
+        ) + 10
         t = Table([[
-            _build_address_card("Shipping Address", Paragraph(ship_block, addr_style), addr_card_width, max(8, addr_font)),
-            _build_address_card("Billing Address", Paragraph(bill_block, addr_style), addr_card_width, max(8, addr_font)),
+            _build_address_card("Shipping Address", ship_para, addr_card_width, max(8, addr_font), body_min_height=quote_card_body_height),
+            _build_address_card("Billing Address", bill_para, addr_card_width, max(8, addr_font), body_min_height=quote_card_body_height),
         ]],
                   colWidths=[content_width / 2, content_width / 2])
         t.setStyle(TableStyle([
@@ -1570,16 +1602,20 @@ def build_pdf(
             acc_tbl.hAlign = "LEFT"
 
             totals_col_width = content_width - acc_width
+            t_totals.hAlign = "RIGHT"
             combined_table = Table([[acc_tbl, t_totals]], colWidths=[acc_width, totals_col_width])
             combined_table.setStyle(TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (0, 0), 0),
-                ("RIGHTPADDING", (0, 0), (0, 0), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
                 ("ALIGN", (1, 0), (1, 0), "RIGHT"),
             ]))
             combined_table.hAlign = "LEFT"
             story += [combined_table, Spacer(1, block_spacer_large)]
         else:
+            t_totals.hAlign = "RIGHT"
             totals_wrapper = Table([["", t_totals]], colWidths=[content_width - totals_width, totals_width])
             totals_wrapper.setStyle(TableStyle([
                 ("LEFTPADDING", (0, 0), (-1, -1), 0),
