@@ -1302,9 +1302,8 @@ def build_pdf(
         if commission_to:
             po_block_order += f"<br/><br/><b>Commission to:</b> {commission_to}"
 
-        card_gap = 4
         card_col_width = content_width / 3
-        addr_card_width = card_col_width - card_gap
+        addr_card_width = card_col_width
         addr_table = Table(
             [[
                 _build_address_card("Shipping Address", Paragraph(ship_block_order, addr_style), addr_card_width, max(8, addr_font)),
@@ -1453,7 +1452,7 @@ def build_pdf(
             f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
-        addr_card_width = content_width / 2 - 4
+        addr_card_width = content_width / 2
         t = Table([[
             _build_address_card("Shipping Address", Paragraph(ship_block, addr_style), addr_card_width, max(8, addr_font)),
             _build_address_card("Billing Address", Paragraph(bill_block, addr_style), addr_card_width, max(8, addr_font)),
