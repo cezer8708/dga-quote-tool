@@ -961,6 +961,7 @@ def _build_pdf_brand_header(
             parent=styles["Normal"],
             fontSize=title_font,
             leading=title_leading,
+            alignment=TA_RIGHT,
         )
     )
     detail_para = Paragraph(
@@ -970,6 +971,7 @@ def _build_pdf_brand_header(
             parent=styles["Normal"],
             fontSize=detail_font,
             leading=detail_leading,
+            alignment=TA_RIGHT,
         )
     )
     right_rows = []
@@ -981,6 +983,7 @@ def _build_pdf_brand_header(
                 parent=styles["Normal"],
                 fontSize=kicker_font,
                 leading=kicker_font + 1,
+                alignment=TA_RIGHT,
             )
         )
         right_rows.append([kicker_para])
