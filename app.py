@@ -1047,6 +1047,37 @@ def _build_pdf_brand_header(
     return [header_table, Spacer(1, header_gap), info_table, Spacer(1, header_gap)]
 
 
+def _build_address_card(title: str, body: Paragraph, width: float, header_font: int, body_pad: int = 6):
+    card = Table(
+        [
+            [Paragraph(f"<b>{title}</b>", ParagraphStyle(
+                f"AddressCardTitle_{title}",
+                fontName="Helvetica-Bold",
+                fontSize=header_font,
+                leading=header_font + 1,
+            ))],
+            [body],
+        ],
+        colWidths=[width]
+    )
+    card.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), colors.HexColor("#E7F0FB")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
+        ("LEFTPADDING", (0, 0), (-1, 0), body_pad),
+        ("RIGHTPADDING", (0, 0), (-1, 0), body_pad),
+        ("TOPPADDING", (0, 0), (-1, 0), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 4),
+        ("LEFTPADDING", (0, 1), (-1, -1), body_pad),
+        ("RIGHTPADDING", (0, 1), (-1, -1), body_pad),
+        ("TOPPADDING", (0, 1), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 5),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    card.hAlign = "LEFT"
+    return card
+
+
 def _truncate_text(text: str, max_len: int) -> str:
     text = (text or "").strip()
     if len(text) <= max_len:
@@ -1234,7 +1265,6 @@ def build_pdf(
         story += [info_tbl, Spacer(1, block_spacer_small)]
 
         ship_block_order = (
-            f"<b>Shipping Address</b><br/>"
             f"{customer.get('company', '')}<br/>"
             f"{customer.get('name', '')}<br/>"
             f"{customer.get('ship_addr1', '')}<br/>"
@@ -1249,7 +1279,6 @@ def build_pdf(
         )
 
         bill_block_order = (
-            f"<b>Billing Address</b><br/>"
             f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
             f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
             f"{customer.get('bill_addr1', '')}<br/>"
@@ -1258,8 +1287,12 @@ def build_pdf(
             f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
+        addr_card_width = content_width / 2 - 4
         addr_table = Table(
-            [[Paragraph(ship_block_order, addr_style), Paragraph(bill_block_order, addr_style)]],
+            [[
+                _build_address_card("Shipping Address", Paragraph(ship_block_order, addr_style), addr_card_width, max(8, addr_font)),
+                _build_address_card("Billing Address", Paragraph(bill_block_order, addr_style), addr_card_width, max(8, addr_font)),
+            ]],
             colWidths=[content_width / 2, content_width / 2]
         )
         addr_table.setStyle(TableStyle([
@@ -1268,7 +1301,6 @@ def build_pdf(
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ]))
         addr_table.hAlign = "LEFT"
         story += [addr_table, Spacer(1, block_spacer_med)]
@@ -1386,7 +1418,6 @@ def build_pdf(
         )
 
         ship_block = (
-            f"<b>Shipping Address</b><br/>"
             f"{customer.get('company', '')}<br/>"
             f"{customer.get('name', '')}<br/>"
             f"{customer.get('ship_addr1', '')}<br/>"
@@ -1396,7 +1427,6 @@ def build_pdf(
         )
 
         bill_block = (
-            f"<b>Billing Address</b><br/>"
             f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
             f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
             f"{customer.get('bill_addr1', '')}<br/>"
@@ -1405,13 +1435,16 @@ def build_pdf(
             f"{customer.get('bill_email', customer.get('email', ''))}"
         )
 
-        t = Table([[Paragraph(ship_block, addr_style), Paragraph(bill_block, addr_style)]],
+        addr_card_width = content_width / 2 - 4
+        t = Table([[
+            _build_address_card("Shipping Address", Paragraph(ship_block, addr_style), addr_card_width, max(8, addr_font)),
+            _build_address_card("Billing Address", Paragraph(bill_block, addr_style), addr_card_width, max(8, addr_font)),
+        ]],
                   colWidths=[content_width / 2, content_width / 2])
         t.setStyle(TableStyle([
             ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
         ]))
         t.hAlign = "LEFT"
         story += [t, Spacer(1, block_spacer_large)]
