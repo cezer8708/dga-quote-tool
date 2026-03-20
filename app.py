@@ -876,6 +876,167 @@ def _company_right_block(styles):
     )
 
 
+def _build_pdf_brand_header(
+    styles,
+    content_width: float,
+    logo_w: float,
+    logo_h: float,
+    title: str,
+    subtitle: str,
+    info_left: str,
+    info_right: str,
+    compact_level: int,
+):
+    if compact_level == 0:
+        logo_display_w = 1.7 * inch
+        logo_display_h = 1.05 * inch
+        kicker_font = 8
+        title_font = 23
+        title_leading = 24
+        detail_font = 8
+        detail_leading = 10
+        header_gap = 4
+        info_font = 10
+        info_pad_v = 4
+        info_pad_h = 6
+    elif compact_level == 1:
+        logo_display_w = 1.45 * inch
+        logo_display_h = 0.9 * inch
+        kicker_font = 7
+        title_font = 19
+        title_leading = 20
+        detail_font = 7
+        detail_leading = 8
+        header_gap = 3
+        info_font = 9
+        info_pad_v = 3
+        info_pad_h = 5
+    else:
+        logo_display_w = 1.2 * inch
+        logo_display_h = 0.74 * inch
+        kicker_font = 6
+        title_font = 16
+        title_leading = 17
+        detail_font = 6
+        detail_leading = 7
+        header_gap = 2
+        info_font = 8
+        info_pad_v = 2
+        info_pad_h = 4
+
+    detail_line_1 = f"{COMPANY['addr1']}  |  {COMPANY['city']}, {COMPANY['state']} {COMPANY['zip']}"
+    detail_line_2 = f"{COMPANY['phone']}  |  {COMPANY['web']}"
+
+    left_col_width = min(1.9 * inch, content_width * 0.22)
+    right_col_width = content_width - left_col_width
+
+    left_elements = []
+    if COMPANY_LOGO_PATH:
+        logo = Image(COMPANY_LOGO_PATH, width=logo_display_w, height=logo_display_h)
+        logo.hAlign = "LEFT"
+        left_elements.append(logo)
+    else:
+        left_elements.append(Paragraph(f"<b>{COMPANY['name']}</b>", styles["Normal"]))
+
+    left_block = Table([[elem] for elem in left_elements], colWidths=[left_col_width])
+    left_block.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+    ]))
+
+    kicker_para = Paragraph(
+        f'<font color="#2D6FC2"><b>{subtitle}</b></font>',
+        ParagraphStyle(
+            "PdfHeaderKicker",
+            parent=styles["Normal"],
+            fontSize=kicker_font,
+            leading=kicker_font + 1,
+        )
+    )
+    title_para = Paragraph(
+        f"<b>{title}</b>",
+        ParagraphStyle(
+            "PdfHeaderTitle",
+            parent=styles["Normal"],
+            fontSize=title_font,
+            leading=title_leading,
+        )
+    )
+    detail_para = Paragraph(
+        f"{detail_line_1}<br/>{detail_line_2}",
+        ParagraphStyle(
+            "PdfHeaderDetail",
+            parent=styles["Normal"],
+            fontSize=detail_font,
+            leading=detail_leading,
+        )
+    )
+    right_block = Table(
+        [
+            [kicker_para],
+            [title_para],
+            [detail_para],
+        ],
+        colWidths=[right_col_width]
+    )
+    right_block.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+    ]))
+
+    header_table = Table([[left_block, right_block]], colWidths=[left_col_width, right_col_width])
+    header_table.setStyle(TableStyle([
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    header_table.hAlign = "LEFT"
+
+    info_left_para = Paragraph(
+        f"<b>{info_left}</b>",
+        ParagraphStyle(
+            "PdfHeaderInfoLeft",
+            parent=styles["Normal"],
+            fontSize=info_font,
+            leading=info_font + 1,
+        )
+    )
+    info_right_para = Paragraph(
+        info_right,
+        ParagraphStyle(
+            "PdfHeaderInfoRight",
+            parent=styles["Normal"],
+            fontSize=info_font,
+            leading=info_font + 1,
+        )
+    )
+
+    info_table = Table([[info_left_para, info_right_para]], colWidths=[content_width * 0.53, content_width * 0.47])
+    info_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#E7F0FB")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#B8CAE6")),
+        ("LEFTPADDING", (0, 0), (-1, -1), info_pad_h),
+        ("RIGHTPADDING", (0, 0), (-1, -1), info_pad_h),
+        ("TOPPADDING", (0, 0), (-1, -1), info_pad_v),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), info_pad_v),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    info_table.hAlign = "LEFT"
+
+    return [header_table, Spacer(1, header_gap), info_table, Spacer(1, header_gap)]
+
+
 def _truncate_text(text: str, max_len: int) -> str:
     text = (text or "").strip()
     if len(text) <= max_len:
@@ -1033,28 +1194,19 @@ def build_pdf(
     manager_discount_amount = totals.get("manager_discount", 0.0)
 
     if template == "order":
-        if COMPANY_LOGO_PATH:
-            logo = Image(COMPANY_LOGO_PATH, width=logo_w, height=logo_h)
-            logo.hAlign = "LEFT"
-            company_info_block = _company_right_block(styles)
-            left_logo_block = [logo, Spacer(1, block_spacer_small), company_info_block]
-
-            hdr = Table([[left_logo_block, ""]], colWidths=[content_width / 2, content_width / 2])
-            hdr.setStyle(TableStyle([
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("ALIGN", (0, 0), (0, 0), "LEFT")
-            ]))
-            hdr.hAlign = "LEFT"
-            story += [hdr, Spacer(1, block_spacer_small)]
-        else:
-            story += [Paragraph(f"<b>{COMPANY['name']}</b><br/><i>{COMPANY['tagline']}</i>", styles["Title"]), Spacer(1, block_spacer_small)]
-
-        story += [Paragraph(f"**ORDER: {doc_number}**", styles["Heading2"]), Spacer(1, block_spacer_small)]
+        story += _build_pdf_brand_header(
+            styles,
+            content_width,
+            logo_w,
+            logo_h,
+            "DGA Order",
+            "WHOLESALE CUSTOM ORDERING",
+            f"Order: {doc_number}",
+            f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
+            compact_level,
+        )
 
         grouped_info_text = (
-            f"Date: {get_pacific_now().strftime('%m/%d/%y')}<br/>"
             f"Operator: {meta.get('operator', '')}<br/>"
             f"Commission to: {meta.get('commission_to', '')}"
         )
@@ -1210,76 +1362,17 @@ def build_pdf(
         story += [final_wrapper]
 
     else:
-        company_info_text = (
-            f"<b>Disc Golf Association, Inc.</b><br/>"
-            f"{COMPANY['addr1']}<br/>"
-            f"{COMPANY['city']}, {COMPANY['state']} {COMPANY['zip']}"
+        story += _build_pdf_brand_header(
+            styles,
+            content_width,
+            logo_w,
+            logo_h,
+            "DGA Quote",
+            "WHOLESALE CUSTOM ORDERING",
+            f"Quote: {doc_number}",
+            f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
+            compact_level,
         )
-        company_info_para = Paragraph(company_info_text, styles["Normal"])
-
-        if COMPANY_LOGO_PATH:
-            logo = Image(COMPANY_LOGO_PATH, width=logo_w, height=logo_h)
-            logo.hAlign = "LEFT"
-            left_logo_block_elements = [logo, Spacer(1, block_spacer_small), company_info_para]
-        else:
-            left_logo_block_elements = [company_info_para]
-
-        left_logo_block = Table([[elem] for elem in left_logo_block_elements], colWidths=[content_width / 2])
-        left_logo_block.setStyle(TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ]))
-
-        right_align_style = ParagraphStyle(
-            "RightAlignStyle",
-            parent=styles["Normal"],
-            fontSize=max(8, addr_font),
-            leading=max(9, addr_leading),
-            alignment=TA_RIGHT
-        )
-        header_title_font = 14 if compact_level == 0 else (12 if compact_level == 1 else 10)
-        header_title_leading = 16 if compact_level == 0 else (13 if compact_level == 1 else 11)
-        title_para = Paragraph(
-            "Quotation Form<br/>Pricing Subject to Change",
-            ParagraphStyle("CompactQuoteHeaderTitle", parent=styles["Heading2"], alignment=TA_RIGHT,
-                           fontSize=header_title_font, leading=header_title_leading)
-        )
-        contact_info_para = Paragraph(
-            f"Phone: {COMPANY['phone']}<br/>Fax: {COMPANY['fax']}<br/>Web: {COMPANY['web']}",
-            right_align_style
-        )
-
-        right_spacer_height = 40 if compact_level == 0 else (18 if compact_level == 1 else 8)
-        right_title_block = Table(
-            [[title_para], [Spacer(1, right_spacer_height)], [contact_info_para]],
-            colWidths=[content_width / 2]
-        )
-        right_title_block.setStyle(TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (0, 0), (0, -1), "RIGHT"),
-        ]))
-
-        t = Table([[left_logo_block, right_title_block]], colWidths=[content_width / 2, content_width / 2])
-        t.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("ALIGN", (0, 0), (0, 0), "LEFT"),
-            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ]))
-        t.hAlign = "LEFT"
-        story += [t, Spacer(1, block_spacer_large)]
-
-        date_quote_para = Paragraph(
-            f"Date: {get_pacific_now().strftime('%Y-%m-%d')}<br/>Quote #: {doc_number}",
-            styles["LeftInfo"]
-        )
-        t = Table([[date_quote_para]], colWidths=[content_width])
-        t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0)]))
-        t.hAlign = "LEFT"
-        story += [t, Spacer(1, block_spacer_med)]
 
         ship_block = (
             f"<b>Shipping Address</b><br/>"
