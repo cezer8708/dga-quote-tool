@@ -29,6 +29,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 )
@@ -886,6 +887,7 @@ def _build_pdf_brand_header(
     info_left: str,
     info_right: str,
     compact_level: int,
+    info_third: str = "",
 ):
     section_fill = colors.HexColor("#E7F0FB")
     section_border = colors.HexColor("#B8CAE6")
@@ -938,7 +940,14 @@ def _build_pdf_brand_header(
 
     left_elements = []
     if COMPANY_LOGO_PATH:
-        logo = Image(COMPANY_LOGO_PATH, width=logo_display_w, height=logo_display_h)
+        try:
+            img_reader = ImageReader(COMPANY_LOGO_PATH)
+            img_w, img_h = img_reader.getSize()
+            aspect = (img_h / img_w) if img_w else 1.0
+        except Exception:
+            aspect = (logo_display_h / logo_display_w) if logo_display_w else 1.0
+
+        logo = Image(COMPANY_LOGO_PATH, width=logo_display_w, height=logo_display_w * aspect)
         logo.hAlign = "LEFT"
         left_elements.append(logo)
     else:
@@ -1031,7 +1040,22 @@ def _build_pdf_brand_header(
         )
     )
 
-    info_table = Table([[info_left_para, info_right_para]], colWidths=[content_width * 0.53, content_width * 0.47])
+    if info_third:
+        info_third_para = Paragraph(
+            info_third,
+            ParagraphStyle(
+                "PdfHeaderInfoThird",
+                parent=styles["Normal"],
+                fontSize=info_font,
+                leading=info_font + 1,
+            )
+        )
+        info_table = Table(
+            [[info_left_para, info_right_para, info_third_para]],
+            colWidths=[content_width * 0.40, content_width * 0.33, content_width * 0.27]
+        )
+    else:
+        info_table = Table([[info_left_para, info_right_para]], colWidths=[content_width * 0.53, content_width * 0.47])
     info_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), section_fill),
         ("BOX", (0, 0), (-1, -1), 0.5, section_border),
@@ -1246,6 +1270,7 @@ def build_pdf(
             f"Order: {doc_number}",
             f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
             compact_level,
+            f"Operator: {meta.get('operator', '')}",
         )
 
         ship_block_order = (
@@ -1267,12 +1292,15 @@ def build_pdf(
         )
 
         po_block_order = (
-            f"Operator: {meta.get('operator', '')}<br/>"
             f"P.O. Number: {meta.get('po_number', '')}<br/>"
             f"Authorization Code: {meta.get('auth_code', '')}<br/>"
             f"Check Number: {meta.get('check_number', '')}<br/>"
             f"Date Received: {meta.get('date_received', '')}"
         )
+
+        commission_to = meta.get('commission_to', '').strip()
+        if commission_to:
+            po_block_order += f"<br/><br/><b>Commission to:</b> {commission_to}"
 
         card_gap = 4
         card_col_width = content_width / 3
@@ -1393,12 +1421,6 @@ def build_pdf(
         ]))
         final_wrapper.hAlign = "LEFT"
         story += [final_wrapper]
-
-        if meta.get("commission_to", "").strip():
-            story += [
-                Spacer(1, block_spacer_small),
-                Paragraph(f"<b>Commission to:</b> {meta.get('commission_to', '')}", notes_style_2),
-            ]
 
     else:
         story += _build_pdf_brand_header(
