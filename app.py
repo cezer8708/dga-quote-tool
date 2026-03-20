@@ -120,6 +120,17 @@ def _get_logo_path_robustly(default_path: str = "assets/dga_logo.png") -> str | 
 COMPANY_LOGO_PATH = _get_logo_path_robustly()
 
 
+@st.cache_resource(ttl=None)
+def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str | None:
+    app_logo_path = get_env("APP_LOGO_PATH", default_path)
+    if os.path.exists(app_logo_path):
+        return app_logo_path
+    return COMPANY_LOGO_PATH
+
+
+APP_LOGO_PATH = _get_app_logo_path()
+
+
 def fmt_money(value: float) -> str:
     return f"${value:,.2f}"
 
@@ -1888,7 +1899,12 @@ def search_pipedrive_callback():
 
 
 def main_app():
-    st.title("DGA Quoting Tool")
+    header_col1, header_col2 = st.columns([1.1, 3.2])
+    with header_col1:
+        if APP_LOGO_PATH:
+            st.image(APP_LOGO_PATH, use_container_width=True)
+    with header_col2:
+        st.title("DGA Quoting Tool")
 
     st.markdown("""
         <style>
