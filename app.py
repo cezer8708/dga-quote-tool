@@ -2514,7 +2514,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     orders_df = orders_df.sort_values(by=["Sort Date", "Doc #"], ascending=[False, False], na_position="last")
 
     search_term = st.text_input(
-        "Search today's processed orders",
+        "Search Processed Orders",
         key="processed_order_search",
         placeholder="Order #, company, customer, source quote #, or email",
     ).strip()
@@ -2523,7 +2523,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         needle = search_term.lower()
         orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
 
-    st.caption("Today's processed orders only. Search and load them here without leaving the quote app.")
+    st.caption("Search and load processed orders here without leaving the quote app.")
 
     if orders_df.empty:
         st.info("No processed orders from today matched that search.")
@@ -2540,7 +2540,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         st.session_state["processed_order_selected"] = current_selected
 
     selected_doc = st.selectbox(
-        "Today's processed order list",
+        "Processed order list",
         options,
         index=options.index(current_selected),
         format_func=lambda doc: label_map.get(doc, doc),
