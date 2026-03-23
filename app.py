@@ -11,6 +11,7 @@ from typing import Any
 import pytz
 import html.parser
 import base64
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -130,6 +131,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 
 APP_LOGO_PATH = _get_app_logo_path()
+WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "http://localhost:8888")
 
 
 def fmt_money(value: float) -> str:
@@ -538,6 +540,51 @@ def format_saved_quote_match(row: pd.Series) -> str:
     return str(doc_number)
 
 
+def build_processed_order_search_blob(row: pd.Series) -> str:
+    payload = row.get("Payload", {}) or {}
+    customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    parts = [
+        row.get("Doc #", ""),
+        row.get("Order #", ""),
+        row.get("Source Quote #", ""),
+        row.get("Date", ""),
+        row.get("Company", ""),
+        row.get("Name", ""),
+        row.get("Email", ""),
+        customer.get("company", ""),
+        customer.get("name", ""),
+        customer.get("email", ""),
+        customer.get("bill_company", ""),
+        customer.get("bill_name", ""),
+        customer.get("bill_email", ""),
+    ]
+    return " ".join(str(part or "").strip().lower() for part in parts)
+
+
+def format_processed_order_label(row: pd.Series) -> str:
+    payload = row.get("Payload", {}) or {}
+    customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    order_no = str(row.get("Order #", "") or row.get("Doc #", "") or "").strip()
+    date_text = str(row.get("Date", "") or "")[:10]
+    company = (
+        str(row.get("Company", "") or "").strip()
+        or str(customer.get("company", "") or customer.get("bill_company", "") or "").strip()
+    )
+    name = (
+        str(row.get("Name", "") or "").strip()
+        or str(customer.get("name", "") or customer.get("bill_name", "") or "").strip()
+    )
+
+    pieces = [order_no]
+    if company:
+        pieces.append(company)
+    elif name:
+        pieces.append(name)
+    if date_text:
+        pieces.append(date_text)
+    return " - ".join(pieces)
+
+
 @st.cache_data
 def load_products(path: str = "products.csv") -> pd.DataFrame:
     try:
@@ -690,6 +737,10 @@ st.session_state.setdefault("show_pdf_preview", True)
 st.session_state.setdefault("person_quote_search", "")
 st.session_state.setdefault("person_quote_match_label", "")
 st.session_state.setdefault("query_preview_loaded", "")
+st.session_state.setdefault("app_view", "home")
+st.session_state.setdefault("quote_workspace_view", "builder")
+st.session_state.setdefault("processed_order_search", "")
+st.session_state.setdefault("processed_order_selected", "")
 
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -2299,8 +2350,36 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
         st.session_state["query_preview_loaded"] = loaded_signature
 
     if pdf_only:
-        st.title(f"DGA {preview_template.title()} Preview")
-        st.caption(f"Document {selected_doc_no}")
+        st.markdown(
+            """
+            <style>
+                [data-testid="stImage"] img {
+                    max-width: 110px !important;
+                    height: auto !important;
+                }
+                .preview-header-tight h1 {
+                    margin: 0;
+                    font-size: 1.15rem;
+                    line-height: 1.05;
+                }
+                .preview-header-tight p {
+                    margin: 3px 0 0;
+                    color: rgba(250, 250, 250, 0.72);
+                    font-size: 0.78rem;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f"""
+            <div class="preview-header-tight">
+                <h1>DGA {preview_template.title()} Preview</h1>
+                <p>Document {selected_doc_no}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         render_exact_pdf_preview(template=preview_template, height="92vh")
         return True
 
@@ -2308,13 +2387,258 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
     return False
 
 
+def render_welcome_splash() -> None:
+    st.markdown(
+        """
+        <style>
+            .welcome-shell {
+                padding: 8px 0 2px;
+                max-width: 1680px;
+                margin: 0 auto;
+            }
+            .welcome-brand {
+                text-align: center;
+                margin-bottom: 22px;
+            }
+            .welcome-brand h1 {
+                margin: 8px 0 6px;
+                font-size: 2.35rem;
+                line-height: 1;
+            }
+            .welcome-brand p {
+                margin: 0;
+                color: rgba(250, 250, 250, 0.76);
+                font-size: 1rem;
+            }
+            .welcome-card {
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 24px;
+                padding: 24px;
+                background: rgba(255, 255, 255, 0.03);
+                min-height: 200px;
+            }
+            .welcome-card h3 {
+                margin: 0 0 10px;
+                font-size: 1.5rem;
+            }
+            .welcome-card p {
+                color: rgba(250, 250, 250, 0.74);
+                line-height: 1.55;
+                min-height: 86px;
+            }
+            .welcome-link-note {
+                margin-top: 10px;
+                color: rgba(250, 250, 250, 0.58);
+                font-size: 0.9rem;
+                word-break: break-word;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
+    brand_col = st.columns([1.1, 1.8, 1.1])[1]
+    with brand_col:
+        if APP_LOGO_PATH:
+            logo_col = st.columns([1, 1.1, 1])[1]
+            with logo_col:
+                st.image(APP_LOGO_PATH, width=240)
+        st.markdown(
+            """
+            <div class="welcome-brand">
+                <h1>DGA Operations Hub</h1>
+                <p>Choose where you want to work: quoting, processed orders, or warehouse flow.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    quote_col, queue_col = st.columns(2, gap="large")
+
+    with quote_col:
+        st.markdown(
+            """
+            <div class="welcome-card">
+                <h3>Quote Tool</h3>
+                <p>Build quotes, process orders, generate the exact customer-facing PDFs, and jump into the processed-orders history page.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Open Quote Tool", use_container_width=True, type="primary"):
+            st.session_state["app_view"] = "quote"
+            st.rerun()
+
+    with queue_col:
+        st.markdown(
+            """
+            <div class="welcome-card">
+                <h3>Orders / Warehouse Queue</h3>
+                <p>Jump into the warehouse app to review today&apos;s orders, move jobs in the queue, apply inventory, and work from the warehouse inventory layout.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if hasattr(st, "link_button"):
+            st.link_button("Open Orders / Warehouse Queue", WAREHOUSE_QUEUE_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open Orders / Warehouse Queue]({WAREHOUSE_QUEUE_URL})")
+        st.markdown(
+            f'<div class="welcome-link-note">Current warehouse link: {WAREHOUSE_QUEUE_URL}</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
+    orders_df = all_quotes_df[all_quotes_df["Record Type"].astype(str).str.lower() == "order"].copy()
+
+    if orders_df.empty:
+        st.info("No processed orders are available yet.")
+        return
+
+    today_date = get_pacific_now().date()
+    orders_df["Sort Date"] = pd.to_datetime(orders_df["Date"], errors="coerce")
+    orders_df = orders_df[
+        orders_df["Sort Date"].apply(
+            lambda value: getattr(value, "date", lambda: None)() == today_date if pd.notna(value) else False,
+        )
+    ].copy()
+
+    if orders_df.empty:
+        st.info("No processed orders from today are available yet.")
+        return
+
+    orders_df = orders_df.sort_values(by=["Sort Date", "Doc #"], ascending=[False, False], na_position="last")
+
+    search_term = st.text_input(
+        "Search today's processed orders",
+        key="processed_order_search",
+        placeholder="Order #, company, customer, source quote #, or email",
+    ).strip()
+
+    if search_term:
+        needle = search_term.lower()
+        orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
+
+    st.caption("Today's processed orders only. Search and load them here without leaving the quote app.")
+
+    if orders_df.empty:
+        st.info("No processed orders from today matched that search.")
+        return
+
+    options = orders_df["Doc #"].astype(str).tolist()
+    label_map = {
+        str(row["Doc #"]): format_processed_order_label(row)
+        for _, row in orders_df.iterrows()
+    }
+    current_selected = st.session_state.get("processed_order_selected", "")
+    if current_selected not in options:
+        current_selected = options[0]
+        st.session_state["processed_order_selected"] = current_selected
+
+    selected_doc = st.selectbox(
+        "Today's processed order list",
+        options,
+        index=options.index(current_selected),
+        format_func=lambda doc: label_map.get(doc, doc),
+        key="processed_order_selected",
+    )
+
+    selected_row = orders_df[orders_df["Doc #"].astype(str) == str(selected_doc)].iloc[0]
+    payload = selected_row.get("Payload", {}) or {}
+    customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    line_items = payload.get("line_items", []) if isinstance(payload, dict) else []
+    totals = payload.get("totals", {}) if isinstance(payload, dict) else {}
+
+    detail_col, actions_col = st.columns([2.2, 1.1], gap="large")
+    with detail_col:
+        st.markdown("### Processed Order Details")
+        meta_left, meta_right = st.columns(2)
+        with meta_left:
+            st.write(f"**Order #:** {selected_row.get('Order #') or selected_row.get('Doc #') or 'N/A'}")
+            st.write(f"**Source Quote #:** {selected_row.get('Source Quote #') or 'N/A'}")
+            st.write(f"**Customer:** {customer.get('company') or customer.get('bill_company') or selected_row.get('Company') or 'N/A'}")
+            st.write(f"**Contact:** {customer.get('name') or customer.get('bill_name') or selected_row.get('Name') or 'N/A'}")
+        with meta_right:
+            st.write(f"**Email:** {customer.get('email') or customer.get('bill_email') or selected_row.get('Email') or 'N/A'}")
+            st.write(f"**Date:** {str(selected_row.get('Date', '') or '')[:10] or 'N/A'}")
+            st.write(f"**Grand Total:** {fmt_money(float(totals.get('grand_total', 0.0) or 0.0))}")
+            st.write(f"**Line Items:** {len(line_items)}")
+
+        with st.expander("Line items", expanded=True):
+            if line_items:
+                for item in line_items:
+                    st.write(
+                        f"{item.get('sku') or 'Custom'} | {item.get('name') or 'Saved line item'} | Qty {item.get('qty', 0)}"
+                    )
+            else:
+                st.write("No line items saved with this order.")
+
+    with actions_col:
+        st.markdown("### Actions")
+        preview_url = f"?{urlencode({'doc': str(selected_doc), 'preview': 'order', 'pdf_only': '1'})}"
+        if hasattr(st, "link_button"):
+            st.link_button("Open exact order preview", preview_url, use_container_width=True)
+        else:
+            st.markdown(f"[Open exact order preview]({preview_url})")
+
+        if st.button("Load order into quote tool", use_container_width=True, type="primary"):
+            load_saved_document(all_quotes_df, str(selected_doc))
+            st.session_state["quote_workspace_view"] = "builder"
+            st.rerun()
+
+        if hasattr(st, "link_button"):
+            st.link_button("Open Warehouse Queue / Inventory", WAREHOUSE_QUEUE_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open Warehouse Queue / Inventory]({WAREHOUSE_QUEUE_URL})")
+
+
 def main_app():
-    header_col1, header_col2 = st.columns([1.1, 3.2])
+    all_quotes_df = load_all_quotes()
+    if maybe_render_query_preview(all_quotes_df):
+        return
+    if st.session_state.get("app_view") != "quote":
+        render_welcome_splash()
+        return
+
+    header_col1, header_col2, header_col3 = st.columns([1.1, 2.8, 0.9])
     with header_col1:
         if APP_LOGO_PATH:
             st.image(APP_LOGO_PATH, use_container_width=True)
     with header_col2:
         st.title("DGA Quoting Tool")
+    with header_col3:
+        st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+        if st.button("Back to Home", use_container_width=True):
+            st.session_state["app_view"] = "home"
+            st.rerun()
+
+    nav_col1, nav_col2, nav_col3 = st.columns([1.1, 1.1, 3.2])
+    with nav_col1:
+        if st.button(
+            "Quote Builder",
+            use_container_width=True,
+            type="primary" if st.session_state.get("quote_workspace_view") == "builder" else "secondary",
+        ):
+            st.session_state["quote_workspace_view"] = "builder"
+            st.rerun()
+    with nav_col2:
+        if st.button(
+            "Processed Orders",
+            use_container_width=True,
+            type="primary" if st.session_state.get("quote_workspace_view") == "history" else "secondary",
+        ):
+            st.session_state["quote_workspace_view"] = "history"
+            st.rerun()
+    with nav_col3:
+        st.caption("Use the quote builder for new docs and the processed-orders page for order history lookup.")
+
+    if st.session_state.get("quote_workspace_view") == "history":
+        render_processed_orders_history(all_quotes_df)
+        return
 
     st.markdown("""
         <style>
@@ -2364,10 +2688,6 @@ def main_app():
 
     lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.45, 0.8, 0.8, 0.8])
     cust_key_suffix = st.session_state["customer_key_suffix"]
-
-    all_quotes_df = load_all_quotes()
-    if maybe_render_query_preview(all_quotes_df):
-        return
 
     with lookup_col1:
         st.markdown("**Current Doc # (PT)**")
