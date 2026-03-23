@@ -15,6 +15,7 @@ import base64
 import pandas as pd
 import streamlit as st
 import gspread
+from gspread.utils import rowcol_to_a1
 
 try:
     from PyPDF2 import PdfReader
@@ -319,12 +320,7 @@ def load_all_quotes() -> pd.DataFrame:
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
 
-        if "Quote #" not in df.columns or "Quote JSON Payload" not in df.columns:
-            st.error("Google Sheet missing required columns: 'Quote #' and 'Quote JSON Payload'.")
-            return pd.DataFrame()
-
-        df["Payload"] = df["Quote JSON Payload"].apply(lambda x: json.loads(x) if x else None)
-        return df.dropna(subset=["Payload"])
+        return normalize_saved_quotes_df(df)
 
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(f"Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and sharing.")
@@ -334,7 +330,128 @@ def load_all_quotes() -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def save_quote_to_gsheet(payload: dict) -> bool:
+SAVED_QUOTE_HEADERS = [
+    "Quote #",
+    "Date",
+    "Company",
+    "Name",
+    "Email",
+    "Grand Total",
+    "Quote JSON Payload",
+    "Record Type",
+    "Order #",
+    "Source Quote #",
+]
+
+
+def _worksheet_headers(worksheet) -> list[str]:
+    return [str(value).strip() for value in worksheet.row_values(1) if str(value).strip()]
+
+
+def ensure_saved_quote_headers(worksheet) -> list[str]:
+    headers = _worksheet_headers(worksheet)
+    if not headers:
+        headers = SAVED_QUOTE_HEADERS.copy()
+        end_cell = rowcol_to_a1(1, len(headers))
+        worksheet.update(range_name=f"A1:{end_cell}", values=[headers])
+        return headers
+
+    updated_headers = headers.copy()
+    for header in SAVED_QUOTE_HEADERS:
+        if header not in updated_headers:
+            updated_headers.append(header)
+
+    if updated_headers != headers:
+        end_cell = rowcol_to_a1(1, len(updated_headers))
+        worksheet.update(range_name=f"A1:{end_cell}", values=[updated_headers])
+
+    return updated_headers
+
+
+def _parse_saved_payload(value: Any) -> dict | None:
+    if not value:
+        return None
+
+    try:
+        return json.loads(value) if isinstance(value, str) else value
+    except Exception:
+        return None
+
+
+def _infer_record_type(payload: dict | None, stored_type: str, order_number: str, source_quote_number: str, doc_number: str) -> str:
+    if stored_type in {"quote", "order"}:
+        return stored_type
+
+    if order_number:
+        return "order"
+
+    if isinstance(payload, dict):
+        payload_quote_no = str(payload.get("quote_no", "") or "").strip()
+        payload_order_no = str(payload.get("order_meta", {}).get("order_doc_number", "") or "").strip()
+        if payload_order_no and payload_quote_no and payload_order_no != payload_quote_no:
+            return "order"
+        if source_quote_number and doc_number and source_quote_number != doc_number:
+            return "order"
+
+    return "quote"
+
+
+def normalize_saved_quotes_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    working_df = df.copy()
+    working_df.columns = [str(col).strip() for col in working_df.columns]
+
+    if "Quote JSON Payload" not in working_df.columns:
+        st.error("Google Sheet missing required column: 'Quote JSON Payload'.")
+        return pd.DataFrame()
+
+    for col in ["Quote #", "Record Type", "Order #", "Source Quote #", "Date"]:
+        if col not in working_df.columns:
+            working_df[col] = ""
+
+    working_df["Payload"] = working_df["Quote JSON Payload"].apply(_parse_saved_payload)
+    working_df = working_df.dropna(subset=["Payload"]).copy()
+
+    working_df["Quote #"] = working_df["Quote #"].fillna("").astype(str).str.strip()
+    working_df["Order #"] = working_df["Order #"].fillna("").astype(str).str.strip()
+    working_df["Source Quote #"] = working_df["Source Quote #"].fillna("").astype(str).str.strip()
+    working_df["Record Type"] = working_df["Record Type"].fillna("").astype(str).str.strip().str.lower()
+
+    working_df["Source Quote #"] = working_df.apply(
+        lambda row: row["Source Quote #"]
+        or str((row["Payload"] or {}).get("order_meta", {}).get("source_quote_number", "") or "").strip()
+        or str((row["Payload"] or {}).get("quote_no", "") or "").strip(),
+        axis=1,
+    )
+
+    working_df["Order #"] = working_df.apply(
+        lambda row: row["Order #"]
+        or str((row["Payload"] or {}).get("order_meta", {}).get("order_doc_number", "") or "").strip(),
+        axis=1,
+    )
+
+    working_df["Doc #"] = working_df.apply(
+        lambda row: row["Order #"] or row["Quote #"] or row["Source Quote #"],
+        axis=1,
+    )
+
+    working_df["Record Type"] = working_df.apply(
+        lambda row: _infer_record_type(
+            row.get("Payload"),
+            row.get("Record Type", ""),
+            row.get("Order #", ""),
+            row.get("Source Quote #", ""),
+            row.get("Doc #", ""),
+        ),
+        axis=1,
+    )
+
+    return working_df
+
+
+def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
     client = get_gsheet_client()
     if not client:
         return False
@@ -343,17 +460,26 @@ def save_quote_to_gsheet(payload: dict) -> bool:
         sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
 
-        doc_number = payload.get("order_meta", {}).get("order_doc_number") or payload.get("quote_no")
+        headers = ensure_saved_quote_headers(worksheet)
+        quote_number = str(payload.get("quote_no", "") or "").strip()
+        source_quote_number = str(payload.get("order_meta", {}).get("source_quote_number", "") or quote_number).strip()
+        order_number = str(payload.get("order_meta", {}).get("order_doc_number", "") or "").strip()
+        doc_number = order_number if record_type == "order" and order_number else quote_number
 
-        row_data = [
-            doc_number,
-            payload.get("date"),
-            payload.get("customer", {}).get("company", ""),
-            payload.get("customer", {}).get("name", ""),
-            payload.get("customer", {}).get("email", ""),
-            payload.get("totals", {}).get("grand_total", 0.0),
-            json.dumps(payload),
-        ]
+        row_map = {
+            "Quote #": doc_number,
+            "Date": payload.get("date"),
+            "Company": payload.get("customer", {}).get("company", ""),
+            "Name": payload.get("customer", {}).get("name", ""),
+            "Email": payload.get("customer", {}).get("email", ""),
+            "Grand Total": payload.get("totals", {}).get("grand_total", 0.0),
+            "Quote JSON Payload": json.dumps(payload),
+            "Record Type": record_type,
+            "Order #": order_number if record_type == "order" else "",
+            "Source Quote #": source_quote_number,
+        }
+
+        row_data = [row_map.get(header, "") for header in headers]
 
         worksheet.append_row(row_data, value_input_option="USER_ENTERED")
         load_all_quotes.clear()
@@ -396,17 +522,19 @@ def search_saved_quotes(df: pd.DataFrame, term: str) -> pd.DataFrame:
 def format_saved_quote_match(row: pd.Series) -> str:
     payload = row.get("Payload", {}) or {}
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
-    doc_number = row.get("Quote #", "")
+    doc_number = row.get("Doc #", row.get("Quote #", ""))
     date_text = str(row.get("Date", "") or "")[:10]
     company = customer.get("company", "") or customer.get("bill_company", "")
     name = customer.get("name", "") or customer.get("bill_name", "")
     email = customer.get("email", "") or customer.get("bill_email", "")
+    record_type = str(row.get("Record Type", "") or "").strip().lower()
 
     details = " | ".join(part for part in [company, name, email] if part)
+    label = "Order" if record_type == "order" else "Quote"
     if date_text and details:
-        return f"{doc_number} | {date_text} | {details}"
+        return f"{label} {doc_number} | {date_text} | {details}"
     if details:
-        return f"{doc_number} | {details}"
+        return f"{label} {doc_number} | {details}"
     return str(doc_number)
 
 
@@ -1750,7 +1878,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         container.error(f"PDF not generated: {e}")
         return
 
-    save_successful = save_quote_to_gsheet(payload)
+    save_successful = save_quote_to_gsheet(payload, record_type=template)
 
     if compact_level_used > 0:
         container.info("Single-page compact mode was applied to keep the PDF on one page.")
@@ -2135,8 +2263,12 @@ def main_app():
     with lookup_col2:
         all_quotes_df = load_all_quotes()
         quote_options = ["(New Quote)"]
-        if "Quote #" in all_quotes_df.columns:
-            quote_options.extend(all_quotes_df["Quote #"].tolist())
+        if "Doc #" in all_quotes_df.columns:
+            quote_options.extend(all_quotes_df["Doc #"].dropna().astype(str).tolist())
+        elif "Quote #" in all_quotes_df.columns:
+            quote_options.extend(all_quotes_df["Quote #"].dropna().astype(str).tolist())
+
+        quote_options = list(dict.fromkeys(quote_options))
 
         current_quote_no = st.session_state["quote_no"]
         if current_quote_no not in quote_options:
@@ -2159,7 +2291,9 @@ def main_app():
         if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
             if selected_quote_no != "(New Quote)":
                 try:
-                    target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
+                    target_row_df = all_quotes_df[all_quotes_df["Doc #"] == selected_quote_no]
+                    if target_row_df.empty and "Quote #" in all_quotes_df.columns:
+                        target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
 
                     if target_row_df.empty:
                         st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
