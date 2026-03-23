@@ -1044,9 +1044,9 @@ def _build_pdf_brand_header(
             alignment=TA_RIGHT,
         )
     )
-    right_rows = []
+    right_rows = [[title_para]]
     if subtitle.strip():
-        kicker_para = Paragraph(
+        subtitle_para = Paragraph(
             f'<font color="#2D6FC2"><b>{subtitle}</b></font>',
             ParagraphStyle(
                 "PdfHeaderKicker",
@@ -1056,11 +1056,8 @@ def _build_pdf_brand_header(
                 alignment=TA_RIGHT,
             )
         )
-        right_rows.append([kicker_para])
-    right_rows.extend([
-        [title_para],
-        [detail_para],
-    ])
+        right_rows.append([subtitle_para])
+    right_rows.append([detail_para])
     right_block = Table(right_rows, colWidths=[right_col_width])
     right_block.setStyle(TableStyle([
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
@@ -1512,7 +1509,7 @@ def build_pdf(
             logo_w,
             logo_h,
             "DGA Quote",
-            "",
+            "Pricing Subject to Change",
             f"Quote: {doc_number}",
             f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
             compact_level,
@@ -1998,6 +1995,82 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     st.session_state["customer_key_suffix"] += 1
 
 
+def render_saved_quote_search_ui(all_quotes_df: pd.DataFrame):
+    st.text_input(
+        "Search saved quotes",
+        key="person_quote_search",
+        placeholder="e.g. Cesar Zermeno, discgolf.com, cesar@discgolf.com",
+    )
+
+    person_matches_df = search_saved_quotes(all_quotes_df, st.session_state.get("person_quote_search", ""))
+    if st.session_state.get("person_quote_search", "").strip():
+        if person_matches_df.empty:
+            st.info("No saved quotes matched that person/company/email search.")
+        else:
+            match_labels = [format_saved_quote_match(row) for _, row in person_matches_df.iterrows()]
+            default_match_index = 0
+            current_match_label = st.session_state.get("person_quote_match_label", "")
+            if current_match_label in match_labels:
+                default_match_index = match_labels.index(current_match_label)
+
+            selected_match_label = st.selectbox(
+                "Matching saved quotes",
+                match_labels,
+                index=default_match_index,
+                key="person_quote_match_select",
+            )
+            st.session_state["person_quote_match_label"] = selected_match_label
+
+            if st.button("Load Matching Quote", key="btn_load_person_quote_match"):
+                selected_index = match_labels.index(selected_match_label)
+                selected_row = person_matches_df.iloc[selected_index]
+                selected_quote_no = selected_row["Quote #"]
+                payload = selected_row["Payload"]
+                load_quote_payload_into_session(payload, selected_quote_no)
+                st.success(f"Loaded document **{selected_quote_no}** from saved quote search.")
+                st.rerun()
+
+
+def render_pipedrive_lookup_ui():
+    if not PIPEDRIVE_API_TOKEN:
+        st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
+        return
+
+    term = st.text_input(
+        "Search term",
+        placeholder="e.g. jane@city.gov or Jane Smith",
+        key="pd_term",
+        on_change=search_pipedrive_callback
+    )
+
+    matches = st.session_state.get("pd_matches", [])
+
+    if matches:
+        labels = [f"{m['name']}  <{m['email']}>" if m["email"] else m["name"] for m in matches]
+        choice = st.selectbox("Matches", labels, key="pd_choice")
+        idx = labels.index(choice) if choice in labels else -1
+        if idx >= 0:
+            sel = matches[idx]
+            if st.button("Apply to form", key="pd_apply_btn"):
+                try:
+                    person = pd_get_person(sel["id"])
+                    org_id = _pd_scalar(person.get("org_id")) if person and person.get("org_id") else None
+                    org = pd_get_org(org_id) if org_id else None
+
+                    mapped = pd_person_to_customer(person or {}, org)
+                    cust = st.session_state["customer"]
+                    for k, v in mapped.items():
+                        cust[k] = v or cust.get(k, "")
+
+                    st.session_state["customer_key_suffix"] += 1
+                    st.success("Pipedrive contact applied to form (Person details -> Org fallback).")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to fetch or apply contact details. Check console: {e}")
+    elif term and not matches:
+        st.info(f"No Pipedrive contacts found matching '{term}'.")
+
+
 def main_app():
     header_col1, header_col2 = st.columns([1.1, 3.2])
     with header_col1:
@@ -2052,7 +2125,7 @@ def main_app():
         clear_manager_credentials()
         st.session_state["manager_clear_credentials_on_rerun"] = False
 
-    lookup_col1, lookup_col2, lookup_col_stack = st.columns([1.0, 1.4, 0.7])
+    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.45, 0.8, 0.8, 0.8])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
     with lookup_col1:
@@ -2081,73 +2154,47 @@ def main_app():
             key="quote_select_box"
         )
 
-    with lookup_col_stack:
-        with st.container():
-            st.markdown("<div style='min-height: 25px;'></div>", unsafe_allow_html=True)
+    with lookup_col3:
+        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+        if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
+            if selected_quote_no != "(New Quote)":
+                try:
+                    target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
 
-            if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
-                if selected_quote_no != "(New Quote)":
-                    try:
-                        target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
+                    if target_row_df.empty:
+                        st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
+                        return
 
-                        if target_row_df.empty:
-                            st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
-                            return
-
-                        payload = target_row_df.iloc[-1]["Payload"]
-                        load_quote_payload_into_session(payload, selected_quote_no)
-
-                        st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
-                        st.rerun()
-
-                    except IndexError:
-                        st.error(f"Quote {selected_quote_no} not found in the loaded data.")
-                    except Exception as e:
-                        st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
-                else:
-                    st.warning("Please select a document to retrieve or click 'New Quote'.")
-
-            if st.button("New Quote", use_container_width=True, type="secondary"):
-                start_new_quote()
-
-            if st.button("New Version", use_container_width=True, type="primary",
-                         help="Create a new version number based on the current quote."):
-                assign_new_quote_version()
-
-    with st.expander("Search saved quotes by person, company, or email", expanded=bool(st.session_state.get("person_quote_search", ""))):
-        st.text_input(
-            "Search saved quotes",
-            key="person_quote_search",
-            placeholder="e.g. Cesar Zermeno, discgolf.com, cesar@discgolf.com",
-        )
-
-        person_matches_df = search_saved_quotes(all_quotes_df, st.session_state.get("person_quote_search", ""))
-        if st.session_state.get("person_quote_search", "").strip():
-            if person_matches_df.empty:
-                st.info("No saved quotes matched that person/company/email search.")
-            else:
-                match_labels = [format_saved_quote_match(row) for _, row in person_matches_df.iterrows()]
-                default_match_index = 0
-                current_match_label = st.session_state.get("person_quote_match_label", "")
-                if current_match_label in match_labels:
-                    default_match_index = match_labels.index(current_match_label)
-
-                selected_match_label = st.selectbox(
-                    "Matching saved quotes",
-                    match_labels,
-                    index=default_match_index,
-                    key="person_quote_match_select",
-                )
-                st.session_state["person_quote_match_label"] = selected_match_label
-
-                if st.button("Load Matching Quote", key="btn_load_person_quote_match"):
-                    selected_index = match_labels.index(selected_match_label)
-                    selected_row = person_matches_df.iloc[selected_index]
-                    selected_quote_no = selected_row["Quote #"]
-                    payload = selected_row["Payload"]
+                    payload = target_row_df.iloc[-1]["Payload"]
                     load_quote_payload_into_session(payload, selected_quote_no)
-                    st.success(f"Loaded document **{selected_quote_no}** from saved quote search.")
+
+                    st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
                     st.rerun()
+
+                except IndexError:
+                    st.error(f"Quote {selected_quote_no} not found in the loaded data.")
+                except Exception as e:
+                    st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
+            else:
+                st.warning("Please select a document to retrieve or click 'New Quote'.")
+
+    with lookup_col4:
+        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+        if st.button("New Quote", use_container_width=True, type="secondary"):
+            start_new_quote()
+
+    with lookup_col5:
+        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+        if st.button("New Version", use_container_width=True, type="primary",
+                     help="Create a new version number based on the current quote."):
+            assign_new_quote_version()
+
+    st.subheader("Lookup Tools")
+    lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
+    with lookup_tabs[0]:
+        render_saved_quote_search_ui(all_quotes_df)
+    with lookup_tabs[1]:
+        render_pipedrive_lookup_ui()
 
     with st.sidebar:
         st.header("PDF Preview")
@@ -2222,48 +2269,6 @@ def main_app():
     c = st.session_state["customer"]
 
     st.subheader("Customer Information")
-
-    has_search_term = st.session_state.get("pd_term", "").strip() != ""
-    has_matches = bool(st.session_state.get("pd_matches", []))
-    expander_default_state = has_search_term or has_matches
-
-    with st.expander("Pipedrive lookup (by email or name)", expanded=expander_default_state):
-        if not PIPEDRIVE_API_TOKEN:
-            st.warning("Pipedrive API Token not configured in environment variables. Lookup disabled.")
-        else:
-            term = st.text_input(
-                "Search term",
-                placeholder="e.g. jane@city.gov or Jane Smith",
-                key="pd_term",
-                on_change=search_pipedrive_callback
-            )
-
-            matches = st.session_state.get("pd_matches", [])
-
-            if matches:
-                labels = [f"{m['name']}  <{m['email']}>" if m["email"] else m["name"] for m in matches]
-                choice = st.selectbox("Matches", labels, key="pd_choice")
-                idx = labels.index(choice) if choice in labels else -1
-                if idx >= 0:
-                    sel = matches[idx]
-                    if st.button("Apply to form", key="pd_apply_btn"):
-                        try:
-                            person = pd_get_person(sel["id"])
-                            org_id = _pd_scalar(person.get("org_id")) if person and person.get("org_id") else None
-                            org = pd_get_org(org_id) if org_id else None
-
-                            mapped = pd_person_to_customer(person or {}, org)
-                            cust = st.session_state["customer"]
-                            for k, v in mapped.items():
-                                cust[k] = v or cust.get(k, "")
-
-                            st.session_state["customer_key_suffix"] += 1
-                            st.success("Pipedrive contact applied to form (Person details -> Org fallback).")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Failed to fetch or apply contact details. Check console: {e}")
-            elif term and not matches:
-                st.info(f"No Pipedrive contacts found matching '{term}'.")
 
     with st.container(border=True):
         cols_addr = st.columns(2)
