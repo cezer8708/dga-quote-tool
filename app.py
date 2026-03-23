@@ -132,6 +132,8 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 APP_LOGO_PATH = _get_app_logo_path()
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
+CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
+ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
 
 
 def fmt_money(value: float) -> str:
@@ -2425,7 +2427,7 @@ def render_welcome_splash() -> None:
                 border-radius: 24px;
                 padding: 24px;
                 background: rgba(255, 255, 255, 0.03);
-                min-height: 200px;
+                min-height: 188px;
             }
             .welcome-card h3 {
                 margin: 0 0 10px;
@@ -2434,13 +2436,10 @@ def render_welcome_splash() -> None:
             .welcome-card p {
                 color: rgba(250, 250, 250, 0.74);
                 line-height: 1.55;
-                min-height: 86px;
+                min-height: 78px;
             }
-            .welcome-link-note {
-                margin-top: 10px;
-                color: rgba(250, 250, 250, 0.58);
-                font-size: 0.9rem;
-                word-break: break-word;
+            .welcome-row {
+                margin-top: 16px;
             }
         </style>
         """,
@@ -2494,10 +2493,39 @@ def render_welcome_splash() -> None:
             st.link_button("Open Orders / Warehouse Queue", WAREHOUSE_QUEUE_URL, use_container_width=True)
         else:
             st.markdown(f"[Open Orders / Warehouse Queue]({WAREHOUSE_QUEUE_URL})")
+
+    st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
+    custom_disc_col, artwork_col = st.columns(2, gap="large")
+
+    with custom_disc_col:
         st.markdown(
-            f'<div class="welcome-link-note">Current warehouse link: {WAREHOUSE_QUEUE_URL}</div>',
+            """
+            <div class="welcome-card">
+                <h3>DGA Custom Disc Ordering</h3>
+                <p>Open the custom disc ordering app for wholesale custom stamp and tournament ordering workflows.</p>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+        if hasattr(st, "link_button"):
+            st.link_button("Open Custom Disc Ordering", CUSTOM_DISC_ORDERING_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open Custom Disc Ordering]({CUSTOM_DISC_ORDERING_URL})")
+
+    with artwork_col:
+        st.markdown(
+            """
+            <div class="welcome-card">
+                <h3>Artwork Preview Generator</h3>
+                <p>Launch the artwork generator to build and review preview images for customer designs and internal approvals.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if hasattr(st, "link_button"):
+            st.link_button("Open Artwork Preview Generator", ARTWORK_GENERATOR_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open Artwork Preview Generator]({ARTWORK_GENERATOR_URL})")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
