@@ -1964,6 +1964,45 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     )
 
 
+def generate_pdf_preview_data(payload: dict, template: str = "quote") -> tuple[bytes, int, str]:
+    doc_number = payload["quote_no"] if template == "quote" else (
+        payload.get("order_meta", {}).get("order_doc_number") or payload["quote_no"]
+    )
+
+    pdf_data, compact_level_used = generate_single_page_pdf(
+        payload["customer"],
+        payload["line_items"],
+        payload["fees"],
+        payload["totals"],
+        doc_number,
+        payload["footer_notes"],
+        template=template,
+        meta=payload.get("order_meta"),
+    )
+    return pdf_data, compact_level_used, doc_number
+
+
+def render_pdf_preview_from_payload(payload: dict, template: str = "quote", height: str = "80vh"):
+    pdf_data, compact_level_used, doc_number = generate_pdf_preview_data(payload, template=template)
+
+    if compact_level_used > 0:
+        st.caption("Preview is using compact single-page mode.")
+
+    base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
+    preview_nonce = uuid.uuid4().hex
+    pdf_display = f"""
+    <div class="pdf-iframe-container" style="height: {height};">
+        <iframe
+            src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
+            title="PDF Preview {preview_nonce}"
+            style="width: 100%; height: 100%; border: none;">
+        </iframe>
+    </div>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+    return pdf_data, doc_number
+
+
 def get_current_payload(
     subtotal: float,
     drop_ship_fee: float,
@@ -2299,36 +2338,7 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
         manager_discount_amount,
     )
 
-    doc_number = preview_payload["quote_no"] if template == "quote" else (
-        preview_payload.get("order_meta", {}).get("order_doc_number") or preview_payload["quote_no"]
-    )
-
-    pdf_data, compact_level_used = generate_single_page_pdf(
-        preview_payload["customer"],
-        preview_payload["line_items"],
-        preview_payload["fees"],
-        preview_payload["totals"],
-        doc_number,
-        preview_payload["footer_notes"],
-        template=template,
-        meta=preview_payload["order_meta"],
-    )
-
-    if compact_level_used > 0:
-        st.caption("Preview is using compact single-page mode.")
-
-    base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
-    preview_nonce = uuid.uuid4().hex
-    pdf_display = f"""
-    <div class="pdf-iframe-container" style="height: {height};">
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
-            title="PDF Preview {preview_nonce}"
-            style="width: 100%; height: 100%; border: none;">
-        </iframe>
-    </div>
-    """
-    st.markdown(pdf_display, unsafe_allow_html=True)
+    render_pdf_preview_from_payload(preview_payload, template=template, height=height)
 
 
 def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
@@ -2529,33 +2539,24 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         st.info("No processed orders from today matched that search.")
         return
 
-    options = orders_df["Doc #"].astype(str).tolist()
-    label_map = {
-        str(row["Doc #"]): format_processed_order_label(row)
-        for _, row in orders_df.iterrows()
-    }
-    current_selected = st.session_state.get("processed_order_selected", "")
-    if current_selected not in options:
-        current_selected = options[0]
-        st.session_state["processed_order_selected"] = current_selected
-
-    selected_doc = st.selectbox(
-        "Processed order list",
-        options,
-        index=options.index(current_selected),
-        format_func=lambda doc: label_map.get(doc, doc),
-        key="processed_order_selected",
-    )
-
-    selected_row = orders_df[orders_df["Doc #"].astype(str) == str(selected_doc)].iloc[0]
+    selected_row = orders_df.iloc[0]
+    selected_doc = str(selected_row.get("Doc #", "") or "")
     payload = selected_row.get("Payload", {}) or {}
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
     line_items = payload.get("line_items", []) if isinstance(payload, dict) else []
     totals = payload.get("totals", {}) if isinstance(payload, dict) else {}
 
+    with st.sidebar:
+        st.markdown("### Order PDF Preview")
+        pdf_data, pdf_doc_number = render_pdf_preview_from_payload(payload, template="order", height="78vh")
+
     detail_col, actions_col = st.columns([2.2, 1.1], gap="large")
     with detail_col:
         st.markdown("### Processed Order Details")
+        st.caption(
+            f"Showing {format_processed_order_label(selected_row)}"
+            + (f" • {len(orders_df)} match{'es' if len(orders_df) != 1 else ''}" if len(orders_df) > 1 else "")
+        )
         meta_left, meta_right = st.columns(2)
         with meta_left:
             st.write(f"**Order #:** {selected_row.get('Order #') or selected_row.get('Doc #') or 'N/A'}")
@@ -2568,27 +2569,17 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
             st.write(f"**Grand Total:** {fmt_money(float(totals.get('grand_total', 0.0) or 0.0))}")
             st.write(f"**Line Items:** {len(line_items)}")
 
-        with st.expander("Line items", expanded=True):
-            if line_items:
-                for item in line_items:
-                    st.write(
-                        f"{item.get('sku') or 'Custom'} | {item.get('name') or 'Saved line item'} | Qty {item.get('qty', 0)}"
-                    )
-            else:
-                st.write("No line items saved with this order.")
-
     with actions_col:
         st.markdown("### Actions")
-        preview_url = f"?{urlencode({'doc': str(selected_doc), 'preview': 'order', 'pdf_only': '1'})}"
-        if hasattr(st, "link_button"):
-            st.link_button("Open exact order preview", preview_url, use_container_width=True)
-        else:
-            st.markdown(f"[Open exact order preview]({preview_url})")
-
-        if st.button("Load order into quote tool", use_container_width=True, type="primary"):
-            load_saved_document(all_quotes_df, str(selected_doc))
-            st.session_state["quote_workspace_view"] = "builder"
-            st.rerun()
+        st.download_button(
+            "Download order",
+            data=pdf_data,
+            file_name=f"{pdf_doc_number}_Order.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            type="primary",
+            key=f"download_processed_order_{pdf_doc_number}",
+        )
 
         if hasattr(st, "link_button"):
             st.link_button("Open Warehouse Queue / Inventory", WAREHOUSE_QUEUE_URL, use_container_width=True)
