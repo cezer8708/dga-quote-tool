@@ -689,6 +689,7 @@ st.session_state.setdefault("pd_expander_state", False)
 st.session_state.setdefault("show_pdf_preview", True)
 st.session_state.setdefault("person_quote_search", "")
 st.session_state.setdefault("person_quote_match_label", "")
+st.session_state.setdefault("query_preview_loaded", "")
 
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -2199,6 +2200,114 @@ def render_pipedrive_lookup_ui():
         st.info(f"No Pipedrive contacts found matching '{term}'.")
 
 
+def load_saved_document(all_quotes_df: pd.DataFrame, selected_doc_no: str):
+    target_row_df = all_quotes_df[all_quotes_df["Doc #"] == selected_doc_no]
+    if target_row_df.empty and "Quote #" in all_quotes_df.columns:
+        target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_doc_no]
+
+    if target_row_df.empty:
+        raise ValueError(f"Quote/Order # {selected_doc_no} not found in the loaded data.")
+
+    payload = target_row_df.iloc[-1]["Payload"]
+    load_quote_payload_into_session(payload, selected_doc_no)
+    return payload
+
+
+def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
+    if st.session_state["sc_county_checkbox"]:
+        tax_rate = SANTA_CRUZ_TAX_RATE
+    else:
+        tax_input = float(st.session_state.get("tax_rate_pct_input", 0.0))
+        tax_rate = tax_input / 100 if tax_input > 0 else 0.0
+
+    subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
+    discount_type = st.session_state["active_discount_type"]
+    primary_discount_label = get_discount_label(discount_type)
+    discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
+    primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
+    manager_discount_amount = calculate_manager_discount(
+        discountable_base,
+        st.session_state["manager_pricing_authorized"]
+    )
+
+    drop_ship_fee = st.session_state["drop_fee_input"]
+    freight = st.session_state["freight_fee_input"]
+    pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
+    sales_tax = round(pre_tax * tax_rate, 2)
+    grand_total = round(pre_tax + sales_tax, 2)
+
+    preview_payload = get_current_payload(
+        subtotal,
+        drop_ship_fee,
+        freight,
+        sales_tax,
+        grand_total,
+        tax_rate,
+        primary_discount_amount,
+        primary_discount_label,
+        manager_discount_amount,
+    )
+
+    doc_number = preview_payload["quote_no"] if template == "quote" else (
+        preview_payload.get("order_meta", {}).get("order_doc_number") or preview_payload["quote_no"]
+    )
+
+    pdf_data, compact_level_used = generate_single_page_pdf(
+        preview_payload["customer"],
+        preview_payload["line_items"],
+        preview_payload["fees"],
+        preview_payload["totals"],
+        doc_number,
+        preview_payload["footer_notes"],
+        template=template,
+        meta=preview_payload["order_meta"],
+    )
+
+    if compact_level_used > 0:
+        st.caption("Preview is using compact single-page mode.")
+
+    base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
+    preview_nonce = uuid.uuid4().hex
+    pdf_display = f"""
+    <div class="pdf-iframe-container" style="height: {height};">
+        <iframe
+            src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
+            title="PDF Preview {preview_nonce}"
+            style="width: 100%; height: 100%; border: none;">
+        </iframe>
+    </div>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
+def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
+    try:
+        query_params = st.query_params
+    except Exception:
+        return False
+
+    selected_doc_no = str(query_params.get("doc", "") or "").strip()
+    preview_template = str(query_params.get("preview", "") or "").strip().lower()
+    pdf_only = str(query_params.get("pdf_only", "") or "").strip().lower() in {"1", "true", "yes"}
+
+    if not selected_doc_no or preview_template not in {"quote", "order"}:
+        return False
+
+    loaded_signature = f"{selected_doc_no}:{preview_template}"
+    if st.session_state.get("query_preview_loaded") != loaded_signature:
+        load_saved_document(all_quotes_df, selected_doc_no)
+        st.session_state["query_preview_loaded"] = loaded_signature
+
+    if pdf_only:
+        st.title(f"DGA {preview_template.title()} Preview")
+        st.caption(f"Document {selected_doc_no}")
+        render_exact_pdf_preview(template=preview_template, height="92vh")
+        return True
+
+    st.session_state["show_pdf_preview"] = True
+    return False
+
+
 def main_app():
     header_col1, header_col2 = st.columns([1.1, 3.2])
     with header_col1:
@@ -2256,12 +2365,15 @@ def main_app():
     lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.45, 0.8, 0.8, 0.8])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
+    all_quotes_df = load_all_quotes()
+    if maybe_render_query_preview(all_quotes_df):
+        return
+
     with lookup_col1:
         st.markdown("**Current Doc # (PT)**")
         st.info(st.session_state["quote_no"])
 
     with lookup_col2:
-        all_quotes_df = load_all_quotes()
         quote_options = ["(New Quote)"]
         if "Doc #" in all_quotes_df.columns:
             quote_options.extend(all_quotes_df["Doc #"].dropna().astype(str).tolist())
@@ -2291,16 +2403,7 @@ def main_app():
         if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
             if selected_quote_no != "(New Quote)":
                 try:
-                    target_row_df = all_quotes_df[all_quotes_df["Doc #"] == selected_quote_no]
-                    if target_row_df.empty and "Quote #" in all_quotes_df.columns:
-                        target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_quote_no]
-
-                    if target_row_df.empty:
-                        st.error(f"Quote/Order # {selected_quote_no} not found in the loaded data.")
-                        return
-
-                    payload = target_row_df.iloc[-1]["Payload"]
-                    load_quote_payload_into_session(payload, selected_quote_no)
+                    load_saved_document(all_quotes_df, selected_quote_no)
 
                     st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
                     st.rerun()
@@ -2335,68 +2438,8 @@ def main_app():
         st.checkbox("Show Live Quote Preview", key="show_pdf_preview")
 
         if st.session_state["show_pdf_preview"]:
-            if st.session_state["sc_county_checkbox"]:
-                tax_rate = SANTA_CRUZ_TAX_RATE
-            else:
-                tax_input = float(st.session_state.get("tax_rate_pct_input", 0.0))
-                tax_rate = tax_input / 100 if tax_input > 0 else 0.0
-
-            subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
-            discount_type = st.session_state["active_discount_type"]
-            primary_discount_label = get_discount_label(discount_type)
-            discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
-            primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
-            manager_discount_amount = calculate_manager_discount(
-                discountable_base,
-                st.session_state["manager_pricing_authorized"]
-            )
-
-            drop_ship_fee = st.session_state["drop_fee_input"]
-            freight = st.session_state["freight_fee_input"]
-            pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
-            sales_tax = round(pre_tax * tax_rate, 2)
-            grand_total = round(pre_tax + sales_tax, 2)
-
-            preview_payload = get_current_payload(
-                subtotal,
-                drop_ship_fee,
-                freight,
-                sales_tax,
-                grand_total,
-                tax_rate,
-                primary_discount_amount,
-                primary_discount_label,
-                manager_discount_amount,
-            )
-
             try:
-                pdf_data, compact_level_used = generate_single_page_pdf(
-                    preview_payload["customer"],
-                    preview_payload["line_items"],
-                    preview_payload["fees"],
-                    preview_payload["totals"],
-                    preview_payload["quote_no"],
-                    preview_payload["footer_notes"],
-                    template="quote",
-                    meta=preview_payload["order_meta"],
-                )
-
-                if compact_level_used > 0:
-                    st.caption("Preview is using compact single-page mode.")
-
-                base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
-                preview_nonce = uuid.uuid4().hex
-                pdf_display = f"""
-                <div class="pdf-iframe-container" style="height: 80vh;">
-                    <iframe
-                        src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
-                        title="PDF Preview {preview_nonce}"
-                        style="width: 100%; height: 100%; border: none;">
-                    </iframe>
-                </div>
-                """
-                st.markdown(pdf_display, unsafe_allow_html=True)
-
+                render_exact_pdf_preview(template="quote", height="80vh")
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
 
