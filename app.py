@@ -131,7 +131,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 
 APP_LOGO_PATH = _get_app_logo_path()
-WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "http://localhost:8888")
+WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://69c1b9348ce8c8981a15fcb1--dga-warehouse-inventory.netlify.app")
 
 
 def fmt_money(value: float) -> str:
