@@ -134,6 +134,7 @@ APP_LOGO_PATH = _get_app_logo_path()
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
+WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
 
 def fmt_money(value: float) -> str:
@@ -585,6 +586,36 @@ def format_processed_order_label(row: pd.Series) -> str:
     if date_text:
         pieces.append(date_text)
     return " - ".join(pieces)
+
+
+@st.cache_data(ttl=30)
+def load_warehouse_status_snapshot() -> dict:
+    if not WAREHOUSE_STATE_URL:
+        return {"queue_by_order": {}, "applied_orders": set(), "error": "Warehouse status URL is not configured."}
+
+    try:
+        response = requests.get(WAREHOUSE_STATE_URL, timeout=6)
+        response.raise_for_status()
+        payload = response.json()
+        state = payload.get("state", {}) if isinstance(payload, dict) else {}
+        queue_items = state.get("queueItems", []) if isinstance(state, dict) else []
+        applied_orders = state.get("appliedOrders", []) if isinstance(state, dict) else []
+
+        queue_by_order = {}
+        for item in queue_items:
+            order_number = str(item.get("orderNumber", "") or "").strip()
+            if order_number:
+                queue_by_order[order_number] = item
+
+        applied_set = {
+            str(record.get("orderNumber", "") or "").strip()
+            for record in applied_orders
+            if str(record.get("orderNumber", "") or "").strip()
+        }
+
+        return {"queue_by_order": queue_by_order, "applied_orders": applied_set, "error": ""}
+    except Exception as exc:
+        return {"queue_by_order": {}, "applied_orders": set(), "error": str(exc)}
 
 
 @st.cache_data
@@ -2595,6 +2626,12 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
     line_items = payload.get("line_items", []) if isinstance(payload, dict) else []
     totals = payload.get("totals", {}) if isinstance(payload, dict) else {}
+    warehouse_snapshot = load_warehouse_status_snapshot()
+    queue_item = warehouse_snapshot.get("queue_by_order", {}).get(selected_doc, {})
+    inventory_applied = selected_doc in warehouse_snapshot.get("applied_orders", set())
+    queue_status = str(queue_item.get("status", "") or "").strip() or ("Inventory Applied" if inventory_applied else "Not in warehouse queue")
+    tracking_number = str(queue_item.get("trackingNumber", "") or "").strip()
+    freight_pro_number = str(queue_item.get("freightProNumber", "") or "").strip()
 
     with st.sidebar:
         st.markdown("### Order PDF Preview")
@@ -2618,6 +2655,19 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
             st.write(f"**Date:** {str(selected_row.get('Date', '') or '')[:10] or 'N/A'}")
             st.write(f"**Grand Total:** {fmt_money(float(totals.get('grand_total', 0.0) or 0.0))}")
             st.write(f"**Line Items:** {len(line_items)}")
+
+        st.markdown("#### Warehouse Update")
+        warehouse_left, warehouse_right = st.columns(2)
+        with warehouse_left:
+            st.write(f"**Queue status:** {queue_status}")
+            st.write(f"**Inventory:** {'Applied' if inventory_applied else 'Not applied'}")
+        with warehouse_right:
+            st.write(f"**UPS Tracking #:** {tracking_number or 'N/A'}")
+            st.write(f"**Freight PRO #:** {freight_pro_number or 'N/A'}")
+
+        warehouse_error = warehouse_snapshot.get("error", "")
+        if warehouse_error:
+            st.caption(f"Warehouse update unavailable right now: {warehouse_error}")
 
     with actions_col:
         st.markdown("### Actions")
