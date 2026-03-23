@@ -2529,17 +2529,39 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         placeholder="Order #, company, customer, source quote #, or email",
     ).strip()
 
-    if search_term:
-        needle = search_term.lower()
-        orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
-
     st.caption("Search and load processed orders here without leaving the quote app.")
+
+    if not search_term:
+        st.info("Search for a processed order to begin.")
+        return
+
+    needle = search_term.lower()
+    orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
 
     if orders_df.empty:
         st.info("No processed orders from today matched that search.")
         return
 
-    selected_row = orders_df.iloc[0]
+    options = orders_df["Doc #"].astype(str).tolist()
+    label_map = {
+        str(row["Doc #"]): format_processed_order_label(row)
+        for _, row in orders_df.iterrows()
+    }
+    current_selected = st.session_state.get("processed_order_selected", "")
+
+    selected_doc = st.selectbox(
+        "Select a processed order",
+        [""] + options,
+        index=([""] + options).index(current_selected) if current_selected in options else 0,
+        format_func=lambda doc: "Choose a matching order" if doc == "" else label_map.get(doc, doc),
+        key="processed_order_selected",
+    )
+
+    if not selected_doc:
+        st.info(f"{len(options)} matching order{'s' if len(options) != 1 else ''} found. Pick one to view details.")
+        return
+
+    selected_row = orders_df[orders_df["Doc #"].astype(str) == str(selected_doc)].iloc[0]
     selected_doc = str(selected_row.get("Doc #", "") or "")
     payload = selected_row.get("Payload", {}) or {}
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
