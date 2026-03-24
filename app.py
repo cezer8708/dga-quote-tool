@@ -2570,6 +2570,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
 
     orders_df["Sort Date"] = pd.to_datetime(orders_df["Date"], errors="coerce")
     orders_df = orders_df.sort_values(by=["Sort Date", "Doc #"], ascending=[False, False], na_position="last")
+    orders_df = orders_df.drop_duplicates(subset=["Doc #"], keep="first")
 
     search_term = st.text_input(
         "Search Processed Orders",
