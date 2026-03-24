@@ -2568,18 +2568,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         st.info("No processed orders are available yet.")
         return
 
-    today_date = get_pacific_now().date()
     orders_df["Sort Date"] = pd.to_datetime(orders_df["Date"], errors="coerce")
-    orders_df = orders_df[
-        orders_df["Sort Date"].apply(
-            lambda value: getattr(value, "date", lambda: None)() == today_date if pd.notna(value) else False,
-        )
-    ].copy()
-
-    if orders_df.empty:
-        st.info("No processed orders from today are available yet.")
-        return
-
     orders_df = orders_df.sort_values(by=["Sort Date", "Doc #"], ascending=[False, False], na_position="last")
 
     search_term = st.text_input(
@@ -2598,7 +2587,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
 
     if orders_df.empty:
-        st.info("No processed orders from today matched that search.")
+        st.info("No processed orders matched that search.")
         return
 
     options = orders_df["Doc #"].astype(str).tolist()
