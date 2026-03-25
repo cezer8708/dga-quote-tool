@@ -62,6 +62,10 @@ COMPANY = {
     "state": get_env("COMPANY_ADDR_STATE", "CA"),
     "zip": get_env("COMPANY_ADDR_ZIP", "95076"),
 }
+DEFAULT_FOOTER_NOTES = (
+    "Pricing subject to change. Please review all details carefully.\n"
+    "International customers will be responsible for all duties and taxes upon delivery."
+)
 DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
 
@@ -423,6 +427,7 @@ def normalize_saved_quotes_df(df: pd.DataFrame) -> pd.DataFrame:
     working_df["Order #"] = working_df["Order #"].fillna("").astype(str).str.strip()
     working_df["Source Quote #"] = working_df["Source Quote #"].fillna("").astype(str).str.strip()
     working_df["Record Type"] = working_df["Record Type"].fillna("").astype(str).str.strip().str.lower()
+    working_df["Explicit Record Type"] = working_df["Record Type"]
 
     working_df["Source Quote #"] = working_df.apply(
         lambda row: row["Source Quote #"]
@@ -700,10 +705,8 @@ def start_new_quote():
 
     st.session_state["tax_rate_pct_input"] = 0.0
     st.session_state["sc_county_checkbox"] = False
-    st.session_state["footer_notes"] = (
-        "Pricing subject to change. Please review all details carefully.\n"
-        "International customers will be responsible for all duties and taxes upon delivery."
-    )
+    st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
+    st.session_state["footer_notes_touched"] = False
 
     st.session_state["order_doc_number_pdf"] = ""
     st.session_state["order_po_number"] = ""
@@ -720,6 +723,7 @@ def start_new_quote():
     st.session_state["pd_term"] = ""
     st.session_state["pd_expander_state"] = False
     st.session_state["show_pdf_preview"] = True
+    st.session_state["show_pdf_preview_touched"] = False
     st.rerun()
 
 
@@ -732,10 +736,8 @@ if "line_items" not in st.session_state:
 st.session_state.setdefault("rerun_flag", False)
 st.session_state.setdefault("customer_key_suffix", 0)
 st.session_state.setdefault("quote_no", new_quote_number())
-st.session_state.setdefault("footer_notes", (
-    "Pricing subject to change. Please review all details carefully.\n"
-    "International customers will be responsible for all duties and taxes upon delivery."
-))
+st.session_state.setdefault("footer_notes", DEFAULT_FOOTER_NOTES)
+st.session_state.setdefault("footer_notes_touched", False)
 st.session_state.setdefault("drop_fee_input", 0.0)
 st.session_state.setdefault("freight_fee_input", 0.0)
 st.session_state.setdefault("freight_notes", "")
@@ -767,6 +769,7 @@ st.session_state.setdefault("order_date_received", "")
 st.session_state.setdefault("pd_matches", [])
 st.session_state.setdefault("pd_expander_state", False)
 st.session_state.setdefault("show_pdf_preview", True)
+st.session_state.setdefault("show_pdf_preview_touched", False)
 st.session_state.setdefault("person_quote_search", "")
 st.session_state.setdefault("person_quote_match_label", "")
 st.session_state.setdefault("query_preview_loaded", "")
@@ -2184,6 +2187,22 @@ def handle_quantity_change(item_id: str):
         st.session_state["rerun_flag"] = True
 
 
+def handle_line_item_notes_change(item_id: str):
+    note_key = f"Notes_input_{item_id}"
+    for item in st.session_state["line_items"]:
+        if item["id"] == item_id:
+            item["Notes"] = st.session_state.get(note_key, "")
+            break
+
+
+def handle_footer_notes_change():
+    st.session_state["footer_notes_touched"] = True
+
+
+def handle_show_pdf_preview_toggle():
+    st.session_state["show_pdf_preview_touched"] = True
+
+
 def search_pipedrive_callback():
     term = st.session_state.get("pd_term", "").strip()
     if term:
@@ -2227,6 +2246,7 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     clear_manager_credentials()
 
     st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
+    st.session_state["footer_notes_touched"] = True
 
     order_meta = payload.get("order_meta", {})
     st.session_state["order_po_number"] = order_meta.get("po_number", "")
@@ -2372,6 +2392,22 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
     )
 
     render_pdf_preview_from_payload(preview_payload, template=template, height=height)
+
+
+def render_builder_sidebar_preview():
+    with st.sidebar:
+        st.header("PDF Preview")
+        st.checkbox(
+            "Show Live Quote Preview",
+            key="show_pdf_preview",
+            on_change=handle_show_pdf_preview_toggle,
+        )
+
+        if st.session_state["show_pdf_preview"]:
+            try:
+                render_exact_pdf_preview(template="quote", height="80vh")
+            except Exception as e:
+                st.error(f"Preview unavailable: {e}")
 
 
 def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
@@ -2562,7 +2598,8 @@ def render_welcome_splash() -> None:
 
 
 def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
-    orders_df = all_quotes_df[all_quotes_df["Record Type"].astype(str).str.lower() == "order"].copy()
+    explicit_record_type = all_quotes_df.get("Explicit Record Type", all_quotes_df.get("Record Type", "")).astype(str).str.lower()
+    orders_df = all_quotes_df[explicit_record_type == "order"].copy()
 
     if orders_df.empty:
         st.info("No processed orders are available yet.")
@@ -2572,29 +2609,29 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     orders_df = orders_df.sort_values(by=["Sort Date", "Doc #"], ascending=[False, False], na_position="last")
     orders_df = orders_df.drop_duplicates(subset=["Doc #"], keep="first")
 
+    st.caption("Browse processed orders from the dropdown, or use quick search to narrow the list.")
+
     search_term = st.text_input(
-        "Search Processed Orders",
+        "Quick Search Processed Orders",
         key="processed_order_search",
         placeholder="Order #, company, customer, source quote #, or email",
     ).strip()
 
-    st.caption("Search and load processed orders here without leaving the quote app.")
+    filtered_orders_df = orders_df
+    if search_term:
+        needle = search_term.lower()
+        filtered_orders_df = orders_df[
+            orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)
+        ].copy()
 
-    if not search_term:
-        st.info("Search for a processed order to begin.")
-        return
+        if filtered_orders_df.empty:
+            st.warning("No processed orders matched that quick search. Showing the full processed order list instead.")
+            filtered_orders_df = orders_df
 
-    needle = search_term.lower()
-    orders_df = orders_df[orders_df.apply(lambda row: needle in build_processed_order_search_blob(row), axis=1)].copy()
-
-    if orders_df.empty:
-        st.info("No processed orders matched that search.")
-        return
-
-    options = orders_df["Doc #"].astype(str).tolist()
+    options = filtered_orders_df["Doc #"].astype(str).tolist()
     label_map = {
         str(row["Doc #"]): format_processed_order_label(row)
-        for _, row in orders_df.iterrows()
+        for _, row in filtered_orders_df.iterrows()
     }
     current_selected = st.session_state.get("processed_order_selected", "")
 
@@ -2607,10 +2644,10 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     )
 
     if not selected_doc:
-        st.info(f"{len(options)} matching order{'s' if len(options) != 1 else ''} found. Pick one to view details.")
+        st.info(f"{len(options)} order{'s' if len(options) != 1 else ''} available in the current list. Pick one to view details.")
         return
 
-    selected_row = orders_df[orders_df["Doc #"].astype(str) == str(selected_doc)].iloc[0]
+    selected_row = filtered_orders_df[filtered_orders_df["Doc #"].astype(str) == str(selected_doc)].iloc[0]
     selected_doc = str(selected_row.get("Doc #", "") or "")
     payload = selected_row.get("Payload", {}) or {}
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
@@ -2632,7 +2669,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         st.markdown("### Processed Order Details")
         st.caption(
             f"Showing {format_processed_order_label(selected_row)}"
-            + (f" • {len(orders_df)} match{'es' if len(orders_df) != 1 else ''}" if len(orders_df) > 1 else "")
+            + (f" • {len(filtered_orders_df)} order{'s' if len(filtered_orders_df) != 1 else ''} in current list" if len(filtered_orders_df) > 1 else "")
         )
         meta_left, meta_right = st.columns(2)
         with meta_left:
@@ -2767,6 +2804,12 @@ def main_app():
         clear_manager_credentials()
         st.session_state["manager_clear_credentials_on_rerun"] = False
 
+    if not st.session_state.get("show_pdf_preview_touched", False):
+        st.session_state["show_pdf_preview"] = True
+
+    if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
+        st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
+
     lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.45, 0.8, 0.8, 0.8])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
@@ -2833,16 +2876,6 @@ def main_app():
         render_saved_quote_search_ui(all_quotes_df)
     with lookup_tabs[1]:
         render_pipedrive_lookup_ui()
-
-    with st.sidebar:
-        st.header("PDF Preview")
-        st.checkbox("Show Live Quote Preview", key="show_pdf_preview")
-
-        if st.session_state["show_pdf_preview"]:
-            try:
-                render_exact_pdf_preview(template="quote", height="80vh")
-            except Exception as e:
-                st.error(f"Preview unavailable: {e}")
 
     c = st.session_state["customer"]
 
@@ -3048,7 +3081,7 @@ def main_app():
             if notes_key not in st.session_state:
                 st.session_state[notes_key] = row.get("Notes", "")
 
-            st.text_area("Notes (optional)", key=notes_key, height=30)
+            st.text_area("Notes (optional)", key=notes_key, height=30, on_change=handle_line_item_notes_change, args=(row["id"],))
             row["Notes"] = st.session_state[notes_key]
 
     st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
@@ -3163,7 +3196,7 @@ def main_app():
     quote_no = st.session_state["quote_no"]
     st.markdown(f"**Current Quote #:** `{quote_no}`")
 
-    st.text_area("Footer Notes (shown on PDF)", key="footer_notes")
+    st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
 
     with st.expander("Order/PO Details (for Order PDF)", expanded=False):
         if not st.session_state.get("order_doc_number_pdf"):
@@ -3196,6 +3229,8 @@ def main_app():
         manager_discount_amount,
     )
     order_meta = payload["order_meta"]
+
+    render_builder_sidebar_preview()
 
     def discount_note_valid() -> bool:
         if st.session_state["active_discount_type"] != "discount":
