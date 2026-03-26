@@ -2528,14 +2528,14 @@ def render_welcome_splash() -> None:
             .welcome-side-art-left {
                 left: 0;
                 object-position: 18% center;
-                mask-image: linear-gradient(to right, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
-                -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+                mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
+                -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
             }
             .welcome-side-art-right {
                 right: 0;
                 object-position: 42% center;
-                mask-image: linear-gradient(to left, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
-                -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+                mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
+                -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
             }
             .welcome-side-art-left img {
                 object-position: 18% center;
@@ -2591,7 +2591,7 @@ def render_welcome_splash() -> None:
                 border-radius: 16px;
                 padding: 12px 13px 9px;
                 background: rgba(255, 255, 255, 0.035);
-                min-height: 102px;
+                min-height: 152px;
             }
             .welcome-card-label {
                 display: inline-flex;
@@ -2612,12 +2612,22 @@ def render_welcome_splash() -> None:
             .welcome-card p {
                 color: rgba(250, 250, 250, 0.74);
                 line-height: 1.32;
-                min-height: 36px;
+                min-height: 82px;
                 margin: 0;
                 font-size: 0.8rem;
             }
             .welcome-row {
                 margin-top: 7px;
+            }
+            .stButton > button,
+            [data-testid="stLinkButton"] a {
+                min-height: 2.3rem;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                font-size: 0.92rem;
+                padding-left: 0.8rem;
+                padding-right: 0.8rem;
             }
             @media (max-width: 1100px) {
                 .welcome-side-art {
@@ -2684,9 +2694,9 @@ def render_welcome_splash() -> None:
             unsafe_allow_html=True,
         )
         if hasattr(st, "link_button"):
-            st.link_button("Open Orders / Warehouse Queue", WAREHOUSE_QUEUE_URL, use_container_width=True)
+            st.link_button("Open Queue", WAREHOUSE_QUEUE_URL, use_container_width=True)
         else:
-            st.markdown(f"[Open Orders / Warehouse Queue]({WAREHOUSE_QUEUE_URL})")
+            st.markdown(f"[Open Queue]({WAREHOUSE_QUEUE_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
     _, row_two_left, row_two_right, _ = st.columns([3.6, 2, 2, 3.6], gap="small")
@@ -2703,9 +2713,9 @@ def render_welcome_splash() -> None:
             unsafe_allow_html=True,
         )
         if hasattr(st, "link_button"):
-            st.link_button("Open Custom Disc Ordering", CUSTOM_DISC_ORDERING_URL, use_container_width=True)
+            st.link_button("Open Custom Orders", CUSTOM_DISC_ORDERING_URL, use_container_width=True)
         else:
-            st.markdown(f"[Open Custom Disc Ordering]({CUSTOM_DISC_ORDERING_URL})")
+            st.markdown(f"[Open Custom Orders]({CUSTOM_DISC_ORDERING_URL})")
 
     with row_two_right:
         st.markdown(
@@ -2719,9 +2729,9 @@ def render_welcome_splash() -> None:
             unsafe_allow_html=True,
         )
         if hasattr(st, "link_button"):
-            st.link_button("Open Artwork Preview Generator", ARTWORK_GENERATOR_URL, use_container_width=True)
+            st.link_button("Open Artwork", ARTWORK_GENERATOR_URL, use_container_width=True)
         else:
-            st.markdown(f"[Open Artwork Preview Generator]({ARTWORK_GENERATOR_URL})")
+            st.markdown(f"[Open Artwork]({ARTWORK_GENERATOR_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
     _, row_three_left, row_three_right, _ = st.columns([3.6, 2, 2, 3.6], gap="small")
@@ -2738,9 +2748,9 @@ def render_welcome_splash() -> None:
             unsafe_allow_html=True,
         )
         if hasattr(st, "link_button"):
-            st.link_button("Open PDGA Event Contact Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
+            st.link_button("Open PDGA Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
         else:
-            st.markdown(f"[Open PDGA Event Contact Scraper]({PDGA_CONTACT_SCRAPER_URL})")
+            st.markdown(f"[Open PDGA Scraper]({PDGA_CONTACT_SCRAPER_URL})")
 
     with row_three_right:
         st.markdown("", unsafe_allow_html=True)
