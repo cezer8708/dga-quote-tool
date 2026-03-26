@@ -2473,45 +2473,41 @@ def render_welcome_splash() -> None:
         <style>
             .welcome-shell {
                 padding: 4px 0 4px;
-                max-width: 1100px;
+                max-width: 900px;
                 margin: 0 auto;
             }
             .welcome-hero {
                 text-align: center;
-                margin-bottom: 0.9rem;
-            }
-            .welcome-hero img {
-                display: block;
-                margin: 0 auto 0.75rem;
+                margin-bottom: 0.8rem;
             }
             .welcome-brand {
                 text-align: center;
             }
             .welcome-brand h1 {
                 margin: 0 0 5px;
-                font-size: 1.9rem;
+                font-size: 1.85rem;
                 line-height: 1.02;
             }
             .welcome-brand p {
                 margin: 0 0 5px;
                 color: rgba(250, 250, 250, 0.76);
-                font-size: 0.9rem;
-                max-width: 520px;
+                font-size: 0.88rem;
+                max-width: 470px;
                 margin-left: auto;
                 margin-right: auto;
             }
             .welcome-signoff {
                 display: inline-block;
                 color: rgba(250, 250, 250, 0.64);
-                font-size: 0.82rem;
+                font-size: 0.8rem;
                 letter-spacing: 0.03em;
             }
             .welcome-card {
                 border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 18px;
-                padding: 14px 16px 10px;
+                border-radius: 16px;
+                padding: 13px 14px 10px;
                 background: rgba(255, 255, 255, 0.035);
-                min-height: 118px;
+                min-height: 110px;
             }
             .welcome-card-label {
                 display: inline-flex;
@@ -2523,21 +2519,25 @@ def render_welcome_splash() -> None:
                 text-transform: uppercase;
                 color: rgba(250, 250, 250, 0.72);
                 background: rgba(255, 255, 255, 0.06);
-                margin-bottom: 9px;
+                margin-bottom: 8px;
             }
             .welcome-card h3 {
-                margin: 0 0 5px;
-                font-size: 1.08rem;
+                margin: 0 0 4px;
+                font-size: 1rem;
             }
             .welcome-card p {
                 color: rgba(250, 250, 250, 0.74);
-                line-height: 1.38;
-                min-height: 44px;
+                line-height: 1.34;
+                min-height: 40px;
                 margin: 0;
-                font-size: 0.88rem;
+                font-size: 0.84rem;
             }
             .welcome-row {
                 margin-top: 8px;
+            }
+            .coming-soon-card {
+                opacity: 0.72;
+                border-style: dashed;
             }
         </style>
         """,
@@ -2547,7 +2547,9 @@ def render_welcome_splash() -> None:
     st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
     st.markdown('<div class="welcome-hero">', unsafe_allow_html=True)
     if APP_LOGO_PATH:
-        st.image(APP_LOGO_PATH, width=150)
+        _, logo_col, _ = st.columns([1.2, 1, 1.2])
+        with logo_col:
+            st.image(APP_LOGO_PATH, width=150)
     st.markdown(
         """
         <div class="welcome-brand">
@@ -2560,7 +2562,7 @@ def render_welcome_splash() -> None:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    _, row_one_left, row_one_right, _ = st.columns([1.35, 4, 4, 1.35], gap="medium")
+    _, row_one_left, row_one_right, _ = st.columns([2.2, 2.7, 2.7, 2.2], gap="medium")
 
     with row_one_left:
         st.markdown(
@@ -2594,7 +2596,7 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Orders / Warehouse Queue]({WAREHOUSE_QUEUE_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_two_left, row_two_right, _ = st.columns([1.35, 4, 4, 1.35], gap="medium")
+    _, row_two_left, row_two_right, _ = st.columns([2.2, 2.7, 2.7, 2.2], gap="medium")
 
     with row_two_left:
         st.markdown(
@@ -2629,9 +2631,9 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Artwork Preview Generator]({ARTWORK_GENERATOR_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_three_center, _ = st.columns([2.4, 5.2, 2.4], gap="medium")
+    _, row_three_left, row_three_right, _ = st.columns([2.2, 2.7, 2.7, 2.2], gap="medium")
 
-    with row_three_center:
+    with row_three_left:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2646,6 +2648,18 @@ def render_welcome_splash() -> None:
             st.link_button("Open PDGA Event Contact Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
         else:
             st.markdown(f"[Open PDGA Event Contact Scraper]({PDGA_CONTACT_SCRAPER_URL})")
+
+    with row_three_right:
+        st.markdown(
+            """
+            <div class="welcome-card coming-soon-card">
+                <span class="welcome-card-label">Next Up</span>
+                <h3>More Tools Coming</h3>
+                <p>This slot is ready for the next DGA operations app when you are.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     st.markdown("</div>", unsafe_allow_html=True)
 
 
