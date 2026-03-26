@@ -138,6 +138,7 @@ APP_LOGO_PATH = _get_app_logo_path()
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
+PDGA_CONTACT_SCRAPER_URL = get_env("PDGA_CONTACT_SCRAPER_URL", "https://dga-scraper-app.streamlit.app")
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
 
@@ -2593,6 +2594,27 @@ def render_welcome_splash() -> None:
             st.link_button("Open Artwork Preview Generator", ARTWORK_GENERATOR_URL, use_container_width=True)
         else:
             st.markdown(f"[Open Artwork Preview Generator]({ARTWORK_GENERATOR_URL})")
+
+    st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
+    scraper_col, spacer_col = st.columns([1, 1], gap="large")
+
+    with scraper_col:
+        st.markdown(
+            """
+            <div class="welcome-card">
+                <h3>PDGA Event Contact Scraper</h3>
+                <p>Pull tournament director contact details and export event contact lists for outreach, planning, and operations follow-up.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if hasattr(st, "link_button"):
+            st.link_button("Open PDGA Event Contact Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open PDGA Event Contact Scraper]({PDGA_CONTACT_SCRAPER_URL})")
+
+    with spacer_col:
+        st.markdown("", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
