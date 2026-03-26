@@ -2473,68 +2473,71 @@ def render_welcome_splash() -> None:
         <style>
             .welcome-shell {
                 padding: 4px 0 4px;
-                max-width: 1180px;
+                max-width: 1100px;
                 margin: 0 auto;
             }
             .welcome-hero {
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 24px;
-                padding: 16px 20px;
-                margin-bottom: 14px;
-                background:
-                    radial-gradient(circle at top right, rgba(54, 124, 255, 0.16), transparent 34%),
-                    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-                box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+                text-align: center;
+                margin-bottom: 0.9rem;
+            }
+            .welcome-hero img {
+                display: block;
+                margin: 0 auto 0.75rem;
+            }
+            .welcome-brand {
+                text-align: center;
             }
             .welcome-brand h1 {
-                margin: 0 0 6px;
+                margin: 0 0 5px;
                 font-size: 1.9rem;
                 line-height: 1.02;
             }
             .welcome-brand p {
-                margin: 0 0 6px;
+                margin: 0 0 5px;
                 color: rgba(250, 250, 250, 0.76);
-                font-size: 0.92rem;
-                max-width: 560px;
+                font-size: 0.9rem;
+                max-width: 520px;
+                margin-left: auto;
+                margin-right: auto;
             }
             .welcome-signoff {
                 display: inline-block;
                 color: rgba(250, 250, 250, 0.64);
-                font-size: 0.84rem;
+                font-size: 0.82rem;
                 letter-spacing: 0.03em;
             }
             .welcome-card {
                 border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 20px;
-                padding: 16px 18px 12px;
+                border-radius: 18px;
+                padding: 14px 16px 10px;
                 background: rgba(255, 255, 255, 0.035);
-                min-height: 132px;
+                min-height: 118px;
             }
             .welcome-card-label {
                 display: inline-flex;
                 align-items: center;
-                padding: 3px 9px;
+                padding: 3px 8px;
                 border-radius: 999px;
-                font-size: 0.7rem;
+                font-size: 0.66rem;
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
                 color: rgba(250, 250, 250, 0.72);
                 background: rgba(255, 255, 255, 0.06);
-                margin-bottom: 10px;
+                margin-bottom: 9px;
             }
             .welcome-card h3 {
-                margin: 0 0 6px;
-                font-size: 1.16rem;
+                margin: 0 0 5px;
+                font-size: 1.08rem;
             }
             .welcome-card p {
                 color: rgba(250, 250, 250, 0.74);
-                line-height: 1.45;
-                min-height: 52px;
+                line-height: 1.38;
+                min-height: 44px;
                 margin: 0;
-                font-size: 0.92rem;
+                font-size: 0.88rem;
             }
             .welcome-row {
-                margin-top: 10px;
+                margin-top: 8px;
             }
         </style>
         """,
@@ -2543,26 +2546,23 @@ def render_welcome_splash() -> None:
 
     st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
     st.markdown('<div class="welcome-hero">', unsafe_allow_html=True)
-    logo_col, brand_col = st.columns([0.72, 2.4], gap="medium")
-    with logo_col:
-        if APP_LOGO_PATH:
-            st.image(APP_LOGO_PATH, width=150)
-    with brand_col:
-        st.markdown(
-            """
-            <div class="welcome-brand">
-                <h1>DGA Operations Hub</h1>
-                <p>Your launch point for quoting, order processing, warehouse flow, artwork review, and event outreach.</p>
-                <span class="welcome-signoff">Designed by CZ</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    if APP_LOGO_PATH:
+        st.image(APP_LOGO_PATH, width=150)
+    st.markdown(
+        """
+        <div class="welcome-brand">
+            <h1>DGA Operations Hub</h1>
+            <p>Your launch point for quoting, order processing, warehouse flow, artwork review, and event outreach.</p>
+            <span class="welcome-signoff">Designed by CZ</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    row_one = st.columns(2, gap="medium")
+    _, row_one_left, row_one_right, _ = st.columns([1.35, 4, 4, 1.35], gap="medium")
 
-    with row_one[0]:
+    with row_one_left:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2577,7 +2577,7 @@ def render_welcome_splash() -> None:
             st.session_state["app_view"] = "quote"
             st.rerun()
 
-    with row_one[1]:
+    with row_one_right:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2594,9 +2594,9 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Orders / Warehouse Queue]({WAREHOUSE_QUEUE_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    row_two = st.columns(2, gap="medium")
+    _, row_two_left, row_two_right, _ = st.columns([1.35, 4, 4, 1.35], gap="medium")
 
-    with row_two[0]:
+    with row_two_left:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2612,7 +2612,7 @@ def render_welcome_splash() -> None:
         else:
             st.markdown(f"[Open Custom Disc Ordering]({CUSTOM_DISC_ORDERING_URL})")
 
-    with row_two[1]:
+    with row_two_right:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2629,9 +2629,9 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Artwork Preview Generator]({ARTWORK_GENERATOR_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    row_three = st.columns(2, gap="medium")
+    _, row_three_center, _ = st.columns([2.4, 5.2, 2.4], gap="medium")
 
-    with row_three[0]:
+    with row_three_center:
         st.markdown(
             """
             <div class="welcome-card">
@@ -2646,10 +2646,6 @@ def render_welcome_splash() -> None:
             st.link_button("Open PDGA Event Contact Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
         else:
             st.markdown(f"[Open PDGA Event Contact Scraper]({PDGA_CONTACT_SCRAPER_URL})")
-
-    with row_three[1]:
-        st.markdown("", unsafe_allow_html=True)
-
     st.markdown("</div>", unsafe_allow_html=True)
 
 
