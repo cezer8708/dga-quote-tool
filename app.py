@@ -2479,11 +2479,73 @@ def render_welcome_splash() -> None:
             f'<img src="data:image/png;base64,{encoded_logo}" alt="DGA logo" class="welcome-logo" />'
             "</div>"
         )
+    left_border_markup = ""
+    right_border_markup = ""
+    left_border_path = "assets/hub-border-right.jpeg"
+    right_border_path = "assets/hub-border-left.jpeg"
+    if os.path.exists(left_border_path):
+        with open(left_border_path, "rb") as left_file:
+            encoded_left = base64.b64encode(left_file.read()).decode("ascii")
+        left_border_markup = (
+            '<div class="welcome-side-art welcome-side-art-left">'
+            f'<img src="data:image/jpeg;base64,{encoded_left}" alt="Disc golf basket" />'
+            "</div>"
+        )
+    if os.path.exists(right_border_path):
+        with open(right_border_path, "rb") as right_file:
+            encoded_right = base64.b64encode(right_file.read()).decode("ascii")
+        right_border_markup = (
+            '<div class="welcome-side-art welcome-side-art-right">'
+            f'<img src="data:image/jpeg;base64,{encoded_right}" alt="Disc golf basket" />'
+            "</div>"
+        )
 
     st.markdown(
         """
         <style>
+            .welcome-stage {
+                position: relative;
+                overflow: hidden;
+            }
+            .welcome-side-art {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                width: min(22vw, 300px);
+                z-index: 0;
+                overflow: hidden;
+                pointer-events: none;
+                opacity: 0.92;
+                filter: grayscale(0.01) saturate(1.02) brightness(0.98) contrast(1.03);
+            }
+            .welcome-side-art img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                object-position: center;
+                display: block;
+            }
+            .welcome-side-art-left {
+                left: 0;
+                object-position: 18% center;
+                mask-image: linear-gradient(to right, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+                -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+            }
+            .welcome-side-art-right {
+                right: 0;
+                object-position: 42% center;
+                mask-image: linear-gradient(to left, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+                -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0.28), transparent);
+            }
+            .welcome-side-art-left img {
+                object-position: 18% center;
+            }
+            .welcome-side-art-right img {
+                object-position: 42% center;
+            }
             .welcome-shell {
+                position: relative;
+                z-index: 1;
                 padding: 4px 0 4px;
                 max-width: 760px;
                 margin: 0 auto;
@@ -2557,11 +2619,26 @@ def render_welcome_splash() -> None:
             .welcome-row {
                 margin-top: 7px;
             }
+            @media (max-width: 1100px) {
+                .welcome-side-art {
+                    width: min(19vw, 200px);
+                    opacity: 0.86;
+                }
+            }
+            @media (max-width: 860px) {
+                .welcome-side-art {
+                    display: none;
+                }
+            }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
+    st.markdown(
+        f'<div class="welcome-stage">{left_border_markup}{right_border_markup}',
+        unsafe_allow_html=True,
+    )
     st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
     st.markdown('<div class="welcome-hero">', unsafe_allow_html=True)
     if logo_markup:
@@ -2667,6 +2744,7 @@ def render_welcome_splash() -> None:
 
     with row_three_right:
         st.markdown("", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
