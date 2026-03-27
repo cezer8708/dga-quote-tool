@@ -2920,6 +2920,10 @@ def main_app():
         if st.button("Back to Home", use_container_width=True):
             st.session_state["app_view"] = "home"
             st.rerun()
+        if hasattr(st, "link_button"):
+            st.link_button("Submit IT Ticket", IT_TICKETS_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Submit IT Ticket]({IT_TICKETS_URL})")
 
     nav_col1, nav_col2, nav_col3 = st.columns([1.1, 1.1, 3.2])
     with nav_col1:
