@@ -2547,7 +2547,8 @@ def render_welcome_splash() -> None:
                 position: relative;
                 z-index: 1;
                 padding: 4px 0 4px;
-                max-width: 760px;
+                width: min(700px, calc(100vw - 4rem));
+                max-width: 700px;
                 margin: 0 auto;
             }
             .welcome-hero {
@@ -2589,9 +2590,9 @@ def render_welcome_splash() -> None:
             .welcome-card {
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 border-radius: 16px;
-                padding: 12px 13px 9px;
+                padding: 10px 11px 8px;
                 background: rgba(255, 255, 255, 0.035);
-                min-height: 152px;
+                min-height: 132px;
             }
             .welcome-card-label {
                 display: inline-flex;
@@ -2607,14 +2608,14 @@ def render_welcome_splash() -> None:
             }
             .welcome-card h3 {
                 margin: 0 0 4px;
-                font-size: 0.94rem;
+                font-size: 0.88rem;
             }
             .welcome-card p {
                 color: rgba(250, 250, 250, 0.74);
-                line-height: 1.32;
-                min-height: 82px;
+                line-height: 1.25;
+                min-height: 58px;
                 margin: 0;
-                font-size: 0.8rem;
+                font-size: 0.74rem;
             }
             .welcome-row {
                 margin-top: 7px;
@@ -2631,13 +2632,19 @@ def render_welcome_splash() -> None:
             }
             @media (max-width: 1100px) {
                 .welcome-side-art {
-                    width: min(19vw, 200px);
-                    opacity: 0.86;
+                    display: none;
                 }
             }
             @media (max-width: 860px) {
-                .welcome-side-art {
-                    display: none;
+                .welcome-shell {
+                    width: 100%;
+                    max-width: 100%;
+                }
+                .welcome-card {
+                    min-height: 0;
+                }
+                .welcome-card p {
+                    min-height: 0;
                 }
             }
         </style>
@@ -2665,7 +2672,7 @@ def render_welcome_splash() -> None:
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    _, row_one_left, row_one_right, _ = st.columns([3.6, 2, 2, 3.6], gap="small")
+    _, row_one_left, row_one_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
 
     with row_one_left:
         st.markdown(
@@ -2699,7 +2706,7 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Queue]({WAREHOUSE_QUEUE_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_two_left, row_two_right, _ = st.columns([3.6, 2, 2, 3.6], gap="small")
+    _, row_two_left, row_two_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
 
     with row_two_left:
         st.markdown(
@@ -2734,7 +2741,7 @@ def render_welcome_splash() -> None:
             st.markdown(f"[Open Artwork]({ARTWORK_GENERATOR_URL})")
 
     st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_three_left, row_three_right, _ = st.columns([3.6, 2, 2, 3.6], gap="small")
+    _, row_three_left, row_three_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
 
     with row_three_left:
         st.markdown(
