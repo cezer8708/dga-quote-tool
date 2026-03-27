@@ -548,14 +548,12 @@ def format_saved_quote_match(row: pd.Series) -> str:
     company = customer.get("company", "") or customer.get("bill_company", "")
     name = customer.get("name", "") or customer.get("bill_name", "")
     email = customer.get("email", "") or customer.get("bill_email", "")
-    record_type = str(row.get("Record Type", "") or "").strip().lower()
 
     details = " | ".join(part for part in [company, name, email] if part)
-    label = "Order" if record_type == "order" else "Quote"
     if date_text and details:
-        return f"{label} {doc_number} | {date_text} | {details}"
+        return f"{doc_number} | {date_text} | {details}"
     if details:
-        return f"{label} {doc_number} | {details}"
+        return f"{doc_number} | {details}"
     return str(doc_number)
 
 
