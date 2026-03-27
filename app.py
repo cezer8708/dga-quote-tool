@@ -504,11 +504,15 @@ def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
 
 def _quote_customer_search_blob(payload: dict, row: pd.Series | None = None) -> str:
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
+    row_doc_no = row.get("Doc #", "") if row is not None else ""
+    row_quote_no = row.get("Quote #", "") if row is not None else ""
+    row_order_no = row.get("Order #", "") if row is not None else ""
+    row_source_quote_no = row.get("Source Quote #", "") if row is not None else ""
     parts = [
-        (row or {}).get("Doc #", "") if row is not None else "",
-        (row or {}).get("Quote #", "") if row is not None else "",
-        (row or {}).get("Order #", "") if row is not None else "",
-        (row or {}).get("Source Quote #", "") if row is not None else "",
+        row_doc_no,
+        row_quote_no,
+        row_order_no,
+        row_source_quote_no,
         customer.get("company", ""),
         customer.get("name", ""),
         customer.get("email", ""),
