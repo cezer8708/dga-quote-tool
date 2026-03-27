@@ -502,9 +502,13 @@ def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
         return False
 
 
-def _quote_customer_search_blob(payload: dict) -> str:
+def _quote_customer_search_blob(payload: dict, row: pd.Series | None = None) -> str:
     customer = payload.get("customer", {}) if isinstance(payload, dict) else {}
     parts = [
+        (row or {}).get("Doc #", "") if row is not None else "",
+        (row or {}).get("Quote #", "") if row is not None else "",
+        (row or {}).get("Order #", "") if row is not None else "",
+        (row or {}).get("Source Quote #", "") if row is not None else "",
         customer.get("company", ""),
         customer.get("name", ""),
         customer.get("email", ""),
@@ -523,7 +527,7 @@ def search_saved_quotes(df: pd.DataFrame, term: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     working_df = df.copy()
-    working_df["Search Blob"] = working_df["Payload"].apply(_quote_customer_search_blob)
+    working_df["Search Blob"] = working_df.apply(lambda row: _quote_customer_search_blob(row.get("Payload"), row), axis=1)
     matches = working_df[working_df["Search Blob"].str.contains(search_term, na=False)].copy()
 
     if "Date" in matches.columns:
@@ -2271,40 +2275,16 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
 
 
 def render_saved_quote_search_ui(all_quotes_df: pd.DataFrame):
-    exact_doc_options = sorted(
-        all_quotes_df["Doc #"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().unique().tolist(),
-        reverse=True,
-    )
-
-    doc_col1, doc_col2 = st.columns([2.2, 1.0], gap="medium")
-    with doc_col1:
-        selected_doc_no = st.selectbox(
-            "Find exact Doc #",
-            [""] + exact_doc_options,
-            key="saved_quote_exact_doc_select",
-        )
-    with doc_col2:
-        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("Load Doc #", use_container_width=True, key="btn_load_saved_doc_exact"):
-            if not selected_doc_no:
-                st.warning("Choose a Doc # to load.")
-            else:
-                load_saved_document(all_quotes_df, selected_doc_no)
-                st.success(f"Loaded document **{selected_doc_no}** from saved docs.")
-                st.rerun()
-
-    st.caption("Use exact Doc # for direct retrieval, or search below by person, company, or email.")
-
     st.text_input(
         "Search saved quotes",
         key="person_quote_search",
-        placeholder="e.g. Cesar Zermeno, discgolf.com, cesar@discgolf.com",
+        placeholder="e.g. 0107, Cesar Zermeno, discgolf.com, cesar@discgolf.com",
     )
 
     person_matches_df = search_saved_quotes(all_quotes_df, st.session_state.get("person_quote_search", ""))
     if st.session_state.get("person_quote_search", "").strip():
         if person_matches_df.empty:
-            st.info("No saved quotes matched that person/company/email search.")
+            st.info("No saved quotes matched that Doc # / person / company / email search.")
         else:
             match_labels = [format_saved_quote_match(row) for _, row in person_matches_df.iterrows()]
             default_match_index = 0
