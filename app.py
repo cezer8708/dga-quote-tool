@@ -2271,6 +2271,30 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
 
 
 def render_saved_quote_search_ui(all_quotes_df: pd.DataFrame):
+    exact_doc_options = sorted(
+        all_quotes_df["Doc #"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().unique().tolist(),
+        reverse=True,
+    )
+
+    doc_col1, doc_col2 = st.columns([2.2, 1.0], gap="medium")
+    with doc_col1:
+        selected_doc_no = st.selectbox(
+            "Find exact Doc #",
+            [""] + exact_doc_options,
+            key="saved_quote_exact_doc_select",
+        )
+    with doc_col2:
+        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+        if st.button("Load Doc #", use_container_width=True, key="btn_load_saved_doc_exact"):
+            if not selected_doc_no:
+                st.warning("Choose a Doc # to load.")
+            else:
+                load_saved_document(all_quotes_df, selected_doc_no)
+                st.success(f"Loaded document **{selected_doc_no}** from saved docs.")
+                st.rerun()
+
+    st.caption("Use exact Doc # for direct retrieval, or search below by person, company, or email.")
+
     st.text_input(
         "Search saved quotes",
         key="person_quote_search",
@@ -2299,10 +2323,9 @@ def render_saved_quote_search_ui(all_quotes_df: pd.DataFrame):
             if st.button("Load Matching Quote", key="btn_load_person_quote_match"):
                 selected_index = match_labels.index(selected_match_label)
                 selected_row = person_matches_df.iloc[selected_index]
-                selected_quote_no = selected_row["Quote #"]
-                payload = selected_row["Payload"]
-                load_quote_payload_into_session(payload, selected_quote_no)
-                st.success(f"Loaded document **{selected_quote_no}** from saved quote search.")
+                selected_doc_no = str(selected_row.get("Doc #", "") or selected_row.get("Quote #", ""))
+                load_saved_document(all_quotes_df, selected_doc_no)
+                st.success(f"Loaded document **{selected_doc_no}** from saved quote search.")
                 st.rerun()
 
 
@@ -2978,7 +3001,7 @@ def main_app():
     if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
         st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
 
-    lookup_col1, lookup_col2, lookup_col3, lookup_col4, lookup_col5 = st.columns([1.0, 1.45, 0.8, 0.8, 0.8])
+    lookup_col1, lookup_col2, lookup_col3 = st.columns([1.2, 0.9, 0.9])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
     with lookup_col1:
@@ -2986,53 +3009,11 @@ def main_app():
         st.info(st.session_state["quote_no"])
 
     with lookup_col2:
-        quote_options = ["(New Quote)"]
-        if "Doc #" in all_quotes_df.columns:
-            quote_options.extend(all_quotes_df["Doc #"].dropna().astype(str).tolist())
-        elif "Quote #" in all_quotes_df.columns:
-            quote_options.extend(all_quotes_df["Quote #"].dropna().astype(str).tolist())
-
-        quote_options = list(dict.fromkeys(quote_options))
-
-        current_quote_no = st.session_state["quote_no"]
-        if current_quote_no not in quote_options:
-            quote_options.append(current_quote_no)
-
-        try:
-            default_index = quote_options.index(current_quote_no)
-        except ValueError:
-            default_index = 0
-
-        selected_quote_no = st.selectbox(
-            "Select or Search for Doc #",
-            quote_options,
-            index=default_index,
-            key="quote_select_box"
-        )
-
-    with lookup_col3:
-        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("Retrieve", use_container_width=True, key="btn_retrieve_quote"):
-            if selected_quote_no != "(New Quote)":
-                try:
-                    load_saved_document(all_quotes_df, selected_quote_no)
-
-                    st.success(f"Loaded document **{selected_quote_no}** from Google Sheets.")
-                    st.rerun()
-
-                except IndexError:
-                    st.error(f"Quote {selected_quote_no} not found in the loaded data.")
-                except Exception as e:
-                    st.error(f"Couldn't load document {selected_quote_no} from Google Sheets: {e}")
-            else:
-                st.warning("Please select a document to retrieve or click 'New Quote'.")
-
-    with lookup_col4:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
         if st.button("New Quote", use_container_width=True, type="secondary"):
             start_new_quote()
 
-    with lookup_col5:
+    with lookup_col3:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
         if st.button("New Version", use_container_width=True, type="primary",
                      help="Create a new version number based on the current quote."):
