@@ -69,6 +69,19 @@ DEFAULT_FOOTER_NOTES = (
 )
 DEFAULT_TAX = float(get_env("SALES_TAX_RATE_DEFAULT", 0.0, float))
 SANTA_CRUZ_TAX_RATE = 0.0975
+US_STATE_ABBREVIATIONS = {
+    "alabama": "AL", "alaska": "AK", "arizona": "AZ", "arkansas": "AR", "california": "CA",
+    "colorado": "CO", "connecticut": "CT", "delaware": "DE", "florida": "FL", "georgia": "GA",
+    "hawaii": "HI", "idaho": "ID", "illinois": "IL", "indiana": "IN", "iowa": "IA",
+    "kansas": "KS", "kentucky": "KY", "louisiana": "LA", "maine": "ME", "maryland": "MD",
+    "massachusetts": "MA", "michigan": "MI", "minnesota": "MN", "mississippi": "MS", "missouri": "MO",
+    "montana": "MT", "nebraska": "NE", "nevada": "NV", "new hampshire": "NH", "new jersey": "NJ",
+    "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", "ohio": "OH",
+    "oklahoma": "OK", "oregon": "OR", "pennsylvania": "PA", "rhode island": "RI", "south carolina": "SC",
+    "south dakota": "SD", "tennessee": "TN", "texas": "TX", "utah": "UT", "vermont": "VT",
+    "virginia": "VA", "washington": "WA", "west virginia": "WV", "wisconsin": "WI", "wyoming": "WY",
+    "district of columbia": "DC",
+}
 
 PIPEDRIVE_DOMAIN = get_env("PIPEDRIVE_API_URL")
 PIPEDRIVE_API_TOKEN = get_env("PIPEDRIVE_API_TOKEN")
@@ -883,6 +896,25 @@ def _extract_address_from_html(raw_input: Any) -> str:
     if raw_input is None:
         return ""
 
+    if isinstance(raw_input, dict):
+        for key in ["formatted_address", "value", "label", "address"]:
+            extracted = _extract_address_from_html(raw_input.get(key))
+            if extracted:
+                return extracted
+        for key, value in raw_input.items():
+            if "address" in str(key).lower():
+                extracted = _extract_address_from_html(value)
+                if extracted:
+                    return extracted
+        return ""
+
+    if isinstance(raw_input, list):
+        for item in raw_input:
+            extracted = _extract_address_from_html(item)
+            if extracted:
+                return extracted
+        return ""
+
     html_string = _clean(raw_input)
 
     if html_string.startswith("{") and html_string.endswith("}"):
@@ -899,6 +931,31 @@ def _extract_address_from_html(raw_input: Any) -> str:
         return _clean(clean_addr)
 
     return html_string
+
+
+def _extract_address_from_entity(entity: dict | None) -> str:
+    if not isinstance(entity, dict):
+        return ""
+
+    direct_keys = [
+        "address_formatted_address",
+        "address",
+        "postal_address_formatted_address",
+        "postal_address",
+    ]
+    for key in direct_keys:
+        extracted = _extract_address_from_html(entity.get(key))
+        if extracted:
+            return extracted
+
+    for key, value in entity.items():
+        key_lower = str(key).lower()
+        if "formatted_address" in key_lower or key_lower.endswith("_address"):
+            extracted = _extract_address_from_html(value)
+            if extracted:
+                return extracted
+
+    return ""
 
 
 def _get_address_from_components(entity: dict, addr_type: str) -> str:
@@ -964,7 +1021,7 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
         city = parts[1]
 
     if len(parts) >= 3:
-        state_zip_part = parts[2].upper()
+        state_zip_part = " ".join(parts[2:]).upper()
         sz_parts = [p.strip() for p in state_zip_part.split() if p.strip()]
 
         for part in sz_parts:
@@ -976,10 +1033,25 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
             if state and zip_code:
                 break
 
+        if not zip_code:
+            zip_match = re.search(r"\b\d{5}(?:-\d{4})?\b", state_zip_part)
+            if zip_match:
+                zip_code = zip_match.group(0)
+
+        if not state:
+            state_zip_lower = " ".join(parts[2:]).lower()
+            for state_name, state_abbrev in US_STATE_ABBREVIATIONS.items():
+                if state_name in state_zip_lower:
+                    state = state_abbrev
+                    break
+
         if not state and len(state_zip_part) == 2 and state_zip_part.isalpha():
             state = state_zip_part
         if not zip_code and len(state_zip_part) >= 5 and state_zip_part.isdigit():
             zip_code = state_zip_part
+
+    if full_addr and not any([street, city, state, zip_code]):
+        return full_addr, "", "", ""
 
     return _clean(street), _clean(city), _clean(state), _clean(zip_code)
 
@@ -1001,11 +1073,8 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
         bill_email = org_email or bill_email
         bill_phone = org_phone or bill_phone
 
-    p_addr_formatted = _clean(person.get("address_formatted_address") or person.get("address"))
-    o_addr_formatted = _clean((org or {}).get("address_formatted_address") or (org or {}).get("address"))
-
-    p_addr_full = _extract_address_from_html(p_addr_formatted)
-    o_addr_full = _extract_address_from_html(o_addr_formatted)
+    p_addr_full = _extract_address_from_entity(person)
+    o_addr_full = _extract_address_from_entity(org or {})
 
     if not p_addr_full:
         p_addr_full = _get_address_from_components(person, "address")
