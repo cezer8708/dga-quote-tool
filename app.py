@@ -155,6 +155,7 @@ CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-cust
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
 PDGA_CONTACT_SCRAPER_URL = get_env("PDGA_CONTACT_SCRAPER_URL", "https://dga-scraper-app.streamlit.app")
 IT_TICKETS_URL = get_env("IT_TICKETS_URL", "https://it-tickets-jigv.onrender.com")
+QUOTE_TOOL_IT_TICKETS_URL = f"{IT_TICKETS_URL}?hub_area=Quote%20Tool"
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
 
@@ -2990,9 +2991,9 @@ def main_app():
             st.session_state["app_view"] = "home"
             st.rerun()
         if hasattr(st, "link_button"):
-            st.link_button("Submit IT Ticket", IT_TICKETS_URL, use_container_width=True)
+            st.link_button("Submit IT Ticket", QUOTE_TOOL_IT_TICKETS_URL, use_container_width=True)
         else:
-            st.markdown(f"[Submit IT Ticket]({IT_TICKETS_URL})")
+            st.markdown(f"[Submit IT Ticket]({QUOTE_TOOL_IT_TICKETS_URL})")
 
     nav_col1, nav_col2, nav_col3 = st.columns([1.1, 1.1, 3.2])
     with nav_col1:
