@@ -3277,7 +3277,7 @@ def main_app():
         st.checkbox("Business Address", key=_freight_note_key("Business Address"))
         st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
     with fn2:
-        st.checkbox("Lift Gate Need", key=_freight_note_key("Lift Gate Need"))
+        st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
         st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
     with fn3:
         st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
