@@ -83,7 +83,7 @@ GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
 FREIGHT_NOTE_OPTIONS = [
     "Business Address",
     "Residential Address",
-    "Lift Gate Need",
+    "Lift Gate Needed",
     "Fork Lift Access",
     "Loading Dock Access",
     "Local Pickup",
