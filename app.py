@@ -647,8 +647,15 @@ def load_warehouse_status_snapshot() -> dict:
         return {"queue_by_order": {}, "applied_orders": set(), "error": str(exc)}
 
 
+def _products_cache_signature(path: str = "products.csv") -> float | None:
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
 @st.cache_data
-def load_products(path: str = "products.csv") -> pd.DataFrame:
+def load_products(path: str = "products.csv", file_signature: float | None = None) -> pd.DataFrame:
     try:
         df = pd.read_csv(path)
         df.columns = [c.strip() for c in df.columns]
@@ -682,7 +689,7 @@ def load_products(path: str = "products.csv") -> pd.DataFrame:
         })
 
 
-PRODUCTS = load_products()
+PRODUCTS = load_products(file_signature=_products_cache_signature())
 
 
 def get_pacific_now():
