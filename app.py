@@ -3104,11 +3104,13 @@ def main_app():
                 position: relative !important;
                 z-index: 3 !important;
                 isolation: isolate !important;
-                background: rgba(15, 24, 38, 0.88) !important;
+                background: rgba(15, 24, 38, 0.46) !important;
                 border: 1px solid rgba(255, 255, 255, 0.12) !important;
                 border-radius: 16px !important;
                 overflow: hidden !important;
                 background-clip: padding-box !important;
+                backdrop-filter: blur(6px) !important;
+                -webkit-backdrop-filter: blur(6px) !important;
             }
 
             .st-key-lookup_tools_panel,
@@ -3117,9 +3119,11 @@ def main_app():
             .st-key-fees_tax_totals_panel,
             .st-key-generate_pdf_panel,
             [class*="st-key-line_item_panel_"] {
-                background: rgba(15, 24, 38, 0.88) !important;
+                background: rgba(15, 24, 38, 0.46) !important;
                 background-image: none !important;
-                box-shadow: inset 0 0 0 9999px rgba(15, 24, 38, 0.88) !important;
+                box-shadow: inset 0 0 0 9999px rgba(15, 24, 38, 0.46) !important;
+                backdrop-filter: blur(6px) !important;
+                -webkit-backdrop-filter: blur(6px) !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel) > div,
@@ -3146,7 +3150,7 @@ def main_app():
             .st-key-generate_pdf_panel *,
             [class*="st-key-line_item_panel_"],
             [class*="st-key-line_item_panel_"] * {
-                background-color: rgba(15, 24, 38, 0.88) !important;
+                background-color: transparent !important;
                 background-image: none !important;
             }
 
@@ -3352,9 +3356,8 @@ def main_app():
 
     c = st.session_state["customer"]
 
-    st.subheader("Customer Information")
-
     with st.container(border=True, key="customer_information_panel"):
+        st.subheader("Customer Information")
         cols_addr = st.columns(2)
 
         with cols_addr[0]:
