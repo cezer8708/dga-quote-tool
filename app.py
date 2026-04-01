@@ -3564,7 +3564,7 @@ def main_app():
         st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
     with st.container(border=True, key="fees_tax_totals_panel"):
-        st.subheader("Fees, Tax & Totals")
+        st.subheader("Fees, Tax, and Totals")
         cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
         with cc1:
             drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
