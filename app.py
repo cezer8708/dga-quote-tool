@@ -3554,12 +3554,18 @@ def main_app():
                 st.markdown("**Total**")
                 st.write(f"**{fmt_money(row['total'])}**")
 
-                notes_key = f"Notes_input_{row['id']}"
-                if notes_key not in st.session_state:
-                    st.session_state[notes_key] = row.get("Notes", "")
+            notes_key = f"Notes_input_{row['id']}"
+            if notes_key not in st.session_state:
+                st.session_state[notes_key] = row.get("Notes", "")
 
-                st.text_area("Notes (optional)", key=notes_key, height=30, on_change=handle_line_item_notes_change, args=(row["id"],))
-                row["Notes"] = st.session_state[notes_key]
+            st.text_area(
+                "Notes (optional)",
+                key=notes_key,
+                height=68,
+                on_change=handle_line_item_notes_change,
+                args=(row["id"],),
+            )
+            row["Notes"] = st.session_state[notes_key]
 
         st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
