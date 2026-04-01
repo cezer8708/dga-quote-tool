@@ -13,7 +13,6 @@ from typing import Any
 import pytz
 import html.parser
 import base64
-from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -3094,14 +3093,12 @@ def main_app():
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel),
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-line_items_panel),
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel),
-            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel),
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel),
             div[data-testid="stVerticalBlockBorderWrapper"]:has([class*="st-key-line_item_panel_"]),
             .st-key-lookup_tools_panel,
             .st-key-customer_information_panel,
             .st-key-line_items_panel,
             .st-key-fees_tax_totals_panel,
-            .st-key-quote_summary_panel,
             .st-key-generate_pdf_panel,
             [class*="st-key-line_item_panel_"] {
                 position: relative !important;
@@ -3118,7 +3115,6 @@ def main_app():
             .st-key-customer_information_panel,
             .st-key-line_items_panel,
             .st-key-fees_tax_totals_panel,
-            .st-key-quote_summary_panel,
             .st-key-generate_pdf_panel,
             [class*="st-key-line_item_panel_"] {
                 background: #0f1826 !important;
@@ -3134,8 +3130,6 @@ def main_app():
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-line_items_panel) *,
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel) > div,
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel) *,
-            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel) > div,
-            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel) *,
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel) > div,
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel) *,
             div[data-testid="stVerticalBlockBorderWrapper"]:has([class*="st-key-line_item_panel_"]) > div,
@@ -3148,8 +3142,6 @@ def main_app():
             .st-key-line_items_panel *,
             .st-key-fees_tax_totals_panel,
             .st-key-fees_tax_totals_panel *,
-            .st-key-quote_summary_panel,
-            .st-key-quote_summary_panel *,
             .st-key-generate_pdf_panel,
             .st-key-generate_pdf_panel *,
             [class*="st-key-line_item_panel_"],
@@ -3164,6 +3156,128 @@ def main_app():
                 line-height: 1.0;
                 height: 38px;
                 margin-top: 0px;
+                background: #18263c !important;
+                border: 1px solid rgba(210, 228, 255, 0.24) !important;
+                color: #f6f8fb !important;
+                box-shadow: none !important;
+            }
+
+            .stButton>button:hover {
+                background: #20314c !important;
+                border-color: rgba(210, 228, 255, 0.34) !important;
+            }
+
+            .stButton>button:focus {
+                border-color: rgba(147, 190, 255, 0.9) !important;
+                box-shadow: 0 0 0 1px rgba(147, 190, 255, 0.45) !important;
+            }
+
+            .stTextInput input,
+            .stTextArea textarea,
+            .stNumberInput input,
+            .stSelectbox [data-baseweb="select"] > div,
+            .stMultiSelect [data-baseweb="select"] > div {
+                background: #1c2b43 !important;
+                border: 1px solid rgba(210, 228, 255, 0.28) !important;
+                color: #f6f8fb !important;
+                box-shadow: none !important;
+            }
+
+            .stNumberInput [data-testid="stNumberInputStepUp"],
+            .stNumberInput [data-testid="stNumberInputStepDown"] {
+                background: #1c2b43 !important;
+                border-color: rgba(210, 228, 255, 0.28) !important;
+                color: #f6f8fb !important;
+            }
+
+            .stTextInput input::placeholder,
+            .stTextArea textarea::placeholder,
+            .stNumberInput input::placeholder {
+                color: rgba(246, 248, 251, 0.58) !important;
+            }
+
+            .stTextInput input:focus,
+            .stTextArea textarea:focus,
+            .stNumberInput input:focus,
+            .stSelectbox [data-baseweb="select"] > div:focus-within,
+            .stMultiSelect [data-baseweb="select"] > div:focus-within {
+                border-color: rgba(147, 190, 255, 0.9) !important;
+                box-shadow: 0 0 0 1px rgba(147, 190, 255, 0.45) !important;
+            }
+
+            div[data-testid="stExpander"] {
+                border: 1px solid rgba(160, 196, 255, 0.24) !important;
+                border-radius: 12px !important;
+                background: #162235 !important;
+                overflow: hidden !important;
+            }
+
+            div[data-testid="stExpander"] summary {
+                background: #b3262d !important;
+                color: #fff7f7 !important;
+                font-weight: 700 !important;
+            }
+
+            div[data-testid="stExpander"] summary > div,
+            div[data-testid="stExpander"] summary * {
+                background: transparent !important;
+                background-image: none !important;
+            }
+
+            div[data-testid="stExpander"] summary:hover {
+                background: #c7333a !important;
+            }
+
+            div[data-testid="stExpander"] details > div {
+                background: #142033 !important;
+                border-top: 1px solid rgba(160, 196, 255, 0.16) !important;
+            }
+
+            .st-key-generate_pdf_panel .stButton > button {
+                background: #b3262d !important;
+                border-color: rgba(255, 120, 120, 0.5) !important;
+                color: #fff7f7 !important;
+            }
+
+            .st-key-generate_pdf_panel .stButton > button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
+            }
+
+            .st-key-generate_pdf_panel .stButton > button:hover {
+                background: #c7333a !important;
+                border-color: rgba(255, 150, 150, 0.62) !important;
+            }
+
+            .st-key-generate_pdf_panel .stButton > button:focus {
+                border-color: rgba(255, 190, 190, 0.95) !important;
+                box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.4) !important;
+            }
+
+            .stDownloadButton > button {
+                background: #1f8a4c !important;
+                border: 1px solid rgba(134, 232, 171, 0.42) !important;
+                color: #f4fff7 !important;
+                box-shadow: none !important;
+            }
+
+            .stDownloadButton > button:hover {
+                background: #269d57 !important;
+                border-color: rgba(165, 244, 190, 0.55) !important;
+            }
+
+            .stDownloadButton > button:focus {
+                border-color: rgba(187, 247, 208, 0.95) !important;
+                box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.38) !important;
+            }
+
+            .stDownloadButton > button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
             }
 
             div[data-testid="stVerticalBlock"] div[data-testid="stHorizontalBlock"] > div:nth-child(2) label {
