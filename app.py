@@ -3209,6 +3209,44 @@ def main_app():
                 box-shadow: 0 0 0 1px rgba(147, 190, 255, 0.45) !important;
             }
 
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child {
+                width: 1.05rem !important;
+                height: 1.05rem !important;
+                border-radius: 0.28rem !important;
+                border: 1.5px solid rgba(210, 228, 255, 0.42) !important;
+                background: rgba(28, 43, 67, 0.7) !important;
+                box-shadow: none !important;
+                transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+            }
+
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:hover > div:first-child {
+                border-color: rgba(255, 173, 173, 0.82) !important;
+                background: rgba(41, 57, 86, 0.82) !important;
+            }
+
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:focus + div,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:focus-visible + div {
+                border-color: rgba(255, 176, 176, 0.95) !important;
+                box-shadow: 0 0 0 2px rgba(214, 59, 66, 0.28) !important;
+            }
+
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:checked + div {
+                background: #d63b42 !important;
+                border-color: #ff8d93 !important;
+                box-shadow: 0 0 0 1px rgba(255, 141, 147, 0.2) !important;
+            }
+
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:checked + div svg {
+                display: block !important;
+                width: 0.82rem !important;
+                height: 0.82rem !important;
+                fill: #ffffff !important;
+                stroke: #ffffff !important;
+                stroke-width: 2.4px !important;
+                opacity: 1 !important;
+                filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.4));
+            }
+
             div[data-testid="stExpander"] {
                 border: 1px solid rgba(160, 196, 255, 0.24) !important;
                 border-radius: 12px !important;
