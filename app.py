@@ -3,6 +3,7 @@ import io
 import uuid
 import json
 import copy
+import concurrent.futures
 import html
 from datetime import datetime
 import requests
@@ -150,7 +151,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 APP_LOGO_PATH = _get_app_logo_path()
 HUB_HEADER_LOGO_PATH = "assets/dga_logo_white.png" if os.path.exists("assets/dga_logo_white.png") else APP_LOGO_PATH
-QUOTE_PATENT_TILE_PATH = "assets/patent-tile.png"
+QUOTE_PATENT_TILE_PATH = "assets/ahhhh-whit.png"
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
@@ -351,14 +352,20 @@ def load_all_quotes() -> pd.DataFrame:
     if not client:
         return pd.DataFrame()
 
-    try:
+    def _fetch_quotes() -> pd.DataFrame:
         sh = client.open_by_key(GOOGLE_SHEET_ID)
         worksheet = sh.get_worksheet(0)
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
-
         return normalize_saved_quotes_df(df)
 
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_fetch_quotes)
+            return future.result(timeout=8)
+    except concurrent.futures.TimeoutError:
+        st.warning("Saved quotes are taking too long to load right now. The page will open without them.")
+        return pd.DataFrame()
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(f"Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and sharing.")
         return pd.DataFrame()
@@ -2623,11 +2630,11 @@ def render_welcome_splash() -> None:
                 right: min(22vw, 300px);
                 z-index: 0;
                 pointer-events: none;
-                opacity: 0.06;
+                opacity: 0.14;
                 background-image: url("__WELCOME_PATENT_URI__");
-                background-repeat: repeat;
-                background-position: left top;
-                background-size: 520px auto;
+                background-repeat: no-repeat;
+                background-position: center top;
+                background-size: cover;
             }
             .welcome-side-art img {
                 width: 100%;
@@ -2656,7 +2663,7 @@ def render_welcome_splash() -> None:
             }
             .welcome-shell {
                 position: relative;
-                z-index: 2;
+                z-index: 3;
                 padding: 4px 0 4px;
                 width: min(700px, calc(100vw - 4rem));
                 max-width: 700px;
@@ -2702,7 +2709,7 @@ def render_welcome_splash() -> None:
                 border: 1px solid rgba(255, 255, 255, 0.08);
                 border-radius: 16px;
                 padding: 10px 11px 8px;
-                background: rgba(255, 255, 255, 0.035);
+                background: rgba(17, 20, 26, 0.94);
                 min-height: 132px;
             }
             .welcome-card-label {
@@ -2714,7 +2721,7 @@ def render_welcome_splash() -> None:
                 letter-spacing: 0.05em;
                 text-transform: uppercase;
                 color: rgba(250, 250, 250, 0.72);
-                background: rgba(255, 255, 255, 0.06);
+                background: rgba(255, 255, 255, 0.08);
                 margin-bottom: 7px;
             }
             .welcome-card h3 {
@@ -3059,27 +3066,96 @@ def main_app():
         return
 
     combined_patent_uri = _asset_data_uri(QUOTE_PATENT_TILE_PATH, "image/png")
-    patent_markup = '<div class="quote-patent-bg"></div>' if combined_patent_uri else ""
+    patent_markup = ""
 
     quote_view_css = """
         <style>
-            .quote-patent-bg {
-                position: fixed;
-                inset: 0;
-                pointer-events: none;
-                z-index: 0;
-                opacity: 0.08;
-                background-color: transparent;
-                background-image: url("__PATENT_URI__");
-                background-repeat: repeat;
-                background-position: left top;
-                background-size: 520px auto;
-            }
-
             .stApp > header,
             .stApp [data-testid="stAppViewContainer"] {
                 position: relative;
                 z-index: 1;
+                background-color: #0d0f14;
+                background-image:
+                    linear-gradient(rgba(13, 15, 20, 0.86), rgba(13, 15, 20, 0.86)),
+                    url("__PATENT_URI__");
+                background-repeat: no-repeat;
+                background-position: center top;
+                background-size: cover;
+                background-attachment: fixed;
+            }
+
+            .main .block-container,
+            .stApp [data-testid="stSidebar"] {
+                position: relative;
+                z-index: 2;
+            }
+
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-line_items_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel),
+            div[data-testid="stVerticalBlockBorderWrapper"]:has([class*="st-key-line_item_panel_"]),
+            .st-key-lookup_tools_panel,
+            .st-key-customer_information_panel,
+            .st-key-line_items_panel,
+            .st-key-fees_tax_totals_panel,
+            .st-key-quote_summary_panel,
+            .st-key-generate_pdf_panel,
+            [class*="st-key-line_item_panel_"] {
+                position: relative !important;
+                z-index: 3 !important;
+                isolation: isolate !important;
+                background: #0f1826 !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                border-radius: 16px !important;
+                overflow: hidden !important;
+                background-clip: padding-box !important;
+            }
+
+            .st-key-lookup_tools_panel,
+            .st-key-customer_information_panel,
+            .st-key-line_items_panel,
+            .st-key-fees_tax_totals_panel,
+            .st-key-quote_summary_panel,
+            .st-key-generate_pdf_panel,
+            [class*="st-key-line_item_panel_"] {
+                background: #0f1826 !important;
+                background-image: none !important;
+                box-shadow: inset 0 0 0 9999px #0f1826 !important;
+            }
+
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel) *,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel) * ,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-line_items_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-line_items_panel) *,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-fees_tax_totals_panel) *,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-quote_summary_panel) *,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-generate_pdf_panel) *,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has([class*="st-key-line_item_panel_"]) > div,
+            div[data-testid="stVerticalBlockBorderWrapper"]:has([class*="st-key-line_item_panel_"]) *,
+            .st-key-lookup_tools_panel,
+            .st-key-lookup_tools_panel *,
+            .st-key-customer_information_panel,
+            .st-key-customer_information_panel *,
+            .st-key-line_items_panel,
+            .st-key-line_items_panel *,
+            .st-key-fees_tax_totals_panel,
+            .st-key-fees_tax_totals_panel *,
+            .st-key-quote_summary_panel,
+            .st-key-quote_summary_panel *,
+            .st-key-generate_pdf_panel,
+            .st-key-generate_pdf_panel *,
+            [class*="st-key-line_item_panel_"],
+            [class*="st-key-line_item_panel_"] * {
+                background-color: #0f1826 !important;
+                background-image: none !important;
             }
 
             .stButton>button {
@@ -3152,18 +3228,19 @@ def main_app():
                      help="Create a new version number based on the current quote."):
             assign_new_quote_version()
 
-    st.subheader("Lookup Tools")
-    lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
-    with lookup_tabs[0]:
-        render_saved_quote_search_ui(all_quotes_df)
-    with lookup_tabs[1]:
-        render_pipedrive_lookup_ui()
+    with st.container(border=True, key="lookup_tools_panel"):
+        st.subheader("Lookup Tools")
+        lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
+        with lookup_tabs[0]:
+            render_saved_quote_search_ui(all_quotes_df)
+        with lookup_tabs[1]:
+            render_pipedrive_lookup_ui()
 
     c = st.session_state["customer"]
 
     st.subheader("Customer Information")
 
-    with st.container(border=True):
+    with st.container(border=True, key="customer_information_panel"):
         cols_addr = st.columns(2)
 
         with cols_addr[0]:
@@ -3197,28 +3274,29 @@ def main_app():
 
     st.divider()
 
-    st.subheader("Line Items")
-    st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
+    with st.container(border=True, key="line_items_panel"):
+        st.subheader("Line Items")
+        st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
 
-    sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
-    sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
+        sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
+        sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
 
-    ensure_course_discount(st.session_state["line_items"])
-    ensure_course_discount_position(st.session_state["line_items"])
+        ensure_course_discount(st.session_state["line_items"])
+        ensure_course_discount_position(st.session_state["line_items"])
 
-    for i in range(len(st.session_state["line_items"])):
-        row = st.session_state["line_items"][i]
-        row.setdefault("exclude_from_10_discount", False)
-        is_course_discount = row.get("sku") == "CD"
-        is_preview_checked = row.get("previewChecked", True)
-        is_excluded_from_10 = row.get("exclude_from_10_discount", False)
+        for i in range(len(st.session_state["line_items"])):
+            row = st.session_state["line_items"][i]
+            row.setdefault("exclude_from_10_discount", False)
+            is_course_discount = row.get("sku") == "CD"
+            is_preview_checked = row.get("previewChecked", True)
+            is_excluded_from_10 = row.get("exclude_from_10_discount", False)
 
-        can_move_up = i > 0
-        can_move_down = i < len(st.session_state["line_items"]) - 1
+            can_move_up = i > 0
+            can_move_down = i < len(st.session_state["line_items"]) - 1
 
-        item_container = st.container(border=True)
-        with item_container:
-            header_col1, header_col2, header_col3, header_col4, header_col5, header_col6 = st.columns([0.8, 0.4, 0.4, 0.4, 1.1, 1.4])
+            item_container = st.container(border=True, key=f"line_item_panel_{row['id']}")
+            with item_container:
+                header_col1, header_col2, header_col3, header_col4, header_col5, header_col6 = st.columns([0.8, 0.4, 0.4, 0.4, 1.1, 1.4])
 
             with header_col1:
                 st.markdown(f"**Item {i + 1}**")
@@ -3359,71 +3437,73 @@ def main_app():
                 st.markdown("**Total**")
                 st.write(f"**{fmt_money(row['total'])}**")
 
-            notes_key = f"Notes_input_{row['id']}"
-            if notes_key not in st.session_state:
-                st.session_state[notes_key] = row.get("Notes", "")
+                notes_key = f"Notes_input_{row['id']}"
+                if notes_key not in st.session_state:
+                    st.session_state[notes_key] = row.get("Notes", "")
 
-            st.text_area("Notes (optional)", key=notes_key, height=30, on_change=handle_line_item_notes_change, args=(row["id"],))
-            row["Notes"] = st.session_state[notes_key]
+                st.text_area("Notes (optional)", key=notes_key, height=30, on_change=handle_line_item_notes_change, args=(row["id"],))
+                row["Notes"] = st.session_state[notes_key]
 
-    st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
+        st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
 
-    st.subheader("Fees, Tax & Totals")
-    cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
-    with cc1:
-        drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
-    with cc2:
-        freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
-    with cc3:
-        st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
-    with cc4:
-        st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
-    with cc5:
-        st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
-    with cc6:
-        st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
-    with cc7:
-        st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
-    with cc8:
-        st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
+    with st.container(border=True, key="fees_tax_totals_panel"):
+        st.subheader("Fees, Tax & Totals")
+        cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
+        with cc1:
+            drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
+        with cc2:
+            freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
+        with cc3:
+            st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
+        with cc4:
+            st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
+        with cc5:
+            st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
+        with cc6:
+            st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
+        with cc7:
+            st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
+        with cc8:
+            st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
 
-    if st.session_state["active_discount_type"] == "discount":
-        st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
+        if st.session_state["active_discount_type"] == "discount":
+            st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
 
-    if st.session_state["manager_pricing_checkbox"]:
-        if not st.session_state["manager_pricing_authorized"]:
-            mp1, mp2, mp3 = st.columns([1, 1, 0.8])
-            with mp1:
-                st.text_input("Manager Username", key="manager_username")
-            with mp2:
-                st.text_input("Manager Password", key="manager_password", type="password")
-            with mp3:
-                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                if st.button("Authorize Manager Pricing", key="btn_authorize_manager"):
-                    authorize_manager_pricing()
-        else:
-            st.success("Manager pricing authorized.")
+        if st.session_state["manager_pricing_checkbox"]:
+            if not st.session_state["manager_pricing_authorized"]:
+                mp1, mp2, mp3 = st.columns([1, 1, 0.8])
+                with mp1:
+                    st.text_input("Manager Username", key="manager_username")
+                with mp2:
+                    st.text_input("Manager Password", key="manager_password", type="password")
+                with mp3:
+                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                    if st.button("Authorize Manager Pricing", key="btn_authorize_manager"):
+                        authorize_manager_pricing()
+            else:
+                st.success("Manager pricing authorized.")
 
-    st.markdown("**Freight Notes**")
-    fn1, fn2, fn3, fn4 = st.columns(4)
-    with fn1:
-        st.checkbox("Business Address", key=_freight_note_key("Business Address"))
-        st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
-    with fn2:
-        st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
-        st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
-    with fn3:
-        st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
-        st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
-    with fn4:
-        st.checkbox("UPS", key=_freight_note_key("UPS"))
-        st.checkbox("Ground Freight", key=_freight_note_key("Ground Freight"))
+        st.markdown("**Freight Notes**")
+        fn1, fn2, fn3, fn4 = st.columns(4)
+        with fn1:
+            st.checkbox("Business Address", key=_freight_note_key("Business Address"))
+            st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
+        with fn2:
+            st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
+            st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
+        with fn3:
+            st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
+            st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
+        with fn4:
+            st.checkbox("UPS", key=_freight_note_key("UPS"))
+            st.checkbox("Ground Freight", key=_freight_note_key("Ground Freight"))
 
-    st.text_input(
-        "Other Freight Notes",
-        key="freight_notes_other",
-        placeholder="Optional extra freight details"
-    )
+        st.text_input(
+            "Other Freight Notes",
+            key="freight_notes_other",
+            placeholder="Optional extra freight details"
+        )
+        fees_summary_slot = st.container()
 
     st.session_state["freight_notes"] = get_selected_freight_notes()
 
@@ -3443,61 +3523,34 @@ def main_app():
     sales_tax = round(pre_tax * tax_rate, 2)
     grand_total = round(pre_tax + sales_tax, 2)
 
-    s1, s2, s3, s4, s5, s6 = st.columns(6)
-    with s1:
-        st.metric("Subtotal", f"${subtotal:,.2f}")
-    with s2:
-        if primary_discount_label and primary_discount_amount > 0:
-            st.metric(primary_discount_label, f"-${primary_discount_amount:,.2f}")
+    with fees_summary_slot:
+        s1, s2, s3, s4, s5, s6 = st.columns(6)
+        with s1:
+            st.metric("Subtotal", f"${subtotal:,.2f}")
+        with s2:
+            if primary_discount_label and primary_discount_amount > 0:
+                st.metric(primary_discount_label, f"-${primary_discount_amount:,.2f}")
+            else:
+                st.metric("Primary Discount", "$0.00")
+        with s3:
+            if manager_discount_amount > 0:
+                st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
+            else:
+                st.metric("Manager Pricing", "$0.00")
+        with s4:
+            st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
+        with s5:
+            st.metric("Freight", f"${freight:,.2f}")
+        with s6:
+            st.metric("Grand Total", f"${grand_total:,.2f}")
+
+        qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
+        if qual_qty >= 9:
+            st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
         else:
-            st.metric("Primary Discount", "$0.00")
-    with s3:
-        if manager_discount_amount > 0:
-            st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
-        else:
-            st.metric("Manager Pricing", "$0.00")
-    with s4:
-        st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
-    with s5:
-        st.metric("Freight", f"${freight:,.2f}")
-    with s6:
-        st.metric("Grand Total", f"${grand_total:,.2f}")
-
-    qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
-    if qual_qty >= 9:
-        st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
-    else:
-        st.info(
-            f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
-        )
-
-    st.divider()
-
-    st.subheader("Generate PDF Documents")
-
-    quote_no = st.session_state["quote_no"]
-    st.markdown(f"**Current Quote #:** `{quote_no}`")
-
-    st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
-
-    with st.expander("Order/PO Details (for Order PDF)", expanded=False):
-        if not st.session_state.get("order_doc_number_pdf"):
-            st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
-
-        order_col1, order_col2 = st.columns(2)
-        with order_col1:
-            st.text_input("Order/PO Document # (Used for Order PDF Header/File Name)", key="order_doc_number_pdf")
-            st.text_input("P.O. Number", key="order_po_number")
-            operator_options = ["CZ", "MP", "KG"]
-            current_operator = st.session_state.get("order_operator", "CZ")
-            if current_operator not in operator_options:
-                st.session_state["order_operator"] = "CZ"
-            st.selectbox("Operator", operator_options, key="order_operator")
-            st.text_input("Authorization Code", key="order_auth_code")
-        with order_col2:
-            st.text_input("Commission To", key="order_comm_to")
-            st.text_input("Check Number", key="order_check_number")
-            st.text_input("Date Received", key="order_date_received")
+            st.info(
+                f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
+            )
 
     payload = get_current_payload(
         subtotal,
@@ -3519,20 +3572,47 @@ def main_app():
             return True
         return bool(st.session_state.get("discount_note", "").strip())
 
-    pdf_col1, pdf_col2 = st.columns(2)
+    with st.container(border=True, key="generate_pdf_panel"):
+        st.subheader("Generate PDF Documents")
 
-    if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
-        if not discount_note_valid():
-            pdf_col1.error("Discount Reason is required when Discount is selected.")
-        else:
-            handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
+        quote_no = st.session_state["quote_no"]
+        st.markdown(f"**Current Quote #:** `{quote_no}`")
 
-    if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-        if not discount_note_valid():
-            pdf_col2.error("Discount Reason is required when Discount is selected.")
-        else:
-            order_doc_number = st.session_state["order_doc_number_pdf"]
-            handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
+        st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
+
+        with st.expander("Order/PO Details (for Order PDF)", expanded=False):
+            if not st.session_state.get("order_doc_number_pdf"):
+                st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+
+            order_col1, order_col2 = st.columns(2)
+            with order_col1:
+                st.text_input("Order/PO Document # (Used for Order PDF Header/File Name)", key="order_doc_number_pdf")
+                st.text_input("P.O. Number", key="order_po_number")
+                operator_options = ["CZ", "MP", "KG"]
+                current_operator = st.session_state.get("order_operator", "CZ")
+                if current_operator not in operator_options:
+                    st.session_state["order_operator"] = "CZ"
+                st.selectbox("Operator", operator_options, key="order_operator")
+                st.text_input("Authorization Code", key="order_auth_code")
+            with order_col2:
+                st.text_input("Commission To", key="order_comm_to")
+                st.text_input("Check Number", key="order_check_number")
+                st.text_input("Date Received", key="order_date_received")
+
+        pdf_col1, pdf_col2 = st.columns(2)
+
+        if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+            if not discount_note_valid():
+                pdf_col1.error("Discount Reason is required when Discount is selected.")
+            else:
+                handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
+
+        if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
+            if not discount_note_valid():
+                pdf_col2.error("Discount Reason is required when Discount is selected.")
+            else:
+                order_doc_number = st.session_state["order_doc_number_pdf"]
+                handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 if __name__ == "__main__":
