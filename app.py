@@ -150,6 +150,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 APP_LOGO_PATH = _get_app_logo_path()
 HUB_HEADER_LOGO_PATH = "assets/dga_logo_white.png" if os.path.exists("assets/dga_logo_white.png") else APP_LOGO_PATH
+QUOTE_PATENT_COMBINED_PATH = "assets/patent-combined-white.png"
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
@@ -161,6 +162,15 @@ WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstr
 
 def fmt_money(value: float) -> str:
     return f"${value:,.2f}"
+
+
+@st.cache_resource(ttl=None)
+def _asset_data_uri(path: str, mime_type: str) -> str:
+    if not path or not os.path.exists(path):
+        return ""
+    with open(path, "rb") as asset_file:
+        encoded = base64.b64encode(asset_file.read()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
 
 
 def _freight_note_key(label: str) -> str:
@@ -2554,6 +2564,7 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
 
 def render_welcome_splash() -> None:
     logo_markup = ""
+    welcome_patent_uri = _asset_data_uri(QUOTE_PATENT_COMBINED_PATH, "image/png")
     if HUB_HEADER_LOGO_PATH and os.path.exists(HUB_HEADER_LOGO_PATH):
         with open(HUB_HEADER_LOGO_PATH, "rb") as logo_file:
             encoded_logo = base64.b64encode(logo_file.read()).decode("ascii")
@@ -2562,6 +2573,9 @@ def render_welcome_splash() -> None:
             f'<img src="data:image/png;base64,{encoded_logo}" alt="DGA logo" class="welcome-logo" />'
             "</div>"
         )
+    welcome_patent_markup = ""
+    if welcome_patent_uri:
+        welcome_patent_markup = '<div class="welcome-patent-bg"></div>'
     left_border_markup = ""
     right_border_markup = ""
     left_border_path = "assets/hub-border-right.jpeg"
@@ -2595,11 +2609,25 @@ def render_welcome_splash() -> None:
                 top: 0;
                 bottom: 0;
                 width: min(22vw, 300px);
-                z-index: 0;
+                z-index: 1;
                 overflow: hidden;
                 pointer-events: none;
                 opacity: 0.92;
                 filter: grayscale(0.01) saturate(1.02) brightness(0.98) contrast(1.03);
+            }
+            .welcome-patent-bg {
+                position: fixed;
+                top: 0;
+                bottom: 0;
+                left: min(22vw, 300px);
+                right: min(22vw, 300px);
+                z-index: 0;
+                pointer-events: none;
+                opacity: 0.06;
+                background-image: url("__WELCOME_PATENT_URI__");
+                background-repeat: repeat;
+                background-position: left top;
+                background-size: 520px auto;
             }
             .welcome-side-art img {
                 width: 100%;
@@ -2628,7 +2656,7 @@ def render_welcome_splash() -> None:
             }
             .welcome-shell {
                 position: relative;
-                z-index: 1;
+                z-index: 2;
                 padding: 4px 0 4px;
                 width: min(700px, calc(100vw - 4rem));
                 max-width: 700px;
@@ -2717,6 +2745,10 @@ def render_welcome_splash() -> None:
                 .welcome-side-art {
                     display: none;
                 }
+                .welcome-patent-bg {
+                    left: 0;
+                    right: 0;
+                }
             }
             @media (max-width: 860px) {
                 .welcome-shell {
@@ -2731,12 +2763,12 @@ def render_welcome_splash() -> None:
                 }
             }
         </style>
-        """,
+        """.replace("__WELCOME_PATENT_URI__", welcome_patent_uri),
         unsafe_allow_html=True,
     )
 
     st.markdown(
-        f'<div class="welcome-stage">{left_border_markup}{right_border_markup}',
+        f'<div class="welcome-stage">{welcome_patent_markup}{left_border_markup}{right_border_markup}',
         unsafe_allow_html=True,
     )
     st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
@@ -3026,8 +3058,30 @@ def main_app():
         render_processed_orders_history(all_quotes_df)
         return
 
-    st.markdown("""
+    combined_patent_uri = _asset_data_uri(QUOTE_PATENT_COMBINED_PATH, "image/png")
+    patent_markup = '<div class="quote-patent-bg"></div>' if combined_patent_uri else ""
+
+    quote_view_css = """
         <style>
+            .quote-patent-bg {
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                z-index: 0;
+                opacity: 0.08;
+                background-color: transparent;
+                background-image: url("__PATENT_URI__");
+                background-repeat: repeat;
+                background-position: left top;
+                background-size: 520px auto;
+            }
+
+            .stApp > header,
+            .stApp [data-testid="stAppViewContainer"] {
+                position: relative;
+                z-index: 1;
+            }
+
             .stButton>button {
                 white-space: nowrap !important;
                 font-size: 14px;
@@ -3062,7 +3116,9 @@ def main_app():
                 border: 1px solid #ddd;
             }
         </style>
-    """, unsafe_allow_html=True)
+        __PATENT_MARKUP__
+    """.replace("__PATENT_MARKUP__", patent_markup).replace("__PATENT_URI__", combined_patent_uri)
+    st.markdown(quote_view_css, unsafe_allow_html=True)
 
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
