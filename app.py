@@ -150,7 +150,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 APP_LOGO_PATH = _get_app_logo_path()
 HUB_HEADER_LOGO_PATH = "assets/dga_logo_white.png" if os.path.exists("assets/dga_logo_white.png") else APP_LOGO_PATH
-QUOTE_PATENT_COMBINED_PATH = "assets/patent-combined-white.png"
+QUOTE_PATENT_TILE_PATH = "assets/patent-tile.png"
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
@@ -2564,7 +2564,7 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
 
 def render_welcome_splash() -> None:
     logo_markup = ""
-    welcome_patent_uri = _asset_data_uri(QUOTE_PATENT_COMBINED_PATH, "image/png")
+    welcome_patent_uri = _asset_data_uri(QUOTE_PATENT_TILE_PATH, "image/png")
     if HUB_HEADER_LOGO_PATH and os.path.exists(HUB_HEADER_LOGO_PATH):
         with open(HUB_HEADER_LOGO_PATH, "rb") as logo_file:
             encoded_logo = base64.b64encode(logo_file.read()).decode("ascii")
@@ -3058,7 +3058,7 @@ def main_app():
         render_processed_orders_history(all_quotes_df)
         return
 
-    combined_patent_uri = _asset_data_uri(QUOTE_PATENT_COMBINED_PATH, "image/png")
+    combined_patent_uri = _asset_data_uri(QUOTE_PATENT_TILE_PATH, "image/png")
     patent_markup = '<div class="quote-patent-bg"></div>' if combined_patent_uri else ""
 
     quote_view_css = """
