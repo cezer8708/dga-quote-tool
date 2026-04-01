@@ -2633,7 +2633,7 @@ def render_welcome_splash() -> None:
                 background-image: url("__WELCOME_PATENT_URI__");
                 background-repeat: no-repeat;
                 background-position: center top;
-                background-size: cover;
+                background-size: 145% auto;
             }
             .welcome-side-art img {
                 width: 100%;
