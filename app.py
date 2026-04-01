@@ -3104,7 +3104,7 @@ def main_app():
                 position: relative !important;
                 z-index: 3 !important;
                 isolation: isolate !important;
-                background: #0f1826 !important;
+                background: rgba(15, 24, 38, 0.88) !important;
                 border: 1px solid rgba(255, 255, 255, 0.12) !important;
                 border-radius: 16px !important;
                 overflow: hidden !important;
@@ -3117,9 +3117,9 @@ def main_app():
             .st-key-fees_tax_totals_panel,
             .st-key-generate_pdf_panel,
             [class*="st-key-line_item_panel_"] {
-                background: #0f1826 !important;
+                background: rgba(15, 24, 38, 0.88) !important;
                 background-image: none !important;
-                box-shadow: inset 0 0 0 9999px #0f1826 !important;
+                box-shadow: inset 0 0 0 9999px rgba(15, 24, 38, 0.88) !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel) > div,
@@ -3146,7 +3146,7 @@ def main_app():
             .st-key-generate_pdf_panel *,
             [class*="st-key-line_item_panel_"],
             [class*="st-key-line_item_panel_"] * {
-                background-color: #0f1826 !important;
+                background-color: rgba(15, 24, 38, 0.88) !important;
                 background-image: none !important;
             }
 
