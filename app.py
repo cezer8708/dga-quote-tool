@@ -13,6 +13,7 @@ from typing import Any
 import pytz
 import html.parser
 import base64
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -158,6 +159,7 @@ PDGA_CONTACT_SCRAPER_URL = get_env("PDGA_CONTACT_SCRAPER_URL", "https://dga-scra
 MACH_FAMILY_FORECASTING_URL = get_env("MACH_FAMILY_FORECASTING_URL", "https://mach-family-po-planner.streamlit.app")
 IT_TICKETS_URL = get_env("IT_TICKETS_URL", "https://it-tickets-jigv.onrender.com")
 QUOTE_TOOL_IT_TICKETS_URL = f"{IT_TICKETS_URL}?hub_area=Quote%20Tool"
+QUOTE_TOOL_URL = get_env("QUOTE_TOOL_URL", "https://dga-quote-tool-v5.streamlit.app/~/+/")
 OPERATIONS_HUB_URL = get_env("OPERATIONS_HUB_URL", "https://dga-operations.streamlit.app")
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
@@ -2670,6 +2672,12 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
 
     with actions_col:
         st.markdown("### Actions")
+        preview_url = f"{QUOTE_TOOL_URL}?{urlencode({'doc': str(selected_doc), 'preview': 'order', 'pdf_only': '1'})}"
+        if hasattr(st, "link_button"):
+            st.link_button("Open exact order preview", preview_url, use_container_width=True)
+        else:
+            st.markdown(f"[Open exact order preview]({preview_url})")
+
         st.download_button(
             "Download order",
             data=pdf_data,
