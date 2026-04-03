@@ -155,8 +155,10 @@ WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inve
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
 PDGA_CONTACT_SCRAPER_URL = get_env("PDGA_CONTACT_SCRAPER_URL", "https://dga-scraper-app.streamlit.app")
+MACH_FAMILY_FORECASTING_URL = get_env("MACH_FAMILY_FORECASTING_URL", "https://mach-family-po-planner.streamlit.app")
 IT_TICKETS_URL = get_env("IT_TICKETS_URL", "https://it-tickets-jigv.onrender.com")
 QUOTE_TOOL_IT_TICKETS_URL = f"{IT_TICKETS_URL}?hub_area=Quote%20Tool"
+OPERATIONS_HUB_URL = get_env("OPERATIONS_HUB_URL", "http://localhost:8502")
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
 
@@ -820,7 +822,6 @@ st.session_state.setdefault("show_pdf_preview_touched", False)
 st.session_state.setdefault("person_quote_search", "")
 st.session_state.setdefault("person_quote_match_label", "")
 st.session_state.setdefault("query_preview_loaded", "")
-st.session_state.setdefault("app_view", "home")
 st.session_state.setdefault("quote_workspace_view", "builder")
 st.session_state.setdefault("processed_order_search", "")
 st.session_state.setdefault("processed_order_selected", "")
@@ -2568,337 +2569,6 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
     return False
 
 
-def render_welcome_splash() -> None:
-    logo_markup = ""
-    welcome_patent_uri = _asset_data_uri(QUOTE_PATENT_TILE_PATH, "image/png")
-    if HUB_HEADER_LOGO_PATH and os.path.exists(HUB_HEADER_LOGO_PATH):
-        with open(HUB_HEADER_LOGO_PATH, "rb") as logo_file:
-            encoded_logo = base64.b64encode(logo_file.read()).decode("ascii")
-        logo_markup = (
-            '<div class="welcome-logo-wrap">'
-            f'<img src="data:image/png;base64,{encoded_logo}" alt="DGA logo" class="welcome-logo" />'
-            "</div>"
-        )
-    welcome_patent_markup = ""
-    if welcome_patent_uri:
-        welcome_patent_markup = '<div class="welcome-patent-bg"></div>'
-    left_border_markup = ""
-    right_border_markup = ""
-    left_border_path = "assets/hub-border-right.jpeg"
-    right_border_path = "assets/hub-border-left.jpeg"
-    if os.path.exists(left_border_path):
-        with open(left_border_path, "rb") as left_file:
-            encoded_left = base64.b64encode(left_file.read()).decode("ascii")
-        left_border_markup = (
-            '<div class="welcome-side-art welcome-side-art-left">'
-            f'<img src="data:image/jpeg;base64,{encoded_left}" alt="Disc golf basket" />'
-            "</div>"
-        )
-    if os.path.exists(right_border_path):
-        with open(right_border_path, "rb") as right_file:
-            encoded_right = base64.b64encode(right_file.read()).decode("ascii")
-        right_border_markup = (
-            '<div class="welcome-side-art welcome-side-art-right">'
-            f'<img src="data:image/jpeg;base64,{encoded_right}" alt="Disc golf basket" />'
-            "</div>"
-        )
-
-    st.markdown(
-        """
-        <style>
-            .welcome-stage {
-                position: relative;
-                overflow: hidden;
-            }
-            .welcome-side-art {
-                position: fixed;
-                top: 0;
-                bottom: 0;
-                width: min(22vw, 300px);
-                z-index: 1;
-                overflow: hidden;
-                pointer-events: none;
-                opacity: 0.92;
-                filter: grayscale(0.01) saturate(1.02) brightness(0.98) contrast(1.03);
-            }
-            .welcome-patent-bg {
-                position: fixed;
-                top: 0;
-                bottom: 0;
-                left: min(22vw, 300px);
-                right: min(22vw, 300px);
-                z-index: 0;
-                pointer-events: none;
-                opacity: 0.14;
-                background-image: url("__WELCOME_PATENT_URI__");
-                background-repeat: no-repeat;
-                background-position: center top;
-                background-size: 145% auto;
-            }
-            .welcome-side-art img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-                object-position: center;
-                display: block;
-            }
-            .welcome-side-art-left {
-                left: 0;
-                object-position: 18% center;
-                mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
-                -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
-            }
-            .welcome-side-art-right {
-                right: 0;
-                object-position: 42% center;
-                mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
-                -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 1) 42%, rgba(0, 0, 0, 0.82) 62%, rgba(0, 0, 0, 0.38) 82%, transparent 100%);
-            }
-            .welcome-side-art-left img {
-                object-position: 18% center;
-            }
-            .welcome-side-art-right img {
-                object-position: 42% center;
-            }
-            .welcome-shell {
-                position: relative;
-                z-index: 3;
-                padding: 4px 0 4px;
-                width: min(700px, calc(100vw - 4rem));
-                max-width: 700px;
-                margin: 0 auto;
-            }
-            .welcome-hero {
-                text-align: center;
-                margin-bottom: 0.75rem;
-            }
-            .welcome-logo-wrap {
-                display: flex;
-                justify-content: center;
-                margin-bottom: 0.75rem;
-            }
-            .welcome-logo {
-                display: block;
-                width: 150px;
-                height: auto;
-            }
-            .welcome-brand {
-                text-align: center;
-            }
-            .welcome-brand h1 {
-                margin: 0 0 5px;
-                font-size: 1.75rem;
-                line-height: 1.02;
-            }
-            .welcome-brand p {
-                margin: 0 0 5px;
-                color: rgba(250, 250, 250, 0.76);
-                font-size: 0.85rem;
-                max-width: 410px;
-                margin-left: auto;
-                margin-right: auto;
-            }
-            .welcome-signoff {
-                display: inline-block;
-                color: rgba(250, 250, 250, 0.64);
-                font-size: 0.78rem;
-                letter-spacing: 0.03em;
-            }
-            .welcome-card {
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 16px;
-                padding: 10px 11px 8px;
-                background: rgba(17, 20, 26, 0.94);
-                min-height: 132px;
-            }
-            .welcome-card-label {
-                display: inline-flex;
-                align-items: center;
-                padding: 2px 7px;
-                border-radius: 999px;
-                font-size: 0.62rem;
-                letter-spacing: 0.05em;
-                text-transform: uppercase;
-                color: rgba(250, 250, 250, 0.72);
-                background: rgba(255, 255, 255, 0.08);
-                margin-bottom: 7px;
-            }
-            .welcome-card h3 {
-                margin: 0 0 4px;
-                font-size: 0.88rem;
-            }
-            .welcome-card p {
-                color: rgba(250, 250, 250, 0.74);
-                line-height: 1.25;
-                min-height: 58px;
-                margin: 0;
-                font-size: 0.74rem;
-            }
-            .welcome-row {
-                margin-top: 7px;
-            }
-            .stButton > button,
-            [data-testid="stLinkButton"] a {
-                min-height: 2.3rem;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                font-size: 0.92rem;
-                padding-left: 0.8rem;
-                padding-right: 0.8rem;
-            }
-            @media (max-width: 1100px) {
-                .welcome-side-art {
-                    display: none;
-                }
-                .welcome-patent-bg {
-                    left: 0;
-                    right: 0;
-                }
-            }
-            @media (max-width: 860px) {
-                .welcome-shell {
-                    width: 100%;
-                    max-width: 100%;
-                }
-                .welcome-card {
-                    min-height: 0;
-                }
-                .welcome-card p {
-                    min-height: 0;
-                }
-            }
-        </style>
-        """.replace("__WELCOME_PATENT_URI__", welcome_patent_uri),
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        f'<div class="welcome-stage">{welcome_patent_markup}{left_border_markup}{right_border_markup}',
-        unsafe_allow_html=True,
-    )
-    st.markdown('<div class="welcome-shell">', unsafe_allow_html=True)
-    st.markdown('<div class="welcome-hero">', unsafe_allow_html=True)
-    if logo_markup:
-        st.markdown(logo_markup, unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div class="welcome-brand">
-            <h1>DGA Operations Hub</h1>
-            <p>Your launch point for quoting, order processing, warehouse flow, artwork review, and event outreach.</p>
-            <span class="welcome-signoff">Designed by CZ</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    _, row_one_left, row_one_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
-
-    with row_one_left:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Sales</span>
-                <h3>Quote Tool</h3>
-                <p>Build quotes, process orders, generate the exact customer-facing PDFs, and jump into the processed-orders history page.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("Open Quote Tool", use_container_width=True, type="primary"):
-            st.session_state["app_view"] = "quote"
-            st.rerun()
-
-    with row_one_right:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Warehouse</span>
-                <h3>Orders / Warehouse Queue</h3>
-                <p>Jump into the warehouse app to review today&apos;s orders, move jobs in the queue, apply inventory, and work from the warehouse inventory layout.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if hasattr(st, "link_button"):
-            st.link_button("Open Queue", WAREHOUSE_QUEUE_URL, use_container_width=True)
-        else:
-            st.markdown(f"[Open Queue]({WAREHOUSE_QUEUE_URL})")
-
-    st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_two_left, row_two_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
-
-    with row_two_left:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Custom Orders</span>
-                <h3>DGA Custom Disc Ordering</h3>
-                <p>Open the custom disc ordering app for wholesale custom stamp and tournament ordering workflows.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if hasattr(st, "link_button"):
-            st.link_button("Open Custom Orders", CUSTOM_DISC_ORDERING_URL, use_container_width=True)
-        else:
-            st.markdown(f"[Open Custom Orders]({CUSTOM_DISC_ORDERING_URL})")
-
-    with row_two_right:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Creative</span>
-                <h3>Artwork Preview Generator</h3>
-                <p>Launch the artwork generator to build and review preview images for customer designs and internal approvals.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if hasattr(st, "link_button"):
-            st.link_button("Open Artwork", ARTWORK_GENERATOR_URL, use_container_width=True)
-        else:
-            st.markdown(f"[Open Artwork]({ARTWORK_GENERATOR_URL})")
-
-    st.markdown('<div class="welcome-row"></div>', unsafe_allow_html=True)
-    _, row_three_left, row_three_right, _ = st.columns([0.7, 2.0, 2.0, 0.7], gap="medium")
-
-    with row_three_left:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Outreach</span>
-                <h3>PDGA Event Contact Scraper</h3>
-                <p>Pull tournament director contact details and export event contact lists for outreach, planning, and operations follow-up.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if hasattr(st, "link_button"):
-            st.link_button("Open PDGA Scraper", PDGA_CONTACT_SCRAPER_URL, use_container_width=True)
-        else:
-            st.markdown(f"[Open PDGA Scraper]({PDGA_CONTACT_SCRAPER_URL})")
-
-    with row_three_right:
-        st.markdown(
-            """
-            <div class="welcome-card">
-                <span class="welcome-card-label">Support</span>
-                <h3>IT Tickets</h3>
-                <p>Jump into the IT ticket app to review submitted issues, track follow-up, and keep support requests moving.</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if hasattr(st, "link_button"):
-            st.link_button("Open IT Tickets", IT_TICKETS_URL, use_container_width=True)
-        else:
-            st.markdown(f"[Open IT Tickets]({IT_TICKETS_URL})")
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     explicit_record_type = all_quotes_df.get("Explicit Record Type", all_quotes_df.get("Record Type", "")).astype(str).str.lower()
     orders_df = all_quotes_df[explicit_record_type == "order"].copy()
@@ -3020,10 +2690,6 @@ def main_app():
     all_quotes_df = load_all_quotes()
     if maybe_render_query_preview(all_quotes_df):
         return
-    if st.session_state.get("app_view") != "quote":
-        render_welcome_splash()
-        return
-
     header_col1, header_col2, header_col3 = st.columns([1.1, 2.8, 0.9])
     with header_col1:
         if APP_LOGO_PATH:
@@ -3032,9 +2698,10 @@ def main_app():
         st.title("DGA Quoting Tool")
     with header_col3:
         st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
-        if st.button("Back to Home", use_container_width=True):
-            st.session_state["app_view"] = "home"
-            st.rerun()
+        if hasattr(st, "link_button"):
+            st.link_button("Open Operations Hub", OPERATIONS_HUB_URL, use_container_width=True)
+        else:
+            st.markdown(f"[Open Operations Hub]({OPERATIONS_HUB_URL})")
         if hasattr(st, "link_button"):
             st.link_button("Submit IT Ticket", QUOTE_TOOL_IT_TICKETS_URL, use_container_width=True)
         else:
