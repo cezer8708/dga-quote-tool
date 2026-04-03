@@ -158,7 +158,7 @@ PDGA_CONTACT_SCRAPER_URL = get_env("PDGA_CONTACT_SCRAPER_URL", "https://dga-scra
 MACH_FAMILY_FORECASTING_URL = get_env("MACH_FAMILY_FORECASTING_URL", "https://mach-family-po-planner.streamlit.app")
 IT_TICKETS_URL = get_env("IT_TICKETS_URL", "https://it-tickets-jigv.onrender.com")
 QUOTE_TOOL_IT_TICKETS_URL = f"{IT_TICKETS_URL}?hub_area=Quote%20Tool"
-OPERATIONS_HUB_URL = get_env("OPERATIONS_HUB_URL", "http://localhost:8502")
+OPERATIONS_HUB_URL = get_env("OPERATIONS_HUB_URL", "https://dga-operations.streamlit.app")
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
 
