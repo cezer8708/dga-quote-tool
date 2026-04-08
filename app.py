@@ -361,11 +361,12 @@ def load_all_quotes() -> pd.DataFrame:
         df = pd.DataFrame(data)
         return normalize_saved_quotes_df(df)
 
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(_fetch_quotes)
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_fetch_quotes)
-            return future.result(timeout=8)
+        return future.result(timeout=8)
     except concurrent.futures.TimeoutError:
+        future.cancel()
         st.warning("Saved quotes are taking too long to load right now. The page will open without them.")
         return empty_saved_quotes_df()
     except gspread.exceptions.SpreadsheetNotFound:
@@ -374,6 +375,8 @@ def load_all_quotes() -> pd.DataFrame:
     except Exception as e:
         st.error(f"Error loading quotes from sheet: {e}")
         return empty_saved_quotes_df()
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 SAVED_QUOTE_HEADERS = [
