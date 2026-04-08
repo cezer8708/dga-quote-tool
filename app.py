@@ -373,7 +373,10 @@ def load_all_quotes() -> pd.DataFrame:
         st.error(f"Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and sharing.")
         return empty_saved_quotes_df()
     except Exception as e:
-        st.error(f"Error loading quotes from sheet: {e}")
+        if is_sheets_rate_limit_error(e):
+            st.warning("Google Sheets is rate-limiting saved-quote reads right now. The app will keep working without a fresh saved-quotes sync for the moment.")
+        else:
+            st.error(f"Error loading quotes from sheet: {e}")
         return empty_saved_quotes_df()
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
@@ -397,6 +400,30 @@ def empty_saved_quotes_df() -> pd.DataFrame:
     return pd.DataFrame(
         columns=SAVED_QUOTE_HEADERS + ["Payload", "Explicit Record Type", "Doc #"]
     )
+
+
+def get_saved_quotes_snapshot(force_refresh: bool = False) -> pd.DataFrame:
+    snapshot_key = "saved_quotes_snapshot_df"
+    cached_snapshot = st.session_state.get(snapshot_key)
+
+    if not force_refresh and isinstance(cached_snapshot, pd.DataFrame):
+        return cached_snapshot.copy()
+
+    latest_df = load_all_quotes()
+    if not latest_df.empty:
+        st.session_state[snapshot_key] = latest_df.copy()
+        return latest_df
+
+    if isinstance(cached_snapshot, pd.DataFrame):
+        st.caption("Using the most recent saved-quotes snapshot while Google Sheets is rate-limited.")
+        return cached_snapshot.copy()
+
+    return latest_df
+
+
+def is_sheets_rate_limit_error(exc: Exception) -> bool:
+    message = str(exc or "").lower()
+    return "quota exceeded" in message or "[429]" in message or "read requests per minute per user" in message
 
 
 def _worksheet_headers(worksheet) -> list[str]:
@@ -539,6 +566,7 @@ def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
 
         worksheet.append_row(row_data, value_input_option="USER_ENTERED")
         load_all_quotes.clear()
+        st.session_state.pop("saved_quotes_snapshot_df", None)
         return True
     except Exception as e:
         st.error(f"Error saving quote to sheet: {e}")
@@ -2381,15 +2409,21 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     st.session_state["customer_key_suffix"] += 1
 
 
-def render_saved_quote_search_ui(all_quotes_df: pd.DataFrame):
+def render_saved_quote_search_ui():
     st.text_input(
         "Search saved quotes",
         key="person_quote_search",
         placeholder="e.g. 0107, Cesar Zermeno, discgolf.com, cesar@discgolf.com",
     )
 
-    person_matches_df = search_saved_quotes(all_quotes_df, st.session_state.get("person_quote_search", ""))
-    if st.session_state.get("person_quote_search", "").strip():
+    search_term = st.session_state.get("person_quote_search", "")
+    if search_term.strip():
+        all_quotes_df = get_saved_quotes_snapshot()
+        if all_quotes_df.empty:
+            st.info("Saved quotes are temporarily unavailable. Try again in a minute.")
+            return
+
+        person_matches_df = search_saved_quotes(all_quotes_df, search_term)
         if person_matches_df.empty:
             st.info("No saved quotes matched that Doc # / person / company / email search.")
         else:
@@ -2586,6 +2620,17 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
     return False
 
 
+def has_query_preview_request() -> bool:
+    try:
+        query_params = st.query_params
+    except Exception:
+        return False
+
+    selected_doc_no = str(query_params.get("doc", "") or "").strip()
+    preview_template = str(query_params.get("preview", "") or "").strip().lower()
+    return bool(selected_doc_no and preview_template in {"quote", "order"})
+
+
 def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
     explicit_record_type = all_quotes_df.get("Explicit Record Type", all_quotes_df.get("Record Type", "")).astype(str).str.lower()
     orders_df = all_quotes_df[explicit_record_type == "order"].copy()
@@ -2710,7 +2755,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
 
 
 def main_app():
-    all_quotes_df = load_all_quotes()
+    all_quotes_df = get_saved_quotes_snapshot() if has_query_preview_request() else empty_saved_quotes_df()
     if maybe_render_query_preview(all_quotes_df):
         return
     header_col1, header_col2, header_col3 = st.columns([1.1, 2.8, 0.9])
@@ -2751,6 +2796,7 @@ def main_app():
         st.caption("Use the quote builder for new docs and the processed-orders page for order history lookup.")
 
     if st.session_state.get("quote_workspace_view") == "history":
+        all_quotes_df = get_saved_quotes_snapshot()
         render_processed_orders_history(all_quotes_df)
         return
 
@@ -3078,7 +3124,7 @@ def main_app():
         st.subheader("Lookup Tools")
         lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
         with lookup_tabs[0]:
-            render_saved_quote_search_ui(all_quotes_df)
+            render_saved_quote_search_ui()
         with lookup_tabs[1]:
             render_pipedrive_lookup_ui()
 
