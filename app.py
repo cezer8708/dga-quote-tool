@@ -163,7 +163,6 @@ QUOTE_TOOL_URL = get_env("QUOTE_TOOL_URL", "https://dga-quote-tool-v5.streamlit.
 OPERATIONS_HUB_URL = get_env("OPERATIONS_HUB_URL", "https://dga-operations.streamlit.app")
 WAREHOUSE_STATE_URL = get_env("WAREHOUSE_STATE_URL", f"{WAREHOUSE_QUEUE_URL.rstrip('/')}/.netlify/functions/warehouse-load")
 
-
 def fmt_money(value: float) -> str:
     return f"${value:,.2f}"
 
@@ -353,7 +352,7 @@ def get_gsheet_client():
 def load_all_quotes() -> pd.DataFrame:
     client = get_gsheet_client()
     if not client:
-        return pd.DataFrame()
+        return empty_saved_quotes_df()
 
     def _fetch_quotes() -> pd.DataFrame:
         sh = client.open_by_key(GOOGLE_SHEET_ID)
@@ -368,13 +367,13 @@ def load_all_quotes() -> pd.DataFrame:
             return future.result(timeout=8)
     except concurrent.futures.TimeoutError:
         st.warning("Saved quotes are taking too long to load right now. The page will open without them.")
-        return pd.DataFrame()
+        return empty_saved_quotes_df()
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(f"Google Sheet with ID '{GOOGLE_SHEET_ID}' not found. Check ID and sharing.")
-        return pd.DataFrame()
+        return empty_saved_quotes_df()
     except Exception as e:
         st.error(f"Error loading quotes from sheet: {e}")
-        return pd.DataFrame()
+        return empty_saved_quotes_df()
 
 
 SAVED_QUOTE_HEADERS = [
@@ -389,6 +388,12 @@ SAVED_QUOTE_HEADERS = [
     "Order #",
     "Source Quote #",
 ]
+
+
+def empty_saved_quotes_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=SAVED_QUOTE_HEADERS + ["Payload", "Explicit Record Type", "Doc #"]
+    )
 
 
 def _worksheet_headers(worksheet) -> list[str]:
@@ -445,14 +450,14 @@ def _infer_record_type(payload: dict | None, stored_type: str, order_number: str
 
 def normalize_saved_quotes_df(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
-        return df
+        return empty_saved_quotes_df()
 
     working_df = df.copy()
     working_df.columns = [str(col).strip() for col in working_df.columns]
 
     if "Quote JSON Payload" not in working_df.columns:
         st.error("Google Sheet missing required column: 'Quote JSON Payload'.")
-        return pd.DataFrame()
+        return empty_saved_quotes_df()
 
     for col in ["Quote #", "Record Type", "Order #", "Source Quote #", "Date"]:
         if col not in working_df.columns:
@@ -2449,6 +2454,9 @@ def render_pipedrive_lookup_ui():
 
 
 def load_saved_document(all_quotes_df: pd.DataFrame, selected_doc_no: str):
+    if all_quotes_df.empty or "Doc #" not in all_quotes_df.columns:
+        raise ValueError("Saved quotes are unavailable right now. Please try again in a moment.")
+
     target_row_df = all_quotes_df[all_quotes_df["Doc #"] == selected_doc_no]
     if target_row_df.empty and "Quote #" in all_quotes_df.columns:
         target_row_df = all_quotes_df[all_quotes_df["Quote #"] == selected_doc_no]
@@ -2530,7 +2538,11 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
 
     loaded_signature = f"{selected_doc_no}:{preview_template}"
     if st.session_state.get("query_preview_loaded") != loaded_signature:
-        load_saved_document(all_quotes_df, selected_doc_no)
+        try:
+            load_saved_document(all_quotes_df, selected_doc_no)
+        except ValueError as exc:
+            st.warning(str(exc))
+            return False
         st.session_state["query_preview_loaded"] = loaded_signature
 
     if pdf_only:
