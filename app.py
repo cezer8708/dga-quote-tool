@@ -891,6 +891,84 @@ def _pd_scalar(data: Any) -> Any | None:
     return data
 
 
+def _pd_preferred_value(data: Any) -> Any | None:
+    if isinstance(data, list):
+        preferred_items = [item for item in data if isinstance(item, dict) and (item.get("primary") or item.get("primary_flag"))]
+        candidate_items = preferred_items or data
+
+        for item in candidate_items:
+            value = _pd_preferred_value(item)
+            if _clean(value):
+                return value
+        return None
+
+    if isinstance(data, dict):
+        for key in ("value", "label", "name", "id"):
+            value = data.get(key)
+            if _clean(value):
+                return value
+        return None
+
+    return data
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _pd_org_phone_field_keys() -> list[str]:
+    fields = _pd_get("organizationFields", {"limit": 500})
+    if not isinstance(fields, list):
+        return []
+
+    keys: list[str] = []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+
+        field_type = _clean(field.get("field_type")).lower()
+        field_name = _clean(field.get("name")).lower()
+        field_key = _clean(field.get("key"))
+
+        if not field_key:
+            continue
+
+        if field_type == "phone" or "phone" in field_name or "tel" in field_name:
+            keys.append(field_key)
+
+    return keys
+
+
+def _format_phone_number(value: Any) -> str:
+    phone = _clean(value)
+    if not phone:
+        return ""
+
+    digits = re.sub(r"\D", "", phone)
+
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+
+    return phone
+
+
+def _pd_phone_from_entity(entity: dict | None, entity_type: str = "person") -> str:
+    if not entity:
+        return ""
+
+    phone = _format_phone_number(_pd_preferred_value(entity.get("phone")))
+    if phone:
+        return phone
+
+    if entity_type == "organization":
+        for field_key in _pd_org_phone_field_keys():
+            phone = _format_phone_number(_pd_preferred_value(entity.get(field_key)))
+            if phone:
+                return phone
+
+    return ""
+
+
 def pd_search_persons(term: str) -> list[dict]:
     results = _pd_get("persons/search", {"term": term, "fields": "name,email", "search_by_email": 1})
     if results and isinstance(results, dict) and "items" in results:
@@ -1121,18 +1199,20 @@ def _parse_us_address(full_addr: str) -> tuple[str, str, str, str]:
 
 def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
     name = _clean(person.get("name"))
-    email = _clean(_pd_scalar(person.get("email")))
-    phone = _clean(_pd_scalar(person.get("phone")))
+    email = _clean(_pd_preferred_value(person.get("email")))
+    person_phone = _pd_phone_from_entity(person, "person")
 
     company = _clean((org or {}).get("name") or "")
     bill_company = company
     bill_name = name
+    phone = person_phone
     bill_phone = phone
     bill_email = email
 
     if org:
-        org_email = _clean(_pd_scalar(org.get("email")))
-        org_phone = _clean(_pd_scalar(org.get("phone")))
+        org_email = _clean(_pd_preferred_value(org.get("email")))
+        org_phone = _pd_phone_from_entity(org, "organization")
+        phone = phone or org_phone
         bill_email = org_email or bill_email
         bill_phone = org_phone or bill_phone
 
