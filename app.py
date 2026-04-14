@@ -2261,23 +2261,10 @@ def render_pdf_preview_from_payload(payload: dict, template: str = "quote", heig
     if compact_level_used > 0:
         st.caption("Preview is using compact single-page mode.")
 
-    base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
     preview_nonce = uuid.uuid4().hex
     component_height = _preview_height_to_pixels(height)
 
-    try:
-        st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
-    except Exception:
-        pdf_display = f"""
-        <div class="pdf-iframe-container" style="height: {height};">
-            <iframe
-                src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
-                title="PDF Preview {preview_nonce}"
-                style="width: 100%; height: 100%; border: none;">
-            </iframe>
-        </div>
-        """
-        st.markdown(pdf_display, unsafe_allow_html=True)
+    st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
     return pdf_data, doc_number
 
 
@@ -2655,15 +2642,7 @@ def render_builder_sidebar_preview():
 
         if st.session_state["show_pdf_preview"]:
             try:
-                pdf_data, pdf_doc_number = render_exact_pdf_preview(template="quote", height="64vh")
-                st.download_button(
-                    "Download preview PDF",
-                    data=pdf_data,
-                    file_name=f"{pdf_doc_number}_Quote.pdf",
-                    mime="application/pdf",
-                    use_container_width=True,
-                    key=f"download_live_preview_{pdf_doc_number}",
-                )
+                render_exact_pdf_preview(template="quote", height="78vh")
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
 
@@ -2933,9 +2912,12 @@ def main_app():
                 z-index: 2;
             }
 
-            .stApp [data-testid="stSidebar"] {
-                min-width: 460px !important;
-                width: 460px !important;
+            section[data-testid="stSidebar"],
+            section[data-testid="stSidebar"] > div,
+            .stApp [data-testid="stSidebar"],
+            .stApp [data-testid="stSidebar"] > div:first-child {
+                min-width: 430px !important;
+                width: 430px !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),
