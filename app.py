@@ -2632,7 +2632,6 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
 
 
 def render_builder_preview_panel():
-    st.markdown('<div class="quote-preview-sticky-anchor"></div>', unsafe_allow_html=True)
     st.header("PDF Preview")
     st.checkbox(
         "Show Live Quote Preview",
@@ -2910,15 +2909,6 @@ def main_app():
             .stApp [data-testid="stSidebar"] {
                 position: relative;
                 z-index: 2;
-            }
-
-            div[data-testid="column"]:has(.quote-preview-sticky-anchor) {
-                align-self: flex-start !important;
-                position: sticky !important;
-                top: 0.75rem !important;
-                z-index: 8 !important;
-                max-height: calc(100vh - 1.5rem) !important;
-                overflow: hidden !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),
