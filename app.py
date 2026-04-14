@@ -25,6 +25,11 @@ try:
 except ImportError:
     PdfReader = None
 
+try:
+    import fitz
+except ImportError:
+    fitz = None
+
 st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
 from dotenv import load_dotenv
@@ -2255,7 +2260,42 @@ def _preview_height_to_pixels(height: str) -> int:
     return 680
 
 
-def render_pdf_preview_from_payload(payload: dict, template: str = "quote", height: str = "80vh"):
+@st.cache_data(show_spinner=False)
+def _pdf_preview_png_data_uri(pdf_data: bytes, render_scale: float = 2.5) -> str:
+    if fitz is None:
+        raise RuntimeError("PyMuPDF is required for fitted live previews. Install it with: pip install PyMuPDF")
+
+    document = fitz.open(stream=pdf_data, filetype="pdf")
+    try:
+        page = document.load_page(0)
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(render_scale, render_scale), alpha=False)
+        image_data = pixmap.tobytes("png")
+    finally:
+        document.close()
+
+    return f"data:image/png;base64,{base64.b64encode(image_data).decode('ascii')}"
+
+
+def _render_pdf_image_preview(pdf_data: bytes, height: str, zoom_percent: int):
+    image_uri = _pdf_preview_png_data_uri(pdf_data)
+    zoom = max(100, int(zoom_percent))
+    st.markdown(
+        f"""
+        <div class="pdf-image-preview-shell" style="height: {height};">
+            <img src="{image_uri}" alt="PDF preview" style="width: {zoom}%; min-width: 100%;">
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_pdf_preview_from_payload(
+    payload: dict,
+    template: str = "quote",
+    height: str = "80vh",
+    mode: str = "pdf",
+    zoom_percent: int = 100,
+):
     pdf_data, compact_level_used, doc_number = generate_pdf_preview_data(payload, template=template)
 
     if compact_level_used > 0:
@@ -2264,7 +2304,13 @@ def render_pdf_preview_from_payload(payload: dict, template: str = "quote", heig
     preview_nonce = uuid.uuid4().hex
     component_height = _preview_height_to_pixels(height)
 
-    st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
+    if mode == "image":
+        try:
+            _render_pdf_image_preview(pdf_data, height=height, zoom_percent=zoom_percent)
+        except RuntimeError:
+            st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
+    else:
+        st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
     return pdf_data, doc_number
 
 
@@ -2593,7 +2639,12 @@ def load_saved_document(all_quotes_df: pd.DataFrame, selected_doc_no: str):
     return payload
 
 
-def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
+def render_exact_pdf_preview(
+    template: str = "quote",
+    height: str = "80vh",
+    mode: str = "pdf",
+    zoom_percent: int = 100,
+):
     if st.session_state["sc_county_checkbox"]:
         tax_rate = SANTA_CRUZ_TAX_RATE
     else:
@@ -2628,7 +2679,13 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
         manager_discount_amount,
     )
 
-    return render_pdf_preview_from_payload(preview_payload, template=template, height=height)
+    return render_pdf_preview_from_payload(
+        preview_payload,
+        template=template,
+        height=height,
+        mode=mode,
+        zoom_percent=zoom_percent,
+    )
 
 
 def render_builder_sidebar_preview():
@@ -2642,7 +2699,19 @@ def render_builder_sidebar_preview():
 
         if st.session_state["show_pdf_preview"]:
             try:
-                render_exact_pdf_preview(template="quote", height="82vh")
+                zoom_choice = st.selectbox(
+                    "Preview Zoom",
+                    ["Fit", "125%", "150%", "200%"],
+                    key="live_preview_zoom",
+                    label_visibility="collapsed",
+                )
+                zoom_percent = 100 if zoom_choice == "Fit" else int(zoom_choice.rstrip("%"))
+                render_exact_pdf_preview(
+                    template="quote",
+                    height="82vh",
+                    mode="image",
+                    zoom_percent=zoom_percent,
+                )
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
 
@@ -3214,6 +3283,21 @@ def main_app():
                 width: 100%;
                 height: 100%;
                 border: 1px solid #ddd;
+            }
+
+            .pdf-image-preview-shell {
+                background: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 0.16);
+                border-radius: 4px;
+                box-sizing: border-box;
+                overflow: auto;
+                padding: 10px;
+            }
+
+            .pdf-image-preview-shell img {
+                display: block;
+                height: auto;
+                margin: 0 auto;
             }
         </style>
         __PATENT_MARKUP__
