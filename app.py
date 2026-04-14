@@ -2642,7 +2642,7 @@ def render_builder_sidebar_preview():
 
         if st.session_state["show_pdf_preview"]:
             try:
-                render_exact_pdf_preview(template="quote", height="78vh")
+                render_exact_pdf_preview(template="quote", height="82vh")
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
 
@@ -2912,12 +2912,49 @@ def main_app():
                 z-index: 2;
             }
 
+            [data-testid="stSidebar"],
+            [data-testid="stSidebar"][aria-expanded="true"],
+            [data-testid="stSidebar"] > div,
+            [data-testid="stSidebarContent"],
+            [data-testid="stSidebarUserContent"],
             section[data-testid="stSidebar"],
             section[data-testid="stSidebar"] > div,
             .stApp [data-testid="stSidebar"],
             .stApp [data-testid="stSidebar"] > div:first-child {
-                min-width: 430px !important;
-                width: 430px !important;
+                flex-basis: 520px !important;
+                flex-shrink: 0 !important;
+                max-width: 520px !important;
+                min-width: 520px !important;
+                width: 520px !important;
+            }
+
+            [data-testid="stSidebarUserContent"] {
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+            }
+
+            [data-testid="stSidebar"] iframe,
+            [data-testid="stSidebar"] [data-testid="stIFrame"],
+            [data-testid="stSidebar"] [data-testid="stPdf"] {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+
+            @media (max-width: 900px) {
+                [data-testid="stSidebar"],
+                [data-testid="stSidebar"][aria-expanded="true"],
+                [data-testid="stSidebar"] > div,
+                [data-testid="stSidebarContent"],
+                [data-testid="stSidebarUserContent"],
+                section[data-testid="stSidebar"],
+                section[data-testid="stSidebar"] > div,
+                .stApp [data-testid="stSidebar"],
+                .stApp [data-testid="stSidebar"] > div:first-child {
+                    flex-basis: min(92vw, 520px) !important;
+                    max-width: min(92vw, 520px) !important;
+                    min-width: min(92vw, 520px) !important;
+                    width: min(92vw, 520px) !important;
+                }
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),
