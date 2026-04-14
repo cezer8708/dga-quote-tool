@@ -17,7 +17,6 @@ from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 import gspread
 from gspread.utils import rowcol_to_a1
 
@@ -2265,67 +2264,20 @@ def render_pdf_preview_from_payload(payload: dict, template: str = "quote", heig
     base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
     preview_nonce = uuid.uuid4().hex
     component_height = _preview_height_to_pixels(height)
-    escaped_doc_number = html.escape(str(doc_number), quote=True)
-    pdf_display = f"""
-    <!doctype html>
-    <html>
-    <head>
-        <style>
-            html,
-            body {{
-                background: #ffffff;
-                height: 100%;
-                margin: 0;
-                overflow: hidden;
-            }}
-            .pdf-preview-frame {{
-                background: #ffffff;
-                border: 0;
-                display: block;
-                height: 100vh;
-                width: 100%;
-            }}
-            .pdf-preview-fallback {{
-                color: #111827;
-                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                padding: 14px;
-            }}
-        </style>
-    </head>
-    <body>
-        <iframe
-            class="pdf-preview-frame"
-            id="pdf-preview-{preview_nonce}"
-            title="PDF Preview {preview_nonce}">
-        </iframe>
-        <div class="pdf-preview-fallback" id="pdf-fallback-{preview_nonce}" hidden>
-            PDF preview could not load in this browser.
-            <a id="pdf-download-{preview_nonce}" download="{escaped_doc_number}.pdf">Open PDF</a>
+
+    try:
+        st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
+    except Exception:
+        pdf_display = f"""
+        <div class="pdf-iframe-container" style="height: {height};">
+            <iframe
+                src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
+                title="PDF Preview {preview_nonce}"
+                style="width: 100%; height: 100%; border: none;">
+            </iframe>
         </div>
-        <script>
-            const pdfBase64 = "{base64_pdf}";
-            const byteCharacters = atob(pdfBase64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let index = 0; index < byteCharacters.length; index += 1) {{
-                byteNumbers[index] = byteCharacters.charCodeAt(index);
-            }}
-            const byteArray = new Uint8Array(byteNumbers);
-            const pdfBlob = new Blob([byteArray], {{ type: "application/pdf" }});
-            const pdfUrl = URL.createObjectURL(pdfBlob);
-            const frame = document.getElementById("pdf-preview-{preview_nonce}");
-            const download = document.getElementById("pdf-download-{preview_nonce}");
-            download.href = pdfUrl;
-            frame.src = `${{pdfUrl}}#preview={preview_nonce}`;
-            frame.addEventListener("error", () => {{
-                frame.hidden = true;
-                document.getElementById("pdf-fallback-{preview_nonce}").hidden = false;
-            }});
-            window.addEventListener("beforeunload", () => URL.revokeObjectURL(pdfUrl));
-        </script>
-    </body>
-    </html>
-    """
-    components.html(pdf_display, height=component_height, scrolling=True)
+        """
+        st.markdown(pdf_display, unsafe_allow_html=True)
     return pdf_data, doc_number
 
 
