@@ -2699,18 +2699,11 @@ def render_builder_sidebar_preview():
 
         if st.session_state["show_pdf_preview"]:
             try:
-                zoom_choice = st.selectbox(
-                    "Preview Zoom",
-                    ["Fit", "125%", "150%", "200%"],
-                    key="live_preview_zoom",
-                    label_visibility="collapsed",
-                )
-                zoom_percent = 100 if zoom_choice == "Fit" else int(zoom_choice.rstrip("%"))
                 render_exact_pdf_preview(
                     template="quote",
                     height="82vh",
                     mode="image",
-                    zoom_percent=zoom_percent,
+                    zoom_percent=100,
                 )
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
