@@ -2631,20 +2631,19 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
     return render_pdf_preview_from_payload(preview_payload, template=template, height=height)
 
 
-def render_builder_sidebar_preview():
-    with st.sidebar:
-        st.header("PDF Preview")
-        st.checkbox(
-            "Show Live Quote Preview",
-            key="show_pdf_preview",
-            on_change=handle_show_pdf_preview_toggle,
-        )
+def render_builder_preview_panel():
+    st.header("PDF Preview")
+    st.checkbox(
+        "Show Live Quote Preview",
+        key="show_pdf_preview",
+        on_change=handle_show_pdf_preview_toggle,
+    )
 
-        if st.session_state["show_pdf_preview"]:
-            try:
-                render_exact_pdf_preview(template="quote", height="82vh")
-            except Exception as e:
-                st.error(f"Preview unavailable: {e}")
+    if st.session_state["show_pdf_preview"]:
+        try:
+            render_exact_pdf_preview(template="quote", height="82vh")
+        except Exception as e:
+            st.error(f"Preview unavailable: {e}")
 
 
 def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
@@ -2910,51 +2909,6 @@ def main_app():
             .stApp [data-testid="stSidebar"] {
                 position: relative;
                 z-index: 2;
-            }
-
-            [data-testid="stSidebar"],
-            [data-testid="stSidebar"][aria-expanded="true"],
-            [data-testid="stSidebar"] > div,
-            [data-testid="stSidebarContent"],
-            [data-testid="stSidebarUserContent"],
-            section[data-testid="stSidebar"],
-            section[data-testid="stSidebar"] > div,
-            .stApp [data-testid="stSidebar"],
-            .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 520px !important;
-                flex-shrink: 0 !important;
-                max-width: 520px !important;
-                min-width: 520px !important;
-                width: 520px !important;
-            }
-
-            [data-testid="stSidebarUserContent"] {
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
-            }
-
-            [data-testid="stSidebar"] iframe,
-            [data-testid="stSidebar"] [data-testid="stIFrame"],
-            [data-testid="stSidebar"] [data-testid="stPdf"] {
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-
-            @media (max-width: 900px) {
-                [data-testid="stSidebar"],
-                [data-testid="stSidebar"][aria-expanded="true"],
-                [data-testid="stSidebar"] > div,
-                [data-testid="stSidebarContent"],
-                [data-testid="stSidebarUserContent"],
-                section[data-testid="stSidebar"],
-                section[data-testid="stSidebar"] > div,
-                .stApp [data-testid="stSidebar"],
-                .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(92vw, 520px) !important;
-                    max-width: min(92vw, 520px) !important;
-                    min-width: min(92vw, 520px) !important;
-                    width: min(92vw, 520px) !important;
-                }
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),
@@ -3234,414 +3188,418 @@ def main_app():
     if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
         st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
 
-    lookup_col1, lookup_col2, lookup_col3 = st.columns([1.2, 0.9, 0.9])
-    cust_key_suffix = st.session_state["customer_key_suffix"]
+    preview_col, builder_col = st.columns([0.78, 1.22], gap="large")
 
-    with lookup_col1:
-        st.markdown("**Current Doc # (PT)**")
-        st.info(st.session_state["quote_no"])
+    with builder_col:
+        lookup_col1, lookup_col2, lookup_col3 = st.columns([1.2, 0.9, 0.9])
+        cust_key_suffix = st.session_state["customer_key_suffix"]
 
-    with lookup_col2:
-        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("New Quote", use_container_width=True, type="secondary"):
-            start_new_quote()
+        with lookup_col1:
+            st.markdown("**Current Doc # (PT)**")
+            st.info(st.session_state["quote_no"])
 
-    with lookup_col3:
-        st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("New Version", use_container_width=True, type="primary",
-                     help="Create a new version number based on the current quote."):
-            assign_new_quote_version()
+        with lookup_col2:
+            st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+            if st.button("New Quote", use_container_width=True, type="secondary"):
+                start_new_quote()
 
-    with st.container(border=True, key="lookup_tools_panel"):
-        st.subheader("Lookup Tools")
-        lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
-        with lookup_tabs[0]:
-            render_saved_quote_search_ui()
-        with lookup_tabs[1]:
-            render_pipedrive_lookup_ui()
+        with lookup_col3:
+            st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
+            if st.button("New Version", use_container_width=True, type="primary",
+                         help="Create a new version number based on the current quote."):
+                assign_new_quote_version()
 
-    c = st.session_state["customer"]
+        with st.container(border=True, key="lookup_tools_panel"):
+            st.subheader("Lookup Tools")
+            lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
+            with lookup_tabs[0]:
+                render_saved_quote_search_ui()
+            with lookup_tabs[1]:
+                render_pipedrive_lookup_ui()
 
-    with st.container(border=True, key="customer_information_panel"):
-        st.subheader("Customer Information")
-        cols_addr = st.columns(2)
+        c = st.session_state["customer"]
 
-        with cols_addr[0]:
-            st.subheader("Shipping Address")
-            c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
-            c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
-            c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
-            c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
-            c["ship_addr1"] = st.text_area("Address Line 1", value=c.get("ship_addr1", ""), key=f"ship_addr1_{cust_key_suffix}")
-            sc1, sc2, sc3 = st.columns(3)
-            c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""), key=f"ship_city_input_{cust_key_suffix}")
-            c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""), key=f"ship_state_input_{cust_key_suffix}")
-            c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
+        with st.container(border=True, key="customer_information_panel"):
+            st.subheader("Customer Information")
+            cols_addr = st.columns(2)
 
-        with cols_addr[1]:
-            st.subheader("Billing Address")
-            c["bill_company"] = st.text_input("Company", value=c.get("bill_company", c.get("company", "")), key=f"bill_company_{cust_key_suffix}")
-            c["bill_name"] = st.text_input(
-                "Name",
-                value=c.get("bill_name", c.get("name", "")),
-                key=f"bill_name_input_{cust_key_suffix}",
-                help="This is the contact person for billing."
-            )
-            c["bill_phone"] = st.text_input("Phone", value=c.get("bill_phone", c.get("phone", "")), key=f"bill_phone_{cust_key_suffix}")
-            c["bill_email"] = st.text_input("Email", value=c.get("bill_email", c.get("email", "")), key=f"bill_email_{cust_key_suffix}")
-            c["bill_addr1"] = st.text_area("Address Line 1 ", value=c.get("bill_addr1", ""), key=f"bill_addr1_{cust_key_suffix}")
-            bc1, bc2, bc3 = st.columns(3)
-            c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key=f"bill_city_input_{cust_key_suffix}")
-            c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""), key=f"bill_state_input_{cust_key_suffix}")
-            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
+            with cols_addr[0]:
+                st.subheader("Shipping Address")
+                c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
+                c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
+                c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
+                c["email"] = st.text_input("Email", value=c.get("email", ""), key=f"ship_email_{cust_key_suffix}")
+                c["ship_addr1"] = st.text_area("Address Line 1", value=c.get("ship_addr1", ""), key=f"ship_addr1_{cust_key_suffix}")
+                sc1, sc2, sc3 = st.columns(3)
+                c["ship_city"] = sc1.text_input("City", value=c.get("ship_city", ""), key=f"ship_city_input_{cust_key_suffix}")
+                c["ship_state"] = sc2.text_input("State", value=c.get("ship_state", ""), key=f"ship_state_input_{cust_key_suffix}")
+                c["ship_zip"] = sc3.text_input("Zip", value=c.get("ship_zip", ""), key=f"ship_zip_input_{cust_key_suffix}")
 
-    st.divider()
+            with cols_addr[1]:
+                st.subheader("Billing Address")
+                c["bill_company"] = st.text_input("Company", value=c.get("bill_company", c.get("company", "")), key=f"bill_company_{cust_key_suffix}")
+                c["bill_name"] = st.text_input(
+                    "Name",
+                    value=c.get("bill_name", c.get("name", "")),
+                    key=f"bill_name_input_{cust_key_suffix}",
+                    help="This is the contact person for billing."
+                )
+                c["bill_phone"] = st.text_input("Phone", value=c.get("bill_phone", c.get("phone", "")), key=f"bill_phone_{cust_key_suffix}")
+                c["bill_email"] = st.text_input("Email", value=c.get("bill_email", c.get("email", "")), key=f"bill_email_{cust_key_suffix}")
+                c["bill_addr1"] = st.text_area("Address Line 1 ", value=c.get("bill_addr1", ""), key=f"bill_addr1_{cust_key_suffix}")
+                bc1, bc2, bc3 = st.columns(3)
+                c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key=f"bill_city_input_{cust_key_suffix}")
+                c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""), key=f"bill_state_input_{cust_key_suffix}")
+                c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
 
-    with st.container(border=True, key="line_items_panel"):
-        st.subheader("Line Items")
-        st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
+        st.divider()
 
-        sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
-        sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
+        with st.container(border=True, key="line_items_panel"):
+            st.subheader("Line Items")
+            st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
 
-        ensure_course_discount(st.session_state["line_items"])
-        ensure_course_discount_position(st.session_state["line_items"])
+            sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
+            sku_options_display = ["(custom)"] + [f"{s} — {sku_to_name.get(s, 'No Name')}" for s in PRODUCTS["SKU"].tolist()]
 
-        for i in range(len(st.session_state["line_items"])):
-            row = st.session_state["line_items"][i]
-            row.setdefault("exclude_from_10_discount", False)
-            is_course_discount = row.get("sku") == "CD"
-            is_preview_checked = row.get("previewChecked", True)
-            is_excluded_from_10 = row.get("exclude_from_10_discount", False)
+            ensure_course_discount(st.session_state["line_items"])
+            ensure_course_discount_position(st.session_state["line_items"])
 
-            can_move_up = i > 0
-            can_move_down = i < len(st.session_state["line_items"]) - 1
+            for i in range(len(st.session_state["line_items"])):
+                row = st.session_state["line_items"][i]
+                row.setdefault("exclude_from_10_discount", False)
+                is_course_discount = row.get("sku") == "CD"
+                is_preview_checked = row.get("previewChecked", True)
+                is_excluded_from_10 = row.get("exclude_from_10_discount", False)
 
-            item_container = st.container(border=True, key=f"line_item_panel_{row['id']}")
-            with item_container:
-                header_col1, header_col2, header_col3, header_col4, header_col5, header_col6 = st.columns([0.8, 0.4, 0.4, 0.4, 1.1, 1.4])
+                can_move_up = i > 0
+                can_move_down = i < len(st.session_state["line_items"]) - 1
 
-            with header_col1:
-                st.markdown(f"**Item {i + 1}**")
+                item_container = st.container(border=True, key=f"line_item_panel_{row['id']}")
+                with item_container:
+                    header_col1, header_col2, header_col3, header_col4, header_col5, header_col6 = st.columns([0.8, 0.4, 0.4, 0.4, 1.1, 1.4])
 
-            with header_col2:
-                if can_move_up:
-                    st.button("⬆️", key=f"btn_up_{row['id']}", help="Move item up",
-                              on_click=move_item_up, args=(row["id"],), use_container_width=True)
-                else:
-                    st.empty()
+                with header_col1:
+                    st.markdown(f"**Item {i + 1}**")
 
-            with header_col3:
-                if can_move_down:
-                    st.button("⬇️", key=f"btn_down_{row['id']}", help="Move item down",
-                              on_click=move_item_down, args=(row["id"],), use_container_width=True)
-                else:
-                    st.empty()
-
-            with header_col4:
-                st.button("🗑️", key=f"btn_rm_{row['id']}", help="Remove item",
-                          on_click=remove_item, args=(row["id"],), use_container_width=True)
-
-            with header_col5:
-                if is_course_discount:
-                    st.checkbox("Show in Preview", value=True, disabled=True, key=f"preview_check_{row['id']}",
-                                help="Discount is always shown in preview.")
-                else:
-                    new_checked_state = st.checkbox("Show in Preview", value=is_preview_checked, key=f"preview_check_{row['id']}")
-                    if new_checked_state != is_preview_checked:
-                        row["previewChecked"] = new_checked_state
-                        st.session_state["rerun_flag"] = True
-
-            with header_col6:
-                if is_course_discount:
-                    st.checkbox("Exclude From 10% Discount", value=True, disabled=True, key=f"exclude_10_{row['id']}")
-                    row["exclude_from_10_discount"] = True
-                else:
-                    new_exclude_state = st.checkbox(
-                        "Exclude From 10% Discount",
-                        value=is_excluded_from_10,
-                        key=f"exclude_10_{row['id']}"
-                    )
-                    if new_exclude_state != is_excluded_from_10:
-                        row["exclude_from_10_discount"] = new_exclude_state
-
-            c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
-
-            current_sku = row.get("sku", "")
-            prod_name = row.get("name", "")
-            prod_price = row.get("unit", 0.0)
-
-            current_display = "(custom)"
-            if current_sku:
-                match = f"{current_sku} — {sku_to_name.get(current_sku, prod_name)}"
-                if match in sku_options_display:
-                    current_display = match
-
-            try:
-                sel_idx = sku_options_display.index(current_display)
-            except ValueError:
-                sel_idx = 0
-
-            with c1:
-                if is_course_discount:
-                    st.markdown("**Auto-Discount**", help="This line is automatically calculated and non-editable.")
-                    st.markdown(f"**{row['name']}**")
-                else:
-                    sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
-                                                        key=f"sku_select_{row['id']}")
-
-                    new_notes = row.get("Notes", "")
-
-                    if sku_selected_display == "(custom)":
-                        new_sku = ""
-                        new_name = prod_name
-                        new_unit = prod_price
+                with header_col2:
+                    if can_move_up:
+                        st.button("⬆️", key=f"btn_up_{row['id']}", help="Move item up",
+                                  on_click=move_item_up, args=(row["id"],), use_container_width=True)
                     else:
-                        parts = sku_selected_display.split("—", 1)
-                        new_sku = parts[0].strip()
+                        st.empty()
 
-                        prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
-                        if not prod.empty:
-                            new_name = str(prod.iloc[0]["Name"])
-                            new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
-                            if new_sku != "CD":
-                                new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(prod.iloc[0]["Notes"]) else ""
-                        else:
-                            new_name = parts[1].strip() if len(parts) > 1 else new_sku
+                with header_col3:
+                    if can_move_down:
+                        st.button("⬇️", key=f"btn_down_{row['id']}", help="Move item down",
+                                  on_click=move_item_down, args=(row["id"],), use_container_width=True)
+                    else:
+                        st.empty()
+
+                with header_col4:
+                    st.button("🗑️", key=f"btn_rm_{row['id']}", help="Remove item",
+                              on_click=remove_item, args=(row["id"],), use_container_width=True)
+
+                with header_col5:
+                    if is_course_discount:
+                        st.checkbox("Show in Preview", value=True, disabled=True, key=f"preview_check_{row['id']}",
+                                    help="Discount is always shown in preview.")
+                    else:
+                        new_checked_state = st.checkbox("Show in Preview", value=is_preview_checked, key=f"preview_check_{row['id']}")
+                        if new_checked_state != is_preview_checked:
+                            row["previewChecked"] = new_checked_state
+                            st.session_state["rerun_flag"] = True
+
+                with header_col6:
+                    if is_course_discount:
+                        st.checkbox("Exclude From 10% Discount", value=True, disabled=True, key=f"exclude_10_{row['id']}")
+                        row["exclude_from_10_discount"] = True
+                    else:
+                        new_exclude_state = st.checkbox(
+                            "Exclude From 10% Discount",
+                            value=is_excluded_from_10,
+                            key=f"exclude_10_{row['id']}"
+                        )
+                        if new_exclude_state != is_excluded_from_10:
+                            row["exclude_from_10_discount"] = new_exclude_state
+
+                c1, c2, c3, c4 = st.columns([4, 1, 1, 1])
+
+                current_sku = row.get("sku", "")
+                prod_name = row.get("name", "")
+                prod_price = row.get("unit", 0.0)
+
+                current_display = "(custom)"
+                if current_sku:
+                    match = f"{current_sku} — {sku_to_name.get(current_sku, prod_name)}"
+                    if match in sku_options_display:
+                        current_display = match
+
+                try:
+                    sel_idx = sku_options_display.index(current_display)
+                except ValueError:
+                    sel_idx = 0
+
+                with c1:
+                    if is_course_discount:
+                        st.markdown("**Auto-Discount**", help="This line is automatically calculated and non-editable.")
+                        st.markdown(f"**{row['name']}**")
+                    else:
+                        sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
+                                                            key=f"sku_select_{row['id']}")
+
+                        new_notes = row.get("Notes", "")
+
+                        if sku_selected_display == "(custom)":
+                            new_sku = ""
+                            new_name = prod_name
                             new_unit = prod_price
-                            if new_sku != "CD":
-                                new_notes = ""
+                        else:
+                            parts = sku_selected_display.split("—", 1)
+                            new_sku = parts[0].strip()
 
-                    if new_sku != row["sku"]:
-                        row["sku"] = new_sku
-                        row["name"] = new_name
-                        row["unit"] = new_unit
-                        row["Notes"] = new_notes
-                        row["prev_sku"] = new_sku if new_sku else "(custom)"
-                        st.session_state[f"Notes_input_{row['id']}"] = new_notes
-                        st.session_state["rerun_flag"] = True
+                            prod = PRODUCTS[PRODUCTS["SKU"] == new_sku]
+                            if not prod.empty:
+                                new_name = str(prod.iloc[0]["Name"])
+                                new_unit = float(prod.iloc[0]["UnitPrice"]) if pd.notna(prod.iloc[0]["UnitPrice"]) else 0.0
+                                if new_sku != "CD":
+                                    new_notes = str(prod.iloc[0]["Notes"]) if "Notes" in prod.columns and pd.notna(prod.iloc[0]["Notes"]) else ""
+                            else:
+                                new_name = parts[1].strip() if len(parts) > 1 else new_sku
+                                new_unit = prod_price
+                                if new_sku != "CD":
+                                    new_notes = ""
 
-                    if not row["sku"] and not is_course_discount:
-                        row["name"] = st.text_input("Custom Name (Required)", value=row["name"], key=f"name_input_{row['id']}")
+                        if new_sku != row["sku"]:
+                            row["sku"] = new_sku
+                            row["name"] = new_name
+                            row["unit"] = new_unit
+                            row["Notes"] = new_notes
+                            row["prev_sku"] = new_sku if new_sku else "(custom)"
+                            st.session_state[f"Notes_input_{row['id']}"] = new_notes
+                            st.session_state["rerun_flag"] = True
 
-            with c2:
-                if is_course_discount:
-                    st.markdown("**Qty**")
-                    st.markdown(f"**{int(row['qty'])}**")
+                        if not row["sku"] and not is_course_discount:
+                            row["name"] = st.text_input("Custom Name (Required)", value=row["name"], key=f"name_input_{row['id']}")
+
+                with c2:
+                    if is_course_discount:
+                        st.markdown("**Qty**")
+                        st.markdown(f"**{int(row['qty'])}**")
+                    else:
+                        row["qty"] = st.number_input(
+                            "Qty",
+                            min_value=0,
+                            value=int(row.get("qty", 1)),
+                            step=1,
+                            key=f"qty_input_{row['id']}",
+                            on_change=handle_quantity_change,
+                            args=(row["id"],)
+                        )
+
+                with c3:
+                    current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
+
+                    if is_course_discount:
+                        st.markdown("**Unit Price**")
+                        st.markdown(f"**{fmt_money(current_unit)}**")
+                    else:
+                        row["unit"] = st.number_input(
+                            "Unit Price",
+                            min_value=-100000.0,
+                            value=current_unit,
+                            step=0.01,
+                            format="%.2f",
+                            key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}"
+                        )
+
+                with c4:
+                    row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
+                    st.markdown("**Total**")
+                    st.write(f"**{fmt_money(row['total'])}**")
+
+                notes_key = f"Notes_input_{row['id']}"
+                if notes_key not in st.session_state:
+                    st.session_state[notes_key] = row.get("Notes", "")
+
+                st.text_area(
+                    "Notes (optional)",
+                    key=notes_key,
+                    height=68,
+                    on_change=handle_line_item_notes_change,
+                    args=(row["id"],),
+                )
+                row["Notes"] = st.session_state[notes_key]
+
+            st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
+
+        with st.container(border=True, key="fees_tax_totals_panel"):
+            st.subheader("Fees, Tax, and Totals")
+            cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
+            with cc1:
+                drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
+            with cc2:
+                freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
+            with cc3:
+                st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
+            with cc4:
+                st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
+            with cc5:
+                st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
+            with cc6:
+                st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
+            with cc7:
+                st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
+            with cc8:
+                st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
+
+            if st.session_state["active_discount_type"] == "discount":
+                st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
+
+            if st.session_state["manager_pricing_checkbox"]:
+                if not st.session_state["manager_pricing_authorized"]:
+                    mp1, mp2, mp3 = st.columns([1, 1, 0.8])
+                    with mp1:
+                        st.text_input("Manager Username", key="manager_username")
+                    with mp2:
+                        st.text_input("Manager Password", key="manager_password", type="password")
+                    with mp3:
+                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                        if st.button("Authorize Manager Pricing", key="btn_authorize_manager"):
+                            authorize_manager_pricing()
                 else:
-                    row["qty"] = st.number_input(
-                        "Qty",
-                        min_value=0,
-                        value=int(row.get("qty", 1)),
-                        step=1,
-                        key=f"qty_input_{row['id']}",
-                        on_change=handle_quantity_change,
-                        args=(row["id"],)
-                    )
+                    st.success("Manager pricing authorized.")
 
-            with c3:
-                current_unit = float(row.get("unit", 0.0) if pd.notna(row.get("unit", 0.0)) else 0.0)
+            st.markdown("**Freight Notes**")
+            fn1, fn2, fn3, fn4 = st.columns(4)
+            with fn1:
+                st.checkbox("Business Address", key=_freight_note_key("Business Address"))
+                st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
+            with fn2:
+                st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
+                st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
+            with fn3:
+                st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
+                st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
+            with fn4:
+                st.checkbox("UPS", key=_freight_note_key("UPS"))
+                st.checkbox("Ground Freight", key=_freight_note_key("Ground Freight"))
 
-                if is_course_discount:
-                    st.markdown("**Unit Price**")
-                    st.markdown(f"**{fmt_money(current_unit)}**")
-                else:
-                    row["unit"] = st.number_input(
-                        "Unit Price",
-                        min_value=-100000.0,
-                        value=current_unit,
-                        step=0.01,
-                        format="%.2f",
-                        key=f"unit_input_{row['id']}_{row['sku'] or 'custom'}"
-                    )
-
-            with c4:
-                row["total"] = round(float(row["qty"]) * float(row["unit"]), 2)
-                st.markdown("**Total**")
-                st.write(f"**{fmt_money(row['total'])}**")
-
-            notes_key = f"Notes_input_{row['id']}"
-            if notes_key not in st.session_state:
-                st.session_state[notes_key] = row.get("Notes", "")
-
-            st.text_area(
-                "Notes (optional)",
-                key=notes_key,
-                height=68,
-                on_change=handle_line_item_notes_change,
-                args=(row["id"],),
+            st.text_input(
+                "Other Freight Notes",
+                key="freight_notes_other",
+                placeholder="Optional extra freight details"
             )
-            row["Notes"] = st.session_state[notes_key]
+            fees_summary_slot = st.container()
 
-        st.button("Add Line Item", key="btn_add_line_bottom", on_click=add_item_callback)
+        st.session_state["freight_notes"] = get_selected_freight_notes()
 
-    with st.container(border=True, key="fees_tax_totals_panel"):
-        st.subheader("Fees, Tax, and Totals")
-        cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
-        with cc1:
-            drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
-        with cc2:
-            freight = st.number_input("Freight", min_value=0.0, step=1.0, key="freight_fee_input")
-        with cc3:
-            st.number_input("Sales Tax Rate (%)", min_value=0.0, step=0.01, key="tax_rate_pct_input")
-        with cc4:
-            st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
-        with cc5:
-            st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
-        with cc6:
-            st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
-        with cc7:
-            st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
-        with cc8:
-            st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
+        tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] else float(st.session_state["tax_rate_pct_input"]) / 100.0
 
-        if st.session_state["active_discount_type"] == "discount":
-            st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
-
-        if st.session_state["manager_pricing_checkbox"]:
-            if not st.session_state["manager_pricing_authorized"]:
-                mp1, mp2, mp3 = st.columns([1, 1, 0.8])
-                with mp1:
-                    st.text_input("Manager Username", key="manager_username")
-                with mp2:
-                    st.text_input("Manager Password", key="manager_password", type="password")
-                with mp3:
-                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                    if st.button("Authorize Manager Pricing", key="btn_authorize_manager"):
-                        authorize_manager_pricing()
-            else:
-                st.success("Manager pricing authorized.")
-
-        st.markdown("**Freight Notes**")
-        fn1, fn2, fn3, fn4 = st.columns(4)
-        with fn1:
-            st.checkbox("Business Address", key=_freight_note_key("Business Address"))
-            st.checkbox("Residential Address", key=_freight_note_key("Residential Address"))
-        with fn2:
-            st.checkbox("Lift Gate Needed", key=_freight_note_key("Lift Gate Needed"))
-            st.checkbox("Fork Lift Access", key=_freight_note_key("Fork Lift Access"))
-        with fn3:
-            st.checkbox("Loading Dock Access", key=_freight_note_key("Loading Dock Access"))
-            st.checkbox("Local Pickup", key=_freight_note_key("Local Pickup"))
-        with fn4:
-            st.checkbox("UPS", key=_freight_note_key("UPS"))
-            st.checkbox("Ground Freight", key=_freight_note_key("Ground Freight"))
-
-        st.text_input(
-            "Other Freight Notes",
-            key="freight_notes_other",
-            placeholder="Optional extra freight details"
+        subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
+        discount_type = st.session_state["active_discount_type"]
+        primary_discount_label = get_discount_label(discount_type)
+        discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
+        primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
+        manager_discount_amount = calculate_manager_discount(
+            discountable_base,
+            st.session_state["manager_pricing_authorized"]
         )
-        fees_summary_slot = st.container()
 
-    st.session_state["freight_notes"] = get_selected_freight_notes()
+        pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
+        sales_tax = round(pre_tax * tax_rate, 2)
+        grand_total = round(pre_tax + sales_tax, 2)
 
-    tax_rate = SANTA_CRUZ_TAX_RATE if st.session_state["sc_county_checkbox"] else float(st.session_state["tax_rate_pct_input"]) / 100.0
+        with fees_summary_slot:
+            s1, s2, s3, s4, s5, s6 = st.columns(6)
+            with s1:
+                st.metric("Subtotal", f"${subtotal:,.2f}")
+            with s2:
+                if primary_discount_label and primary_discount_amount > 0:
+                    st.metric(primary_discount_label, f"-${primary_discount_amount:,.2f}")
+                else:
+                    st.metric("Primary Discount", "$0.00")
+            with s3:
+                if manager_discount_amount > 0:
+                    st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
+                else:
+                    st.metric("Manager Pricing", "$0.00")
+            with s4:
+                st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
+            with s5:
+                st.metric("Freight", f"${freight:,.2f}")
+            with s6:
+                st.metric("Grand Total", f"${grand_total:,.2f}")
 
-    subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
-    discount_type = st.session_state["active_discount_type"]
-    primary_discount_label = get_discount_label(discount_type)
-    discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
-    primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
-    manager_discount_amount = calculate_manager_discount(
-        discountable_base,
-        st.session_state["manager_pricing_authorized"]
-    )
-
-    pre_tax = subtotal - primary_discount_amount - manager_discount_amount + float(drop_ship_fee) + float(freight)
-    sales_tax = round(pre_tax * tax_rate, 2)
-    grand_total = round(pre_tax + sales_tax, 2)
-
-    with fees_summary_slot:
-        s1, s2, s3, s4, s5, s6 = st.columns(6)
-        with s1:
-            st.metric("Subtotal", f"${subtotal:,.2f}")
-        with s2:
-            if primary_discount_label and primary_discount_amount > 0:
-                st.metric(primary_discount_label, f"-${primary_discount_amount:,.2f}")
+            qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
+            if qual_qty >= 9:
+                st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
             else:
-                st.metric("Primary Discount", "$0.00")
-        with s3:
-            if manager_discount_amount > 0:
-                st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
-            else:
-                st.metric("Manager Pricing", "$0.00")
-        with s4:
-            st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
-        with s5:
-            st.metric("Freight", f"${freight:,.2f}")
-        with s6:
-            st.metric("Grand Total", f"${grand_total:,.2f}")
+                st.info(
+                    f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
+                )
 
-        qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
-        if qual_qty >= 9:
-            st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
-        else:
-            st.info(
-                f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
-            )
+        payload = get_current_payload(
+            subtotal,
+            drop_ship_fee,
+            freight,
+            sales_tax,
+            grand_total,
+            tax_rate,
+            primary_discount_amount,
+            primary_discount_label,
+            manager_discount_amount,
+        )
+        order_meta = payload["order_meta"]
 
-    payload = get_current_payload(
-        subtotal,
-        drop_ship_fee,
-        freight,
-        sales_tax,
-        grand_total,
-        tax_rate,
-        primary_discount_amount,
-        primary_discount_label,
-        manager_discount_amount,
-    )
-    order_meta = payload["order_meta"]
+        with preview_col:
+            render_builder_preview_panel()
 
-    render_builder_sidebar_preview()
+        def discount_note_valid() -> bool:
+            if st.session_state["active_discount_type"] != "discount":
+                return True
+            return bool(st.session_state.get("discount_note", "").strip())
 
-    def discount_note_valid() -> bool:
-        if st.session_state["active_discount_type"] != "discount":
-            return True
-        return bool(st.session_state.get("discount_note", "").strip())
+        with st.container(border=True, key="generate_pdf_panel"):
+            st.subheader("Generate PDF Documents")
 
-    with st.container(border=True, key="generate_pdf_panel"):
-        st.subheader("Generate PDF Documents")
+            quote_no = st.session_state["quote_no"]
+            st.markdown(f"**Current Quote #:** `{quote_no}`")
 
-        quote_no = st.session_state["quote_no"]
-        st.markdown(f"**Current Quote #:** `{quote_no}`")
+            st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
 
-        st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
+            with st.expander("Order/PO Details (for Order PDF)", expanded=False):
+                if not st.session_state.get("order_doc_number_pdf"):
+                    st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
 
-        with st.expander("Order/PO Details (for Order PDF)", expanded=False):
-            if not st.session_state.get("order_doc_number_pdf"):
-                st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+                order_col1, order_col2 = st.columns(2)
+                with order_col1:
+                    st.text_input("Order/PO Document # (Used for Order PDF Header/File Name)", key="order_doc_number_pdf")
+                    st.text_input("P.O. Number", key="order_po_number")
+                    operator_options = ["CZ", "MP", "KG"]
+                    current_operator = st.session_state.get("order_operator", "CZ")
+                    if current_operator not in operator_options:
+                        st.session_state["order_operator"] = "CZ"
+                    st.selectbox("Operator", operator_options, key="order_operator")
+                    st.text_input("Authorization Code", key="order_auth_code")
+                with order_col2:
+                    st.text_input("Commission To", key="order_comm_to")
+                    st.text_input("Check Number", key="order_check_number")
+                    st.text_input("Date Received", key="order_date_received")
 
-            order_col1, order_col2 = st.columns(2)
-            with order_col1:
-                st.text_input("Order/PO Document # (Used for Order PDF Header/File Name)", key="order_doc_number_pdf")
-                st.text_input("P.O. Number", key="order_po_number")
-                operator_options = ["CZ", "MP", "KG"]
-                current_operator = st.session_state.get("order_operator", "CZ")
-                if current_operator not in operator_options:
-                    st.session_state["order_operator"] = "CZ"
-                st.selectbox("Operator", operator_options, key="order_operator")
-                st.text_input("Authorization Code", key="order_auth_code")
-            with order_col2:
-                st.text_input("Commission To", key="order_comm_to")
-                st.text_input("Check Number", key="order_check_number")
-                st.text_input("Date Received", key="order_date_received")
+            pdf_col1, pdf_col2 = st.columns(2)
 
-        pdf_col1, pdf_col2 = st.columns(2)
+            if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+                if not discount_note_valid():
+                    pdf_col1.error("Discount Reason is required when Discount is selected.")
+                else:
+                    handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
-        if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
-            if not discount_note_valid():
-                pdf_col1.error("Discount Reason is required when Discount is selected.")
-            else:
-                handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
-
-        if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
-            if not discount_note_valid():
-                pdf_col2.error("Discount Reason is required when Discount is selected.")
-            else:
-                order_doc_number = st.session_state["order_doc_number_pdf"]
-                handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
+            if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
+                if not discount_note_valid():
+                    pdf_col2.error("Discount Reason is required when Discount is selected.")
+                else:
+                    order_doc_number = st.session_state["order_doc_number_pdf"]
+                    handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
 
 
 if __name__ == "__main__":
