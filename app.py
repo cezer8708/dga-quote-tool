@@ -2641,7 +2641,7 @@ def render_exact_pdf_preview(template: str = "quote", height: str = "80vh"):
         manager_discount_amount,
     )
 
-    render_pdf_preview_from_payload(preview_payload, template=template, height=height)
+    return render_pdf_preview_from_payload(preview_payload, template=template, height=height)
 
 
 def render_builder_sidebar_preview():
@@ -2655,7 +2655,15 @@ def render_builder_sidebar_preview():
 
         if st.session_state["show_pdf_preview"]:
             try:
-                render_exact_pdf_preview(template="quote", height="80vh")
+                pdf_data, pdf_doc_number = render_exact_pdf_preview(template="quote", height="64vh")
+                st.download_button(
+                    "Download preview PDF",
+                    data=pdf_data,
+                    file_name=f"{pdf_doc_number}_Quote.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key=f"download_live_preview_{pdf_doc_number}",
+                )
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
 
@@ -2923,6 +2931,11 @@ def main_app():
             .stApp [data-testid="stSidebar"] {
                 position: relative;
                 z-index: 2;
+            }
+
+            .stApp [data-testid="stSidebar"] {
+                min-width: 460px !important;
+                width: 460px !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-customer_information_panel),

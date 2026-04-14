@@ -1,0 +1,46 @@
+name: Keep Streamlit App Awake
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  visit-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Visit app with a browser
+        run: |
+          node <<'EOF'
+            const { chromium } = require("playwright");
+            const appUrl = "https://dga-quote-tool-v5.streamlit.app";
+
+            (async () => {
+              const browser = await chromium.launch();
+              const page = await browser.newPage();
+              await page.goto(appUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
+
+              const wakeButton = page.getByRole("button", { name: /get this app back up|wake/i });
+              if (await wakeButton.isVisible({ timeout: 15000 }).catch(() => false)) {
+                await wakeButton.click();
+                await page.waitForLoadState("domcontentloaded", { timeout: 120000 }).catch(() => {});
+              }
+
+              await page.waitForTimeout(30000);
+              await browser.close();
+            })().catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
+          EOF
