@@ -2921,11 +2921,11 @@ def main_app():
             section[data-testid="stSidebar"] > div,
             .stApp [data-testid="stSidebar"],
             .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 520px !important;
+                flex-basis: 600px !important;
                 flex-shrink: 0 !important;
-                max-width: 520px !important;
-                min-width: 520px !important;
-                width: 520px !important;
+                max-width: 600px !important;
+                min-width: 600px !important;
+                width: 600px !important;
             }
 
             [data-testid="stSidebarUserContent"] {
@@ -2950,10 +2950,10 @@ def main_app():
                 section[data-testid="stSidebar"] > div,
                 .stApp [data-testid="stSidebar"],
                 .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(92vw, 520px) !important;
-                    max-width: min(92vw, 520px) !important;
-                    min-width: min(92vw, 520px) !important;
-                    width: min(92vw, 520px) !important;
+                    flex-basis: min(92vw, 600px) !important;
+                    max-width: min(92vw, 600px) !important;
+                    min-width: min(92vw, 600px) !important;
+                    width: min(92vw, 600px) !important;
                 }
             }
 
