@@ -32,6 +32,23 @@ except ImportError:
 
 st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
 
+
+def is_health_check_request() -> bool:
+    try:
+        health_value = st.query_params.get("health", "")
+    except Exception:
+        return False
+
+    return str(health_value).strip().lower() in {"1", "true", "yes", "ok"}
+
+
+def render_health_check() -> None:
+    checked_at = datetime.now(pytz.timezone("America/Los_Angeles")).strftime("%Y-%m-%d %I:%M:%S %p %Z")
+    st.title("UPTIME_OK")
+    st.write("DGA Quote Tool is awake.")
+    st.caption(f"Checked at {checked_at}")
+
+
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -3722,4 +3739,7 @@ def main_app():
 
 
 if __name__ == "__main__":
-    main_app()
+    if is_health_check_request():
+        render_health_check()
+    else:
+        main_app()

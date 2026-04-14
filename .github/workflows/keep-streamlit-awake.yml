@@ -24,7 +24,7 @@ jobs:
         run: |
           node <<'EOF'
             const { chromium } = require("playwright");
-            const appUrl = "https://dga-quote-tool-v5.streamlit.app";
+            const appUrl = "https://dga-quote-tool-v5.streamlit.app/?health=1";
 
             (async () => {
               const browser = await chromium.launch();

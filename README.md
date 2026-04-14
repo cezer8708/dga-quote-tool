@@ -14,3 +14,12 @@ python -m venv .venv && source .venv/bin/activate && pip install -r requirements
 ```
 
 Products live in `products.csv`. Update freely.
+
+## Keep the deployed app awake
+Set up a UptimeRobot HTTP(s) monitor for:
+
+```
+https://dga-quote-tool-v5.streamlit.app/?health=1
+```
+
+Use a 6-hour interval and, optionally, a keyword check for `UPTIME_OK`. Full setup notes are in `docs/uptime-robot.md`.
