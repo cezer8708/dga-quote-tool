@@ -2306,6 +2306,21 @@ def _render_pdf_image_preview(pdf_data: bytes, height: str, zoom_percent: int):
     )
 
 
+def _render_pdf_native_browser_preview(pdf_data: bytes, height: str):
+    base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
+    preview_nonce = uuid.uuid4().hex
+    pdf_display = f"""
+    <div class="pdf-iframe-container" style="height: {height};">
+        <iframe
+            src="data:application/pdf;base64,{base64_pdf}#preview={preview_nonce}"
+            title="PDF Preview {preview_nonce}"
+            style="width: 100%; height: 100%; border: none;">
+        </iframe>
+    </div>
+    """
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
 def render_pdf_preview_from_payload(
     payload: dict,
     template: str = "quote",
@@ -2327,7 +2342,7 @@ def render_pdf_preview_from_payload(
         except RuntimeError:
             st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
     else:
-        st.pdf(pdf_data, height=component_height, key=f"pdf_preview_{preview_nonce}")
+        _render_pdf_native_browser_preview(pdf_data, height=height)
     return pdf_data, doc_number
 
 
@@ -2719,8 +2734,7 @@ def render_builder_sidebar_preview():
                 render_exact_pdf_preview(
                     template="quote",
                     height="82vh",
-                    mode="image",
-                    zoom_percent=100,
+                    mode="pdf",
                 )
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
