@@ -796,6 +796,7 @@ def start_new_quote():
         "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
         "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
+    st.session_state["billing_same_as_shipping"] = False
 
     st.session_state["line_items"] = []
     st.session_state["drop_fee_input"] = 0.0
@@ -885,6 +886,35 @@ st.session_state.setdefault("query_preview_loaded", "")
 st.session_state.setdefault("quote_workspace_view", "builder")
 st.session_state.setdefault("processed_order_search", "")
 st.session_state.setdefault("processed_order_selected", "")
+st.session_state.setdefault("billing_same_as_shipping", False)
+
+
+def sync_billing_from_shipping(customer: dict, cust_key_suffix: int) -> None:
+    shipping_to_billing_fields = {
+        "bill_company": "company",
+        "bill_name": "name",
+        "bill_phone": "phone",
+        "bill_email": "email",
+        "bill_addr1": "ship_addr1",
+        "bill_city": "ship_city",
+        "bill_state": "ship_state",
+        "bill_zip": "ship_zip",
+    }
+    billing_widget_keys = {
+        "bill_company": f"bill_company_{cust_key_suffix}",
+        "bill_name": f"bill_name_input_{cust_key_suffix}",
+        "bill_phone": f"bill_phone_{cust_key_suffix}",
+        "bill_email": f"bill_email_{cust_key_suffix}",
+        "bill_addr1": f"bill_addr1_{cust_key_suffix}",
+        "bill_city": f"bill_city_input_{cust_key_suffix}",
+        "bill_state": f"bill_state_input_{cust_key_suffix}",
+        "bill_zip": f"bill_zip_input_{cust_key_suffix}",
+    }
+
+    for billing_field, shipping_field in shipping_to_billing_fields.items():
+        copied_value = customer.get(shipping_field, "")
+        customer[billing_field] = copied_value
+        st.session_state[billing_widget_keys[billing_field]] = copied_value
 
 
 def _pd_get(endpoint: str, params: dict | None = None) -> dict | None:
@@ -2554,6 +2584,7 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
 
     st.session_state["footer_notes"] = payload.get("footer_notes", st.session_state["footer_notes"])
     st.session_state["footer_notes_touched"] = True
+    st.session_state["billing_same_as_shipping"] = False
 
     order_meta = payload.get("order_meta", {})
     st.session_state["order_po_number"] = order_meta.get("po_number", "")
@@ -3388,20 +3419,64 @@ def main_app():
 
         with cols_addr[1]:
             st.subheader("Billing Address")
-            c["bill_company"] = st.text_input("Company", value=c.get("bill_company", c.get("company", "")), key=f"bill_company_{cust_key_suffix}")
+            billing_same_as_shipping = st.checkbox(
+                "Same as shipping",
+                key="billing_same_as_shipping",
+                help="Copy the shipping company, contact, phone, email, and address into billing."
+            )
+            if billing_same_as_shipping:
+                sync_billing_from_shipping(c, cust_key_suffix)
+
+            c["bill_company"] = st.text_input(
+                "Company",
+                value=c.get("bill_company", c.get("company", "")),
+                key=f"bill_company_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
             c["bill_name"] = st.text_input(
                 "Name",
                 value=c.get("bill_name", c.get("name", "")),
                 key=f"bill_name_input_{cust_key_suffix}",
-                help="This is the contact person for billing."
+                help="This is the contact person for billing.",
+                disabled=billing_same_as_shipping,
             )
-            c["bill_phone"] = st.text_input("Phone", value=c.get("bill_phone", c.get("phone", "")), key=f"bill_phone_{cust_key_suffix}")
-            c["bill_email"] = st.text_input("Email", value=c.get("bill_email", c.get("email", "")), key=f"bill_email_{cust_key_suffix}")
-            c["bill_addr1"] = st.text_area("Address Line 1 ", value=c.get("bill_addr1", ""), key=f"bill_addr1_{cust_key_suffix}")
+            c["bill_phone"] = st.text_input(
+                "Phone",
+                value=c.get("bill_phone", c.get("phone", "")),
+                key=f"bill_phone_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
+            c["bill_email"] = st.text_input(
+                "Email",
+                value=c.get("bill_email", c.get("email", "")),
+                key=f"bill_email_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
+            c["bill_addr1"] = st.text_area(
+                "Address Line 1 ",
+                value=c.get("bill_addr1", ""),
+                key=f"bill_addr1_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
             bc1, bc2, bc3 = st.columns(3)
-            c["bill_city"] = bc1.text_input("City", value=c.get("bill_city", ""), key=f"bill_city_input_{cust_key_suffix}")
-            c["bill_state"] = bc2.text_input("State", value=c.get("bill_state", ""), key=f"bill_state_input_{cust_key_suffix}")
-            c["bill_zip"] = bc3.text_input("Zip", value=c.get("bill_zip", ""), key=f"bill_zip_input_{cust_key_suffix}")
+            c["bill_city"] = bc1.text_input(
+                "City",
+                value=c.get("bill_city", ""),
+                key=f"bill_city_input_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
+            c["bill_state"] = bc2.text_input(
+                "State",
+                value=c.get("bill_state", ""),
+                key=f"bill_state_input_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
+            c["bill_zip"] = bc3.text_input(
+                "Zip",
+                value=c.get("bill_zip", ""),
+                key=f"bill_zip_input_{cust_key_suffix}",
+                disabled=billing_same_as_shipping,
+            )
 
     st.divider()
 
