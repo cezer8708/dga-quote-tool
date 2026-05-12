@@ -3407,7 +3407,7 @@ def main_app():
 
         with cols_addr[0]:
             st.subheader("Shipping Address")
-            st.markdown("<div style='min-height: 2.35rem;'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='min-height: 2.49rem;'></div>", unsafe_allow_html=True)
             c["company"] = st.text_input("Company", value=c.get("company", ""), key=f"ship_company_{cust_key_suffix}")
             c["name"] = st.text_input("Name", value=c.get("name", ""), key=f"ship_contact_name_{cust_key_suffix}")
             c["phone"] = st.text_input("Phone", value=c.get("phone", ""), key=f"ship_phone_{cust_key_suffix}")
