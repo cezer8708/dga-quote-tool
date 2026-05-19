@@ -3393,6 +3393,38 @@ def main_app():
                 box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.4) !important;
             }
 
+            .st-key-top_new_quote button,
+            .st-key-sidebar_new_quote button,
+            .st-key-bottom_new_quote button {
+                background: #1f8a4c !important;
+                border: 1px solid rgba(134, 232, 171, 0.42) !important;
+                color: #f4fff7 !important;
+                box-shadow: none !important;
+            }
+
+            .st-key-top_new_quote button *,
+            .st-key-sidebar_new_quote button *,
+            .st-key-bottom_new_quote button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
+            }
+
+            .st-key-top_new_quote button:hover,
+            .st-key-sidebar_new_quote button:hover,
+            .st-key-bottom_new_quote button:hover {
+                background: #269d57 !important;
+                border-color: rgba(165, 244, 190, 0.55) !important;
+            }
+
+            .st-key-top_new_quote button:focus,
+            .st-key-sidebar_new_quote button:focus,
+            .st-key-bottom_new_quote button:focus {
+                border-color: rgba(187, 247, 208, 0.95) !important;
+                box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.38) !important;
+            }
+
             .stDownloadButton > button {
                 background: #1f8a4c !important;
                 border: 1px solid rgba(134, 232, 171, 0.42) !important;
@@ -3488,7 +3520,7 @@ def main_app():
 
     with lookup_col2:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("New Quote", use_container_width=True, type="secondary"):
+        if st.button("New Quote", key="top_new_quote", use_container_width=True, type="secondary"):
             request_new_quote()
 
     with lookup_col3:
