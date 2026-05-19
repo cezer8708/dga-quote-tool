@@ -3393,8 +3393,45 @@ def main_app():
                 box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.4) !important;
             }
 
+            .st-key-top_new_version button,
+            .st-key-sidebar_new_version button,
+            .st-key-generate_pdf_panel .st-key-bottom_new_version button,
+            .st-key-bottom_new_version button {
+                background: #b3262d !important;
+                border: 1px solid rgba(255, 120, 120, 0.5) !important;
+                color: #fff7f7 !important;
+                box-shadow: none !important;
+            }
+
+            .st-key-top_new_version button *,
+            .st-key-sidebar_new_version button *,
+            .st-key-generate_pdf_panel .st-key-bottom_new_version button *,
+            .st-key-bottom_new_version button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
+            }
+
+            .st-key-top_new_version button:hover,
+            .st-key-sidebar_new_version button:hover,
+            .st-key-generate_pdf_panel .st-key-bottom_new_version button:hover,
+            .st-key-bottom_new_version button:hover {
+                background: #c7333a !important;
+                border-color: rgba(255, 150, 150, 0.62) !important;
+            }
+
+            .st-key-top_new_version button:focus,
+            .st-key-sidebar_new_version button:focus,
+            .st-key-generate_pdf_panel .st-key-bottom_new_version button:focus,
+            .st-key-bottom_new_version button:focus {
+                border-color: rgba(255, 190, 190, 0.95) !important;
+                box-shadow: 0 0 0 1px rgba(255, 120, 120, 0.4) !important;
+            }
+
             .st-key-top_new_quote button,
             .st-key-sidebar_new_quote button,
+            .st-key-generate_pdf_panel .st-key-bottom_new_quote button,
             .st-key-bottom_new_quote button {
                 background: #1f8a4c !important;
                 border: 1px solid rgba(134, 232, 171, 0.42) !important;
@@ -3404,6 +3441,7 @@ def main_app():
 
             .st-key-top_new_quote button *,
             .st-key-sidebar_new_quote button *,
+            .st-key-generate_pdf_panel .st-key-bottom_new_quote button *,
             .st-key-bottom_new_quote button * {
                 background: transparent !important;
                 background-image: none !important;
@@ -3413,6 +3451,7 @@ def main_app():
 
             .st-key-top_new_quote button:hover,
             .st-key-sidebar_new_quote button:hover,
+            .st-key-generate_pdf_panel .st-key-bottom_new_quote button:hover,
             .st-key-bottom_new_quote button:hover {
                 background: #269d57 !important;
                 border-color: rgba(165, 244, 190, 0.55) !important;
@@ -3420,6 +3459,7 @@ def main_app():
 
             .st-key-top_new_quote button:focus,
             .st-key-sidebar_new_quote button:focus,
+            .st-key-generate_pdf_panel .st-key-bottom_new_quote button:focus,
             .st-key-bottom_new_quote button:focus {
                 border-color: rgba(187, 247, 208, 0.95) !important;
                 box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.38) !important;
@@ -3525,7 +3565,7 @@ def main_app():
 
     with lookup_col3:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("New Version", use_container_width=True, type="primary",
+        if st.button("New Version", key="top_new_version", use_container_width=True, type="primary",
                      help="Create a new version number based on the current quote."):
             assign_new_quote_version()
 
