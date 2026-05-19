@@ -789,7 +789,48 @@ def assign_new_quote_version():
     st.rerun()
 
 
-def start_new_quote():
+def capture_freight_state() -> dict:
+    return {
+        "freight_fee_input": float(st.session_state.get("freight_fee_input", 0.0) or 0.0),
+        "freight_notes": get_selected_freight_notes(),
+        "freight_notes_other": st.session_state.get("freight_notes_other", ""),
+        "freight_checks": {
+            label: bool(st.session_state.get(_freight_note_key(label), False))
+            for label in FREIGHT_NOTE_OPTIONS
+        },
+    }
+
+
+def restore_freight_state(freight_state: dict):
+    st.session_state["freight_fee_input"] = float(freight_state.get("freight_fee_input", 0.0) or 0.0)
+    st.session_state["freight_notes"] = freight_state.get("freight_notes", "")
+    st.session_state["freight_notes_other"] = freight_state.get("freight_notes_other", "")
+    freight_checks = freight_state.get("freight_checks", {})
+    for label in FREIGHT_NOTE_OPTIONS:
+        st.session_state[_freight_note_key(label)] = bool(freight_checks.get(label, False))
+
+
+def has_freight_state(freight_state: dict | None = None) -> bool:
+    freight_state = freight_state or capture_freight_state()
+    return (
+        float(freight_state.get("freight_fee_input", 0.0) or 0.0) > 0
+        or bool((freight_state.get("freight_notes", "") or "").strip())
+        or bool((freight_state.get("freight_notes_other", "") or "").strip())
+        or any(bool(v) for v in freight_state.get("freight_checks", {}).values())
+    )
+
+
+def request_new_quote():
+    if has_freight_state():
+        st.session_state["new_quote_dialog_open"] = True
+        st.rerun()
+    else:
+        start_new_quote()
+
+
+def start_new_quote(preserve_freight: bool = False):
+    freight_state = capture_freight_state() if preserve_freight else None
+
     st.session_state["customer"] = {
         "company": "", "name": "", "email": "", "phone": "",
         "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
@@ -834,7 +875,34 @@ def start_new_quote():
     st.session_state["pd_expander_state"] = False
     st.session_state["show_pdf_preview"] = True
     st.session_state["show_pdf_preview_touched"] = False
+    st.session_state["new_quote_dialog_open"] = False
+
+    if preserve_freight and freight_state:
+        restore_freight_state(freight_state)
+
     st.rerun()
+
+
+@st.dialog("Start New Quote")
+def render_new_quote_dialog():
+    freight_state = capture_freight_state()
+    freight_amount = float(freight_state.get("freight_fee_input", 0.0) or 0.0)
+    freight_notes = freight_state.get("freight_notes", "").strip()
+
+    st.write("You have freight details on this quote. What should happen to them?")
+    if freight_amount > 0:
+        st.caption(f"Current freight: {fmt_money(freight_amount)}")
+    if freight_notes:
+        st.caption(f"Current freight notes: {freight_notes}")
+
+    keep_col, clear_col, cancel_col = st.columns(3)
+    if keep_col.button("Keep Freight", type="primary", use_container_width=True):
+        start_new_quote(preserve_freight=True)
+    if clear_col.button("Clear Freight", type="secondary", use_container_width=True):
+        start_new_quote(preserve_freight=False)
+    if cancel_col.button("Cancel", use_container_width=True):
+        st.session_state["new_quote_dialog_open"] = False
+        st.rerun()
 
 
 if "customer" not in st.session_state:
@@ -887,6 +955,7 @@ st.session_state.setdefault("quote_workspace_view", "builder")
 st.session_state.setdefault("processed_order_search", "")
 st.session_state.setdefault("processed_order_selected", "")
 st.session_state.setdefault("billing_same_as_shipping", False)
+st.session_state.setdefault("new_quote_dialog_open", False)
 
 
 def sync_billing_from_shipping(customer: dict, cust_key_suffix: int) -> None:
@@ -2509,6 +2578,31 @@ def add_item_callback(sku: str = ""):
     st.session_state["rerun_flag"] = True
 
 
+STOCK_NUMBER_PLATE_SKU = "NP"
+STOCK_NUMBER_PLATE_QTY_NOTES = {
+    9: "#1-9",
+    18: "#1-18",
+}
+
+
+def apply_stock_number_plate_qty_note(item: dict):
+    if item.get("sku") != STOCK_NUMBER_PLATE_SKU:
+        return
+
+    note_key = f"Notes_input_{item['id']}"
+    qty = int(item.get("qty", 0))
+    current_note = st.session_state.get(note_key, item.get("Notes", ""))
+    generated_notes = set(STOCK_NUMBER_PLATE_QTY_NOTES.values())
+    new_note = STOCK_NUMBER_PLATE_QTY_NOTES.get(qty)
+
+    if new_note:
+        item["Notes"] = new_note
+        st.session_state[note_key] = new_note
+    elif current_note in generated_notes:
+        item["Notes"] = ""
+        st.session_state[note_key] = ""
+
+
 def handle_quantity_change(item_id: str):
     items = st.session_state["line_items"]
 
@@ -2518,6 +2612,7 @@ def handle_quantity_change(item_id: str):
             item_unit = float(item.get("unit", 0.0))
             item["qty"] = item_qty
             item["total"] = round(item_qty * item_unit, 2)
+            apply_stock_number_plate_qty_note(item)
             break
 
     if ensure_course_discount(items):
@@ -2753,6 +2848,14 @@ def render_exact_pdf_preview(
 
 def render_builder_sidebar_preview():
     with st.sidebar:
+        st.header("Document")
+        st.caption(f"Current Doc #: {st.session_state['quote_no']}")
+        doc_col1, doc_col2 = st.columns(2)
+        if doc_col1.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
+            assign_new_quote_version()
+        if doc_col2.button("New Quote", key="sidebar_new_quote", use_container_width=True):
+            request_new_quote()
+
         st.header("PDF Preview")
         st.checkbox(
             "Show Live Quote Preview",
@@ -3373,6 +3476,9 @@ def main_app():
     if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
         st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
 
+    if st.session_state.get("new_quote_dialog_open", False):
+        render_new_quote_dialog()
+
     lookup_col1, lookup_col2, lookup_col3 = st.columns([1.2, 0.9, 0.9])
     cust_key_suffix = st.session_state["customer_key_suffix"]
 
@@ -3383,7 +3489,7 @@ def main_app():
     with lookup_col2:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
         if st.button("New Quote", use_container_width=True, type="secondary"):
-            start_new_quote()
+            request_new_quote()
 
     with lookup_col3:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
@@ -3603,6 +3709,7 @@ def main_app():
                         row["Notes"] = new_notes
                         row["prev_sku"] = new_sku if new_sku else "(custom)"
                         st.session_state[f"Notes_input_{row['id']}"] = new_notes
+                        apply_stock_number_plate_qty_note(row)
                         st.session_state["rerun_flag"] = True
 
                     if not row["sku"] and not is_course_discount:
@@ -3789,7 +3896,15 @@ def main_app():
         st.subheader("Generate PDF Documents")
 
         quote_no = st.session_state["quote_no"]
-        st.markdown(f"**Current Quote #:** `{quote_no}`")
+        action_col1, action_col2, action_col3 = st.columns([1.4, 0.9, 0.9])
+        with action_col1:
+            st.markdown(f"**Current Quote #:** `{quote_no}`")
+        with action_col2:
+            if st.button("New Version", key="bottom_new_version", type="primary", use_container_width=True):
+                assign_new_quote_version()
+        with action_col3:
+            if st.button("New Quote", key="bottom_new_quote", type="secondary", use_container_width=True):
+                request_new_quote()
 
         st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
 
