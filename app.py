@@ -3465,6 +3465,64 @@ def main_app():
                 box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.38) !important;
             }
 
+            .st-key-generate_pdf_panel .st-key-generate_quote_pdf button,
+            .st-key-generate_quote_pdf button {
+                background: #24598f !important;
+                border: 1px solid rgba(147, 197, 253, 0.5) !important;
+                color: #f4f9ff !important;
+                box-shadow: none !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-generate_quote_pdf button *,
+            .st-key-generate_quote_pdf button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-generate_quote_pdf button:hover,
+            .st-key-generate_quote_pdf button:hover {
+                background: #2d6faf !important;
+                border-color: rgba(191, 219, 254, 0.68) !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-generate_quote_pdf button:focus,
+            .st-key-generate_quote_pdf button:focus {
+                border-color: rgba(219, 234, 254, 0.95) !important;
+                box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.42) !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-process_order_po button,
+            .st-key-process_order_po button {
+                background: #d8871d !important;
+                border: 1px solid rgba(255, 214, 153, 0.72) !important;
+                color: #fff8ec !important;
+                box-shadow: 0 0 0 1px rgba(255, 185, 84, 0.16), 0 10px 24px rgba(216, 135, 29, 0.22) !important;
+                font-weight: 800 !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-process_order_po button *,
+            .st-key-process_order_po button * {
+                background: transparent !important;
+                background-image: none !important;
+                color: inherit !important;
+                text-shadow: none !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-process_order_po button:hover,
+            .st-key-process_order_po button:hover {
+                background: #f09a24 !important;
+                border-color: rgba(255, 230, 180, 0.88) !important;
+                box-shadow: 0 0 0 1px rgba(255, 206, 128, 0.24), 0 12px 28px rgba(240, 154, 36, 0.3) !important;
+            }
+
+            .st-key-generate_pdf_panel .st-key-process_order_po button:focus,
+            .st-key-process_order_po button:focus {
+                border-color: rgba(255, 244, 214, 0.98) !important;
+                box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.52) !important;
+            }
+
             .stDownloadButton > button {
                 background: #1f8a4c !important;
                 border: 1px solid rgba(134, 232, 171, 0.42) !important;
@@ -4001,13 +4059,13 @@ def main_app():
 
         pdf_col1, pdf_col2 = st.columns(2)
 
-        if pdf_col1.button("Generate & SAVE Quote PDF", use_container_width=True, type="primary"):
+        if pdf_col1.button("Generate & SAVE Quote PDF", key="generate_quote_pdf", use_container_width=True, type="primary"):
             if not discount_note_valid():
                 pdf_col1.error("Discount Reason is required when Discount is selected.")
             else:
                 handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
-        if pdf_col2.button("Process as Order / PO", use_container_width=True, type="secondary"):
+        if pdf_col2.button("Process as Order / PO", key="process_order_po", use_container_width=True, type="secondary"):
             if not discount_note_valid():
                 pdf_col2.error("Discount Reason is required when Discount is selected.")
             else:
