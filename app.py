@@ -1874,7 +1874,7 @@ def build_pdf(
         parent=styles["Normal"],
         fontSize=notes_font + 0.5,
         leading=notes_leading + 1,
-        textColor=colors.HexColor("#374151"),
+        textColor=colors.black,
     )
     notes_style_2 = ParagraphStyle(
         "LineNote2",
