@@ -3437,9 +3437,10 @@ def main_app():
                 box-shadow: 0 0 0 1px rgba(147, 190, 255, 0.45) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > div:first-child {
-                width: 1.05rem !important;
-                height: 1.05rem !important;
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] > :first-child {
+                position: relative !important;
+                width: 1.18rem !important;
+                height: 1.18rem !important;
                 border-radius: 0.28rem !important;
                 border: 1.5px solid rgba(210, 228, 255, 0.42) !important;
                 background: rgba(28, 43, 67, 0.7) !important;
@@ -3447,24 +3448,42 @@ def main_app():
                 transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:hover > div:first-child {
-                border-color: rgba(255, 173, 173, 0.82) !important;
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:hover > :first-child {
+                border-color: rgba(143, 211, 255, 0.9) !important;
                 background: rgba(41, 57, 86, 0.82) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus) > div:first-child,
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus-visible) > div:first-child {
-                border-color: rgba(255, 176, 176, 0.95) !important;
-                box-shadow: 0 0 0 2px rgba(214, 59, 66, 0.28) !important;
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus) > :first-child,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus-visible) > :first-child {
+                border-color: rgba(143, 211, 255, 0.95) !important;
+                box-shadow: 0 0 0 2px rgba(72, 179, 255, 0.3) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
-                background: #d63b42 !important;
-                border-color: #ff8d93 !important;
-                box-shadow: 0 0 0 1px rgba(255, 141, 147, 0.2) !important;
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > :first-child,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[aria-checked="true"]) > :first-child {
+                background: #1f8a4c !important;
+                background-color: #1f8a4c !important;
+                background-image: linear-gradient(#1f8a4c, #1f8a4c) !important;
+                border-color: #a5f4be !important;
+                box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.28) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child svg {
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > :first-child::after,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[aria-checked="true"]) > :first-child::after {
+                content: "" !important;
+                position: absolute !important;
+                left: 0.39rem !important;
+                top: 0.15rem !important;
+                width: 0.34rem !important;
+                height: 0.66rem !important;
+                border: solid #ffffff !important;
+                border-width: 0 0.16rem 0.16rem 0 !important;
+                transform: rotate(45deg) !important;
+                filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.45));
+            }
+
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > :first-child svg,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input[aria-checked="true"]) > :first-child svg {
                 display: block !important;
                 width: 0.82rem !important;
                 height: 0.82rem !important;
