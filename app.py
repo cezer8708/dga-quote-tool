@@ -30,7 +30,7 @@ try:
 except ImportError:
     fitz = None
 
-st.set_page_config(page_title="DGA Quoting Tool", layout="wide")
+st.set_page_config(page_title="DGA Quoting Tool", layout="wide", initial_sidebar_state="expanded")
 
 
 def is_health_check_request() -> bool:
@@ -2848,27 +2848,51 @@ def render_exact_pdf_preview(
 
 def render_builder_sidebar_preview():
     with st.sidebar:
-        st.header("Document")
-        st.caption(f"Current Doc #: {st.session_state['quote_no']}")
-        doc_col1, doc_col2 = st.columns(2)
-        if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
-            request_new_quote()
-        if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
-            assign_new_quote_version()
+        with st.container(key="sidebar_preview_controls"):
+            preview_is_live = st.session_state.get("show_pdf_preview", True)
+            preview_status = "Live PDF" if preview_is_live else "Hidden"
+            preview_status_class = "preview-toolbar-status" if preview_is_live else "preview-toolbar-status is-off"
+            st.markdown(
+                f"""
+                <div class="preview-toolbar-heading">
+                    <div>
+                        <div class="preview-toolbar-kicker">Quote Preview</div>
+                        <div class="preview-toolbar-doc">{st.session_state['quote_no']}</div>
+                    </div>
+                    <div class="{preview_status_class}">{preview_status}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-        st.header("PDF Preview")
-        st.checkbox(
-            "Show Live Quote Preview",
-            key="show_pdf_preview",
-            on_change=handle_show_pdf_preview_toggle,
-        )
+            doc_col1, doc_col2 = st.columns(2)
+            if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
+                request_new_quote()
+            if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
+                assign_new_quote_version()
+
+            if hasattr(st, "toggle"):
+                st.toggle(
+                    "Live preview",
+                    key="show_pdf_preview",
+                    on_change=handle_show_pdf_preview_toggle,
+                    help="Keep the PDF preview synced while editing.",
+                )
+            else:
+                st.checkbox(
+                    "Live preview",
+                    key="show_pdf_preview",
+                    on_change=handle_show_pdf_preview_toggle,
+                    help="Keep the PDF preview synced while editing.",
+                )
 
         if st.session_state["show_pdf_preview"]:
             try:
                 render_exact_pdf_preview(
                     template="quote",
-                    height="82vh",
-                    mode="pdf",
+                    height="calc(100vh - 310px)",
+                    mode="image",
+                    zoom_percent=100,
                 )
             except Exception as e:
                 st.error(f"Preview unavailable: {e}")
@@ -3160,6 +3184,113 @@ def main_app():
                 padding-right: 0.75rem !important;
             }
 
+            [data-testid="stSidebar"] {
+                background: #20242f !important;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"],
+            [data-testid="stExpandSidebarButton"] {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+
+            .st-key-sidebar_preview_controls {
+                margin: 0.35rem 0 0.95rem !important;
+                padding: 0.8rem !important;
+                border: 1px solid rgba(210, 228, 255, 0.14) !important;
+                border-radius: 10px !important;
+                background: rgba(13, 18, 29, 0.42) !important;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+            }
+
+            .st-key-sidebar_preview_controls,
+            .st-key-sidebar_preview_controls * {
+                background-image: none !important;
+            }
+
+            .preview-toolbar-heading {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 0.75rem;
+                margin-bottom: 0.7rem;
+            }
+
+            .preview-toolbar-kicker {
+                color: rgba(246, 248, 251, 0.62);
+                font-size: 0.74rem;
+                font-weight: 800;
+                letter-spacing: 0;
+                line-height: 1.1;
+                text-transform: uppercase;
+            }
+
+            .preview-toolbar-doc {
+                color: #f6f8fb;
+                font-size: 1.05rem;
+                font-weight: 800;
+                line-height: 1.25;
+                margin-top: 0.18rem;
+            }
+
+            .preview-toolbar-status {
+                flex: 0 0 auto;
+                border: 1px solid rgba(134, 232, 171, 0.36);
+                border-radius: 999px;
+                color: #c8f8d8;
+                background: rgba(31, 138, 76, 0.18) !important;
+                font-size: 0.72rem;
+                font-weight: 800;
+                line-height: 1;
+                padding: 0.36rem 0.5rem;
+            }
+
+            .preview-toolbar-status.is-off {
+                border-color: rgba(210, 228, 255, 0.18);
+                color: rgba(246, 248, 251, 0.62);
+                background: rgba(210, 228, 255, 0.08) !important;
+            }
+
+            .st-key-sidebar_preview_controls div[data-testid="stHorizontalBlock"] {
+                gap: 0.55rem !important;
+                margin-bottom: 0.45rem !important;
+            }
+
+            .st-key-sidebar_preview_controls .stButton > button {
+                height: 34px !important;
+                border-radius: 7px !important;
+                font-size: 13px !important;
+                font-weight: 800 !important;
+            }
+
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"],
+            .st-key-sidebar_preview_controls div[data-testid="stToggle"] {
+                border-top: 1px solid rgba(210, 228, 255, 0.12) !important;
+                margin-top: 0.55rem !important;
+                padding-top: 0.65rem !important;
+            }
+
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label,
+            .st-key-sidebar_preview_controls div[data-testid="stToggle"] label {
+                align-items: center !important;
+                color: rgba(246, 248, 251, 0.9) !important;
+                font-weight: 800 !important;
+            }
+
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
+                background: #1f8a4c !important;
+                border-color: rgba(165, 244, 190, 0.75) !important;
+                box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.26) !important;
+            }
+
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input + div,
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] [data-testid="stWidgetLabel"],
+            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] [data-testid="stWidgetLabel"] * {
+                background: transparent !important;
+                background-color: transparent !important;
+            }
+
             [data-testid="stSidebar"] iframe,
             [data-testid="stSidebar"] [data-testid="stIFrame"],
             [data-testid="stSidebar"] [data-testid="stPdf"] {
@@ -3319,19 +3450,19 @@ def main_app():
                 background: rgba(41, 57, 86, 0.82) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:focus + div,
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:focus-visible + div {
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus) > div:first-child,
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:focus-visible) > div:first-child {
                 border-color: rgba(255, 176, 176, 0.95) !important;
                 box-shadow: 0 0 0 2px rgba(214, 59, 66, 0.28) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:checked + div {
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
                 background: #d63b42 !important;
                 border-color: #ff8d93 !important;
                 box-shadow: 0 0 0 1px rgba(255, 141, 147, 0.2) !important;
             }
 
-            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input:checked + div svg {
+            div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child svg {
                 display: block !important;
                 width: 0.82rem !important;
                 height: 0.82rem !important;
