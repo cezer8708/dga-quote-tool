@@ -1869,6 +1869,13 @@ def build_pdf(
         textColor=colors.grey,
         leftIndent=6
     )
+    product_note_style = ParagraphStyle(
+        "ProductNote",
+        parent=styles["Normal"],
+        fontSize=notes_font + 0.5,
+        leading=notes_leading + 1,
+        textColor=colors.HexColor("#374151"),
+    )
     notes_style_2 = ParagraphStyle(
         "LineNote2",
         parent=styles["Normal"],
@@ -1965,6 +1972,7 @@ def build_pdf(
         header = ["Quantity", "Product Description", "Unit Price", "Total"]
         li_cols = [0.7 * inch, content_width - 0.7 * inch - 0.825 * inch - 0.825 * inch, 0.825 * inch, 0.825 * inch]
         data = [header]
+        note_row_indexes = []
 
         for r in items:
             is_checked = r.get("previewChecked", True)
@@ -1981,10 +1989,12 @@ def build_pdf(
 
             note_txt = (r.get("Notes") or r.get("notes") or "").strip()
             if note_txt:
-                data.append(["", Paragraph(note_txt, notes_style), "", ""])
+                note_html = html.escape(note_txt).replace("\n", "<br/>")
+                note_row_indexes.append(len(data))
+                data.append(["", Paragraph(note_html, product_note_style), "", ""])
 
         t_li = Table(data, colWidths=li_cols, repeatRows=1)
-        t_li.setStyle(TableStyle([
+        line_item_style = [
             ("BOX", (0, 0), (-1, -1), 0.75, colors.black),
             ("INNERGRID", (0, 0), (-1, -1), 0.25, colors.grey),
             ("BACKGROUND", (0, 0), (-1, 0), pdf_section_fill),
@@ -1995,7 +2005,17 @@ def build_pdf(
             ("RIGHTPADDING", (0, 0), (-1, -1), 4),
             ("TOPPADDING", (0, 0), (-1, -1), row_top_pad),
             ("BOTTOMPADDING", (0, 0), (-1, -1), row_bottom_pad),
-        ]))
+        ]
+        for note_row_idx in note_row_indexes:
+            line_item_style.extend([
+                ("SPAN", (1, note_row_idx), (3, note_row_idx)),
+                ("BACKGROUND", (1, note_row_idx), (3, note_row_idx), colors.HexColor("#F7F9FC")),
+                ("LEFTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
+                ("RIGHTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
+                ("TOPPADDING", (1, note_row_idx), (3, note_row_idx), 4),
+                ("BOTTOMPADDING", (1, note_row_idx), (3, note_row_idx), 5),
+            ])
+        t_li.setStyle(TableStyle(line_item_style))
         t_li.hAlign = "LEFT"
         story += [t_li]
 
@@ -2117,6 +2137,7 @@ def build_pdf(
         header = ["Qty", "Product Description", "Unit Price", "Total"]
         li_cols = [0.65 * inch, content_width - 0.65 * inch - 1.1 * inch - 1.1 * inch, 1.1 * inch, 1.1 * inch]
         data = [header]
+        note_row_indexes = []
 
         for r in items:
             is_checked = r.get("previewChecked", True)
@@ -2133,10 +2154,12 @@ def build_pdf(
 
             note_txt = (r.get("Notes") or r.get("notes") or "").strip()
             if note_txt:
-                data.append(["", Paragraph(note_txt, notes_style), "", ""])
+                note_html = html.escape(note_txt).replace("\n", "<br/>")
+                note_row_indexes.append(len(data))
+                data.append(["", Paragraph(note_html, product_note_style), "", ""])
 
         t_li = Table(data, colWidths=li_cols, repeatRows=1)
-        t_li.setStyle(TableStyle([
+        line_item_style = [
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
             ("BACKGROUND", (0, 0), (-1, 0), pdf_section_fill),
             ("ALIGN", (0, 1), (0, -1), "CENTER"),
@@ -2146,7 +2169,17 @@ def build_pdf(
             ("RIGHTPADDING", (0, 0), (-1, -1), 6),
             ("TOPPADDING", (0, 0), (-1, -1), row_top_pad),
             ("BOTTOMPADDING", (0, 0), (-1, -1), row_bottom_pad),
-        ]))
+        ]
+        for note_row_idx in note_row_indexes:
+            line_item_style.extend([
+                ("SPAN", (1, note_row_idx), (3, note_row_idx)),
+                ("BACKGROUND", (1, note_row_idx), (3, note_row_idx), colors.HexColor("#F7F9FC")),
+                ("LEFTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
+                ("RIGHTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
+                ("TOPPADDING", (1, note_row_idx), (3, note_row_idx), 4),
+                ("BOTTOMPADDING", (1, note_row_idx), (3, note_row_idx), 5),
+            ])
+        t_li.setStyle(TableStyle(line_item_style))
         t_li.hAlign = "LEFT"
         story += [t_li, Spacer(1, block_spacer_large)]
 
