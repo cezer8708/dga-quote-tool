@@ -2008,12 +2008,9 @@ def build_pdf(
         ]
         for note_row_idx in note_row_indexes:
             line_item_style.extend([
-                ("SPAN", (1, note_row_idx), (3, note_row_idx)),
-                ("BACKGROUND", (1, note_row_idx), (3, note_row_idx), colors.HexColor("#F7F9FC")),
-                ("LEFTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
-                ("RIGHTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
-                ("TOPPADDING", (1, note_row_idx), (3, note_row_idx), 4),
-                ("BOTTOMPADDING", (1, note_row_idx), (3, note_row_idx), 5),
+                ("LEFTPADDING", (1, note_row_idx), (1, note_row_idx), 8),
+                ("TOPPADDING", (1, note_row_idx), (1, note_row_idx), 4),
+                ("BOTTOMPADDING", (1, note_row_idx), (1, note_row_idx), 5),
             ])
         t_li.setStyle(TableStyle(line_item_style))
         t_li.hAlign = "LEFT"
@@ -2172,12 +2169,9 @@ def build_pdf(
         ]
         for note_row_idx in note_row_indexes:
             line_item_style.extend([
-                ("SPAN", (1, note_row_idx), (3, note_row_idx)),
-                ("BACKGROUND", (1, note_row_idx), (3, note_row_idx), colors.HexColor("#F7F9FC")),
-                ("LEFTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
-                ("RIGHTPADDING", (1, note_row_idx), (3, note_row_idx), 8),
-                ("TOPPADDING", (1, note_row_idx), (3, note_row_idx), 4),
-                ("BOTTOMPADDING", (1, note_row_idx), (3, note_row_idx), 5),
+                ("LEFTPADDING", (1, note_row_idx), (1, note_row_idx), 8),
+                ("TOPPADDING", (1, note_row_idx), (1, note_row_idx), 4),
+                ("BOTTOMPADDING", (1, note_row_idx), (1, note_row_idx), 5),
             ])
         t_li.setStyle(TableStyle(line_item_style))
         t_li.hAlign = "LEFT"
