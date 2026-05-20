@@ -2581,7 +2581,9 @@ def add_item_callback(sku: str = ""):
 STOCK_NUMBER_PLATE_SKU = "NP"
 STOCK_NUMBER_PLATE_QTY_NOTES = {
     9: "#1-9",
+    10: "#1-9, P",
     18: "#1-18",
+    19: "#1-18, P",
 }
 
 
