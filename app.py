@@ -779,7 +779,21 @@ def new_quote_number():
     return get_pacific_now().strftime("%m%d-%H%M")
 
 
+PENDING_FREIGHT_STATE_KEY = "_pending_freight_state"
+
+
+def preserve_freight_for_next_rerun():
+    st.session_state[PENDING_FREIGHT_STATE_KEY] = capture_freight_state()
+
+
+def restore_pending_freight_state():
+    freight_state = st.session_state.pop(PENDING_FREIGHT_STATE_KEY, None)
+    if freight_state:
+        restore_freight_state(freight_state)
+
+
 def assign_new_quote_version():
+    preserve_freight_for_next_rerun()
     current_quote_no = st.session_state["quote_no"]
     match = re.match(r"(.+?)(?:-V(\d+))?$", current_quote_no)
     base, version = match.groups() if match else (current_quote_no, None)
@@ -822,6 +836,7 @@ def has_freight_state(freight_state: dict | None = None) -> bool:
 
 def request_new_quote():
     if has_freight_state():
+        preserve_freight_for_next_rerun()
         st.session_state["new_quote_dialog_open"] = True
         st.rerun()
     else:
@@ -922,6 +937,7 @@ st.session_state.setdefault("freight_notes", "")
 st.session_state.setdefault("freight_notes_other", "")
 for label in FREIGHT_NOTE_OPTIONS:
     st.session_state.setdefault(_freight_note_key(label), False)
+restore_pending_freight_state()
 
 st.session_state.setdefault("active_discount_type", "")
 st.session_state.setdefault("team_discount_checkbox", False)
@@ -3773,6 +3789,7 @@ def main_app():
 
     if st.session_state["rerun_flag"]:
         st.session_state["rerun_flag"] = False
+        preserve_freight_for_next_rerun()
         st.rerun()
 
     if st.session_state.get("manager_clear_credentials_on_rerun", False):
