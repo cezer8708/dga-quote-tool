@@ -244,6 +244,11 @@ def get_discount_label(discount_type: str) -> str:
     return ""
 
 
+def get_manager_pricing_label() -> str:
+    note = st.session_state.get("manager_pricing_note", "").strip()
+    return f"{note} Pricing" if note else "Manager Pricing"
+
+
 def sync_discount_checkboxes_from_type(discount_type: str):
     st.session_state["team_discount_checkbox"] = discount_type == "team"
     st.session_state["commission_discount_checkbox"] = discount_type == "commission"
@@ -293,6 +298,7 @@ def validate_manager_credentials() -> bool:
 def handle_manager_pricing_toggle():
     if not st.session_state.get("manager_pricing_checkbox", False):
         st.session_state["manager_pricing_authorized"] = False
+        st.session_state["manager_pricing_note"] = ""
         clear_manager_credentials()
 
 
@@ -866,6 +872,7 @@ def start_new_quote(preserve_freight: bool = False):
     st.session_state["discount_note"] = ""
     st.session_state["manager_pricing_checkbox"] = False
     st.session_state["manager_pricing_authorized"] = False
+    st.session_state["manager_pricing_note"] = ""
     st.session_state["manager_clear_credentials_on_rerun"] = False
     clear_manager_credentials()
 
@@ -947,6 +954,7 @@ st.session_state.setdefault("discount_note", "")
 
 st.session_state.setdefault("manager_pricing_checkbox", False)
 st.session_state.setdefault("manager_pricing_authorized", False)
+st.session_state.setdefault("manager_pricing_note", "")
 st.session_state.setdefault("manager_username", "")
 st.session_state.setdefault("manager_password", "")
 st.session_state.setdefault("manager_clear_credentials_on_rerun", False)
@@ -1909,6 +1917,7 @@ def build_pdf(
     primary_discount_label = totals.get("discount_label", "")
     primary_discount_amount = totals.get("ten_percent_discount", 0.0)
     manager_discount_amount = totals.get("manager_discount", 0.0)
+    manager_discount_label = totals.get("manager_discount_label", "Manager Pricing")
 
     if template == "order":
         story += _build_pdf_brand_header(
@@ -2045,7 +2054,7 @@ def build_pdf(
         if primary_discount_label and primary_discount_amount > 0:
             sub_rows.append([f"{primary_discount_label}:", fmt_money(-primary_discount_amount)])
         if manager_discount_amount > 0:
-            sub_rows.append(["Manager Pricing:", fmt_money(-manager_discount_amount)])
+            sub_rows.append([f"{manager_discount_label}:", fmt_money(-manager_discount_amount)])
         sub_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
@@ -2208,7 +2217,7 @@ def build_pdf(
         if primary_discount_label and primary_discount_amount > 0:
             totals_rows.append([f"{primary_discount_label}:", fmt_money(-primary_discount_amount)])
         if manager_discount_amount > 0:
-            totals_rows.append(["Manager Pricing:", fmt_money(-manager_discount_amount)])
+            totals_rows.append([f"{manager_discount_label}:", fmt_money(-manager_discount_amount)])
         totals_rows.extend([
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
@@ -2524,6 +2533,7 @@ def get_current_payload(
         "ten_percent_discount": primary_discount_amount,
         "discount_label": primary_discount_label,
         "manager_discount": manager_discount_amount,
+        "manager_discount_label": get_manager_pricing_label(),
         "sales_tax": sales_tax,
         "grand_total": grand_total,
         "tax_rate_pct": tax_rate,
@@ -2536,6 +2546,7 @@ def get_current_payload(
         "active_discount_type": st.session_state["active_discount_type"],
         "discount_note": st.session_state["discount_note"],
         "manager_pricing_authorized": st.session_state["manager_pricing_authorized"],
+        "manager_pricing_note": st.session_state["manager_pricing_note"],
     }
 
     return {
@@ -2719,6 +2730,7 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
     st.session_state["manager_pricing_authorized"] = manager_authorized
     st.session_state["manager_pricing_checkbox"] = manager_authorized
+    st.session_state["manager_pricing_note"] = discount_meta.get("manager_pricing_note", "")
     st.session_state["manager_clear_credentials_on_rerun"] = False
     clear_manager_credentials()
 
@@ -4116,6 +4128,11 @@ def main_app():
             st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
 
         if st.session_state["manager_pricing_checkbox"]:
+            st.text_input(
+                "Manager Pricing Note (required)",
+                key="manager_pricing_note",
+                placeholder="Required reason for manager pricing"
+            )
             if not st.session_state["manager_pricing_authorized"]:
                 mp1, mp2, mp3 = st.columns([1, 1, 0.8])
                 with mp1:
@@ -4158,6 +4175,7 @@ def main_app():
     subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
     discount_type = st.session_state["active_discount_type"]
     primary_discount_label = get_discount_label(discount_type)
+    manager_discount_label = get_manager_pricing_label()
     discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
     primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
     manager_discount_amount = calculate_manager_discount(
@@ -4180,9 +4198,9 @@ def main_app():
                 st.metric("Primary Discount", "$0.00")
         with s3:
             if manager_discount_amount > 0:
-                st.metric("Manager Pricing", f"-${manager_discount_amount:,.2f}")
+                st.metric(manager_discount_label, f"-${manager_discount_amount:,.2f}")
             else:
-                st.metric("Manager Pricing", "$0.00")
+                st.metric(manager_discount_label, "$0.00")
         with s4:
             st.metric("Drop-Ship Fee", f"${drop_ship_fee:,.2f}")
         with s5:
@@ -4217,6 +4235,11 @@ def main_app():
         if st.session_state["active_discount_type"] != "discount":
             return True
         return bool(st.session_state.get("discount_note", "").strip())
+
+    def manager_pricing_note_valid() -> bool:
+        if not st.session_state["manager_pricing_authorized"]:
+            return True
+        return bool(st.session_state.get("manager_pricing_note", "").strip())
 
     with st.container(border=True, key="generate_pdf_panel"):
         st.subheader("Generate PDF Documents")
@@ -4258,12 +4281,16 @@ def main_app():
         if pdf_col1.button("Generate & SAVE Quote PDF", key="generate_quote_pdf", use_container_width=True, type="primary"):
             if not discount_note_valid():
                 pdf_col1.error("Discount Reason is required when Discount is selected.")
+            elif not manager_pricing_note_valid():
+                pdf_col1.error("Manager Pricing Reason is required when Manager Pricing is authorized.")
             else:
                 handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
         if pdf_col2.button("Process as Order / PO", key="process_order_po", use_container_width=True, type="secondary"):
             if not discount_note_valid():
                 pdf_col2.error("Discount Reason is required when Discount is selected.")
+            elif not manager_pricing_note_valid():
+                pdf_col2.error("Manager Pricing Reason is required when Manager Pricing is authorized.")
             else:
                 order_doc_number = st.session_state["order_doc_number_pdf"]
                 handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
