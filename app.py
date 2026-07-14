@@ -4006,21 +4006,26 @@ def main_app():
                     current_display = match
 
             try:
-                sel_idx = sku_options_display.index(current_display)
+                sel_idx = sku_options_display.index(current_display) if current_sku else None
             except ValueError:
-                sel_idx = 0
+                sel_idx = None
 
             with c1:
                 if is_course_discount:
                     st.markdown("**Auto-Discount**", help="This line is automatically calculated and non-editable.")
                     st.markdown(f"**{row['name']}**")
                 else:
-                    sku_selected_display = st.selectbox("Product Description", sku_options_display, index=sel_idx,
-                                                        key=f"sku_select_{row['id']}")
+                    sku_selected_display = st.selectbox(
+                        "Product Description",
+                        sku_options_display,
+                        index=sel_idx,
+                        placeholder="Start typing to find a product, or choose (custom)",
+                        key=f"sku_select_{row['id']}",
+                    )
 
                     new_notes = row.get("Notes", "")
 
-                    if sku_selected_display == "(custom)":
+                    if not sku_selected_display or sku_selected_display == "(custom)":
                         new_sku = ""
                         new_name = prod_name
                         new_unit = prod_price
