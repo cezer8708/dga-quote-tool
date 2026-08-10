@@ -1409,6 +1409,8 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
 
 
 ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
+MACH_2_PRO_SKUS = {"M2IG", "M2P"}
+COURSE_DISCOUNT_SKUS = ("CD", "CD-M2P")
 
 
 def is_basket_5_7_X(item: dict) -> bool:
@@ -1434,22 +1436,35 @@ def is_basket_5_7_X(item: dict) -> bool:
 
 
 def eligible_qty_for_discount(items: list[dict]) -> int:
-    return int(sum((float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it) and it.get("sku") != "CD")))
+    return int(sum(float(it.get("qty", 0)) for it in items if is_basket_5_7_X(it)))
 
 
-def find_course_discount_index(items: list[dict]) -> int:
+def is_mach_2_pro(item: dict) -> bool:
+    sku = (item.get("sku") or "").upper().strip()
+    return sku in MACH_2_PRO_SKUS
+
+
+def eligible_mach_2_pro_qty_for_discount(items: list[dict]) -> int:
+    return int(sum(float(it.get("qty", 0)) for it in items if is_mach_2_pro(it)))
+
+
+def find_course_discount_index(items: list[dict], discount_sku: str = "CD") -> int:
     for idx, it in enumerate(items):
-        if (it.get("sku") == "CD") or (it.get("name", "").lower().strip() == "course discount"):
+        if it.get("sku") == discount_sku:
+            return idx
+        if discount_sku == "CD" and it.get("name", "").lower().strip() == "course discount":
             return idx
     return -1
 
 
-def find_last_course_discount_anchor_index(items: list[dict]) -> int:
+def find_last_course_discount_anchor_index(items: list[dict], discount_sku: str = "CD") -> int:
     anchor_index = -1
     for idx, item in enumerate(items):
-        if item.get("sku") == "CD":
+        if item.get("sku") in COURSE_DISCOUNT_SKUS:
             continue
-        if is_basket_5_7_X(item):
+        if (discount_sku == "CD" and is_basket_5_7_X(item)) or (
+            discount_sku == "CD-M2P" and is_mach_2_pro(item)
+        ):
             anchor_index = idx
     return anchor_index
 
@@ -1458,55 +1473,65 @@ def ensure_course_discount_position(items: list[dict] = None):
     if items is None:
         items = st.session_state["line_items"]
 
-    discount_idx = find_course_discount_index(items)
-    if discount_idx == -1:
-        return
+    for discount_sku in COURSE_DISCOUNT_SKUS:
+        discount_idx = find_course_discount_index(items, discount_sku)
+        if discount_idx == -1:
+            continue
 
-    anchor_idx = find_last_course_discount_anchor_index(items)
-    if anchor_idx == -1:
-        return
+        anchor_idx = find_last_course_discount_anchor_index(items, discount_sku)
+        if anchor_idx == -1:
+            continue
 
-    discount_item = items.pop(discount_idx)
-    if discount_idx < anchor_idx:
-        anchor_idx -= 1
+        discount_item = items.pop(discount_idx)
+        if discount_idx < anchor_idx:
+            anchor_idx -= 1
+        items.insert(anchor_idx + 1, discount_item)
 
-    insert_at = anchor_idx + 1
-    items.insert(insert_at, discount_item)
+
+def ensure_discount_line(items: list[dict], discount_sku: str, qty: int, unit: float,
+                         name: str, note: str) -> bool:
+    idx = find_course_discount_index(items, discount_sku)
+    if qty < 9:
+        if idx != -1:
+            items.pop(idx)
+            return True
+        return False
+
+    discount_line = {
+        "id": items[idx]["id"] if idx != -1 and "id" in items[idx] else str(uuid.uuid4()),
+        "sku": discount_sku,
+        "name": name,
+        "qty": qty,
+        "unit": unit,
+        "total": round(unit * qty, 2),
+        "Notes": note,
+        "prev_sku": discount_sku,
+        "previewChecked": True,
+        "exclude_from_10_discount": True,
+    }
+    if idx == -1:
+        items.append(discount_line)
+        return True
+    if any(items[idx].get(key) != value for key, value in discount_line.items() if key != "id"):
+        items[idx] = discount_line
+        return True
+    return False
 
 
 def ensure_course_discount(items: list[dict]) -> bool:
     qty = eligible_qty_for_discount(items)
-    idx = find_course_discount_index(items)
-    modified = False
-    discount_note = "Auto-applied for 9+ Mach 5/7/X baskets"
-
-    if qty >= 9:
-        disc_line = {
-            "id": items[idx]["id"] if idx != -1 and "id" in items[idx] else str(uuid.uuid4()),
-            "sku": "CD",
-            "name": "Course Discount (-$100 per qualifying basket)",
-            "qty": qty,
-            "unit": -100.0,
-            "total": round(-100.0 * qty, 2),
-            "Notes": discount_note,
-            "prev_sku": "CD",
-            "previewChecked": True,
-            "exclude_from_10_discount": True,
-        }
-
-        if idx == -1:
-            items.append(disc_line)
-            modified = True
-        elif items[idx]["qty"] != disc_line["qty"] or items[idx]["total"] != disc_line["total"]:
-            items[idx] = disc_line
-            modified = True
-
-        ensure_course_discount_position(items)
-
-    elif idx != -1:
-        items.pop(idx)
-        modified = True
-
+    mach_2_pro_qty = eligible_mach_2_pro_qty_for_discount(items)
+    modified = ensure_discount_line(
+        items, "CD", qty, -100.0,
+        "Course Discount (-$100 per qualifying basket)",
+        "Auto-applied for 9+ Mach 5/7/X baskets",
+    )
+    modified = ensure_discount_line(
+        items, "CD-M2P", mach_2_pro_qty, -50.0,
+        "Mach 2 Pro Course Discount (-$50 per qualifying basket)",
+        "Auto-applied for 9+ Mach 2 Pro baskets",
+    ) or modified
+    ensure_course_discount_position(items)
     return modified
 
 
@@ -2609,7 +2634,7 @@ def add_item_callback(sku: str = ""):
     sku = (sku or "").upper().strip()
     notes = ""
 
-    if sku and sku != "CD":
+    if sku and sku not in COURSE_DISCOUNT_SKUS:
         product_row = PRODUCTS.loc[PRODUCTS["SKU"] == sku]
         if not product_row.empty:
             notes = product_row["Notes"].iloc[0]
@@ -3938,7 +3963,7 @@ def main_app():
         for i in range(len(st.session_state["line_items"])):
             row = st.session_state["line_items"][i]
             row.setdefault("exclude_from_10_discount", False)
-            is_course_discount = row.get("sku") == "CD"
+            is_course_discount = row.get("sku") in COURSE_DISCOUNT_SKUS
             is_preview_checked = row.get("previewChecked", True)
             is_excluded_from_10 = row.get("exclude_from_10_discount", False)
 
@@ -4219,6 +4244,14 @@ def main_app():
         else:
             st.info(
                 f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
+            )
+
+        mach_2_pro_qual_qty = eligible_mach_2_pro_qty_for_discount(st.session_state["line_items"])
+        if mach_2_pro_qual_qty >= 9:
+            st.success(f"Mach 2 Pro Course Discount active: **-$50** × {mach_2_pro_qual_qty} qualifying baskets.")
+        else:
+            st.info(
+                f"Qualifying Mach 2 Pro baskets: {mach_2_pro_qual_qty}. Add {max(0, 9 - mach_2_pro_qual_qty)} more to trigger the Mach 2 Pro Course Discount."
             )
 
     payload = get_current_payload(
