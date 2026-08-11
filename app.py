@@ -336,6 +336,17 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
 def calculate_primary_discount(items: list[dict], discount_type: str) -> float:
     if not discount_type:
         return 0.0
+
+    if discount_type == "commission":
+        # Commission pricing is 10% off the quote subtotal after all visible
+        # line-item promotions (including negative discount lines) are applied.
+        subtotal = sum(
+            float(item.get("total", 0.0))
+            for item in items
+            if item.get("previewChecked", True)
+        )
+        return round(max(subtotal, 0.0) * 0.10, 2)
+
     return round(calculate_discountable_subtotal(items) * 0.10, 2)
 
 
