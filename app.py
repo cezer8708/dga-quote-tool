@@ -350,10 +350,10 @@ def calculate_primary_discount(items: list[dict], discount_type: str) -> float:
     return round(calculate_discountable_subtotal(items) * 0.10, 2)
 
 
-def calculate_manager_discount(discountable_base: float, enabled: bool) -> float:
+def calculate_manager_discount(subtotal: float, enabled: bool) -> float:
     if not enabled:
         return 0.0
-    return round(max(discountable_base, 0.0) * 0.05, 2)
+    return round(max(subtotal, 0.0) * 0.05, 2)
 
 
 @st.cache_resource(ttl=3600)
@@ -2905,10 +2905,9 @@ def render_exact_pdf_preview(
     subtotal = sum(float(r["total"]) for r in st.session_state["line_items"] if r.get("previewChecked", True))
     discount_type = st.session_state["active_discount_type"]
     primary_discount_label = get_discount_label(discount_type)
-    discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
     primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
     manager_discount_amount = calculate_manager_discount(
-        discountable_base,
+        subtotal,
         st.session_state["manager_pricing_authorized"]
     )
 
@@ -4217,10 +4216,9 @@ def main_app():
     discount_type = st.session_state["active_discount_type"]
     primary_discount_label = get_discount_label(discount_type)
     manager_discount_label = get_manager_pricing_label()
-    discountable_base = calculate_discountable_subtotal(st.session_state["line_items"])
     primary_discount_amount = calculate_primary_discount(st.session_state["line_items"], discount_type)
     manager_discount_amount = calculate_manager_discount(
-        discountable_base,
+        subtotal,
         st.session_state["manager_pricing_authorized"]
     )
 
