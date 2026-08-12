@@ -1515,13 +1515,13 @@ def ensure_course_discount(items: list[dict]) -> bool:
     modified = ensure_discount_line(
         items, ANNIVERSARY_DISCOUNT_SKU, qty, -125.0,
         "50th Anniversary Sale - Mach 5 / Mach 7 / Mach X / Mach X Pro",
-        "50th Anniversary Sale discount automatically applied",
+        "Ends Oct 31st",
         minimum_qty=1,
     ) or modified
     modified = ensure_discount_line(
         items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty, -50.0,
         "50th Anniversary Sale - Mach 2 Pro",
-        "50th Anniversary Sale discount automatically applied",
+        "Ends Oct 31st",
         minimum_qty=1,
     ) or modified
     ensure_course_discount_position(items)
