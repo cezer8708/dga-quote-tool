@@ -292,13 +292,6 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
         if not item.get("previewChecked", True):
             continue
 
-        # The automatic course discount is part of the discounted subtotal,
-        # even though its system-managed exclusion flag is retained for saved
-        # quote compatibility.
-        if item.get("sku") == "CD":
-            total += float(item.get("total", 0.0))
-            continue
-
         if item.get("exclude_from_10_discount", False):
             continue
 
