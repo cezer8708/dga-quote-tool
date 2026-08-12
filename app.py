@@ -234,13 +234,9 @@ def get_selected_freight_notes() -> str:
 
 
 def get_discount_label(discount_type: str) -> str:
-    if discount_type == "team":
-        return "Team Discount"
-    if discount_type == "commission":
-        return "Commission Discount"
-    if discount_type == "discount":
+    if discount_type:
         note = st.session_state.get("discount_note", "").strip()
-        return f"{note} Discount" if note else "Discount"
+        return f"{note} Discount" if note else "10% Discount"
     return ""
 
 
@@ -250,36 +246,15 @@ def get_manager_pricing_label() -> str:
 
 
 def sync_discount_checkboxes_from_type(discount_type: str):
-    st.session_state["team_discount_checkbox"] = discount_type == "team"
-    st.session_state["commission_discount_checkbox"] = discount_type == "commission"
-    st.session_state["discount_checkbox"] = discount_type == "discount"
-    st.session_state["active_discount_type"] = discount_type
-
-
-def handle_team_discount_toggle():
-    if st.session_state.get("team_discount_checkbox", False):
-        st.session_state["commission_discount_checkbox"] = False
-        st.session_state["discount_checkbox"] = False
-        st.session_state["active_discount_type"] = "team"
-    elif st.session_state.get("active_discount_type") == "team":
-        st.session_state["active_discount_type"] = ""
-
-
-def handle_commission_discount_toggle():
-    if st.session_state.get("commission_discount_checkbox", False):
-        st.session_state["team_discount_checkbox"] = False
-        st.session_state["discount_checkbox"] = False
-        st.session_state["active_discount_type"] = "commission"
-    elif st.session_state.get("active_discount_type") == "commission":
-        st.session_state["active_discount_type"] = ""
+    enabled = bool(discount_type)
+    st.session_state["discount_checkbox"] = enabled
+    st.session_state["active_discount_type"] = "discount" if enabled else ""
 
 
 def handle_discount_toggle():
     if st.session_state.get("discount_checkbox", False):
-        st.session_state["team_discount_checkbox"] = False
-        st.session_state["commission_discount_checkbox"] = False
         st.session_state["active_discount_type"] = "discount"
-    elif st.session_state.get("active_discount_type") == "discount":
+    else:
         st.session_state["active_discount_type"] = ""
         st.session_state["discount_note"] = ""
 
@@ -317,6 +292,9 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
         if not item.get("previewChecked", True):
             continue
 
+        # The automatic course discount is part of the discounted subtotal,
+        # even though its system-managed exclusion flag is retained for saved
+        # quote compatibility.
         if item.get("sku") == "CD":
             total += float(item.get("total", 0.0))
             continue
@@ -324,11 +302,7 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
         if item.get("exclude_from_10_discount", False):
             continue
 
-        line_total = float(item.get("total", 0.0))
-        if line_total <= 0:
-            continue
-
-        total += line_total
+        total += float(item.get("total", 0.0))
 
     return round(max(total, 0.0), 2)
 
@@ -336,16 +310,6 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
 def calculate_primary_discount(items: list[dict], discount_type: str) -> float:
     if not discount_type:
         return 0.0
-
-    if discount_type == "commission":
-        # Commission pricing is 10% off the quote subtotal after all visible
-        # line-item promotions (including negative discount lines) are applied.
-        subtotal = sum(
-            float(item.get("total", 0.0))
-            for item in items
-            if item.get("previewChecked", True)
-        )
-        return round(max(subtotal, 0.0) * 0.10, 2)
 
     return round(calculate_discountable_subtotal(items) * 0.10, 2)
 
@@ -958,10 +922,14 @@ for label in FREIGHT_NOTE_OPTIONS:
 restore_pending_freight_state()
 
 st.session_state.setdefault("active_discount_type", "")
-st.session_state.setdefault("team_discount_checkbox", False)
-st.session_state.setdefault("commission_discount_checkbox", False)
 st.session_state.setdefault("discount_checkbox", False)
 st.session_state.setdefault("discount_note", "")
+if st.session_state["active_discount_type"] in {"team", "commission"}:
+    legacy_discount_type = st.session_state["active_discount_type"]
+    st.session_state["active_discount_type"] = "discount"
+    st.session_state["discount_checkbox"] = True
+    if not st.session_state["discount_note"].strip():
+        st.session_state["discount_note"] = legacy_discount_type.title()
 
 st.session_state.setdefault("manager_pricing_checkbox", False)
 st.session_state.setdefault("manager_pricing_authorized", False)
@@ -2761,7 +2729,10 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     if not active_discount_type and discount_meta.get("apply_10_discount", False):
         active_discount_type = "team"
     sync_discount_checkboxes_from_type(active_discount_type)
-    st.session_state["discount_note"] = discount_meta.get("discount_note", "")
+    discount_note = discount_meta.get("discount_note", "").strip()
+    if not discount_note and active_discount_type in {"team", "commission"}:
+        discount_note = active_discount_type.title()
+    st.session_state["discount_note"] = discount_note
 
     manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
     st.session_state["manager_pricing_authorized"] = manager_authorized
@@ -4146,7 +4117,7 @@ def main_app():
 
     with st.container(border=True, key="fees_tax_totals_panel"):
         st.subheader("Fees, Tax, and Totals")
-        cc1, cc2, cc3, cc4, cc5, cc6, cc7, cc8 = st.columns(8)
+        cc1, cc2, cc3, cc4, cc5, cc6 = st.columns(6)
         with cc1:
             drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
         with cc2:
@@ -4156,15 +4127,11 @@ def main_app():
         with cc4:
             st.checkbox(f"Use Santa Cruz County Sales Tax ({SANTA_CRUZ_TAX_RATE * 100:.2f}%)", key="sc_county_checkbox")
         with cc5:
-            st.checkbox("Team Discount", key="team_discount_checkbox", on_change=handle_team_discount_toggle)
+            st.checkbox("10% Discount", key="discount_checkbox", on_change=handle_discount_toggle)
         with cc6:
-            st.checkbox("Commission Discount", key="commission_discount_checkbox", on_change=handle_commission_discount_toggle)
-        with cc7:
-            st.checkbox("Discount", key="discount_checkbox", on_change=handle_discount_toggle)
-        with cc8:
             st.checkbox("Manager Pricing", key="manager_pricing_checkbox", on_change=handle_manager_pricing_toggle)
 
-        if st.session_state["active_discount_type"] == "discount":
+        if st.session_state["active_discount_type"]:
             st.text_input("Discount Note (required)", key="discount_note", placeholder="Required reason for discount")
 
         if st.session_state["manager_pricing_checkbox"]:
@@ -4279,7 +4246,7 @@ def main_app():
     render_builder_sidebar_preview()
 
     def discount_note_valid() -> bool:
-        if st.session_state["active_discount_type"] != "discount":
+        if not st.session_state["active_discount_type"]:
             return True
         return bool(st.session_state.get("discount_note", "").strip())
 
