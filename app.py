@@ -292,6 +292,12 @@ def calculate_discountable_subtotal(items: list[dict]) -> float:
         if not item.get("previewChecked", True):
             continue
 
+        # Automatic course discounts are always part of the subtotal used for
+        # the 10% discount and are not user-excludable.
+        if item.get("sku") == "CD":
+            total += float(item.get("total", 0.0))
+            continue
+
         if item.get("exclude_from_10_discount", False):
             continue
 
@@ -1479,7 +1485,7 @@ def ensure_discount_line(items: list[dict], discount_sku: str, qty: int, unit: f
         "Notes": note,
         "prev_sku": discount_sku,
         "previewChecked": True,
-        "exclude_from_10_discount": True,
+        "exclude_from_10_discount": False,
     }
     if idx == -1:
         items.append(discount_line)
@@ -3981,8 +3987,8 @@ def main_app():
 
             with header_col6:
                 if is_course_discount:
-                    st.checkbox("Exclude From 10% Discount", value=True, disabled=True, key=f"exclude_10_{row['id']}")
-                    row["exclude_from_10_discount"] = True
+                    st.empty()
+                    row["exclude_from_10_discount"] = False
                 else:
                     new_exclude_state = st.checkbox(
                         "Exclude From 10% Discount",
