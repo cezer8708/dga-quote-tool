@@ -1390,8 +1390,13 @@ ALLOW_COURSE_SKUS = {"M5CO", "M7CO", "MXCO"}
 MACH_2_PRO_SKUS = {"M2IG", "M2P"}
 ANNIVERSARY_DISCOUNT_SKU = "50th"
 MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU = "50thM2"
-LEGACY_MACH_2_PRO_DISCOUNT_SKU = "CD-M2P"
-COURSE_DISCOUNT_SKUS = ("CD", ANNIVERSARY_DISCOUNT_SKU, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU)
+MACH_2_PRO_COURSE_DISCOUNT_SKU = "CD-M2P"
+COURSE_DISCOUNT_SKUS = (
+    "CD",
+    ANNIVERSARY_DISCOUNT_SKU,
+    MACH_2_PRO_COURSE_DISCOUNT_SKU,
+    MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU,
+)
 
 
 def is_basket_5_7_X(item: dict) -> bool:
@@ -1444,7 +1449,8 @@ def find_last_course_discount_anchor_index(items: list[dict], discount_sku: str 
         if item.get("sku") in COURSE_DISCOUNT_SKUS:
             continue
         if (discount_sku in {"CD", ANNIVERSARY_DISCOUNT_SKU} and is_basket_5_7_X(item)) or (
-            discount_sku == MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU and is_mach_2_pro(item)
+            discount_sku in {MACH_2_PRO_COURSE_DISCOUNT_SKU, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU}
+            and is_mach_2_pro(item)
         ):
             anchor_index = idx
     return anchor_index
@@ -1502,21 +1508,21 @@ def ensure_discount_line(items: list[dict], discount_sku: str, qty: int, unit: f
 def ensure_course_discount(items: list[dict]) -> bool:
     qty = eligible_qty_for_discount(items)
     mach_2_pro_qty = eligible_mach_2_pro_qty_for_discount(items)
-    legacy_mach_2_pro_idx = find_course_discount_index(items, LEGACY_MACH_2_PRO_DISCOUNT_SKU)
-    modified = legacy_mach_2_pro_idx != -1
-    if modified:
-        items.pop(legacy_mach_2_pro_idx)
-
     modified = ensure_discount_line(
         items, "CD", qty, -100.0,
         "Course Discount (-$100 per qualifying basket)",
         "Auto-applied for 9+ Mach 5/7/X baskets",
-    ) or modified
+    )
     modified = ensure_discount_line(
         items, ANNIVERSARY_DISCOUNT_SKU, qty, -125.0,
         "50th Anniversary Sale - Mach 5 / Mach 7 / Mach X / Mach X Pro",
         "Ends Oct 31st",
         minimum_qty=1,
+    ) or modified
+    modified = ensure_discount_line(
+        items, MACH_2_PRO_COURSE_DISCOUNT_SKU, mach_2_pro_qty, -50.0,
+        "Mach 2 Pro Course Discount (-$50 per qualifying basket)",
+        "Auto-applied for 9+ Mach 2 Pro baskets",
     ) or modified
     modified = ensure_discount_line(
         items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty, -50.0,
@@ -4246,6 +4252,17 @@ def main_app():
             )
 
         mach_2_pro_qual_qty = eligible_mach_2_pro_qty_for_discount(st.session_state["line_items"])
+        if mach_2_pro_qual_qty >= 9:
+            st.success(
+                f"Mach 2 Pro Course Discount active: **-$50** × "
+                f"{mach_2_pro_qual_qty} qualifying baskets."
+            )
+        else:
+            st.info(
+                f"Qualifying Mach 2 Pro baskets: {mach_2_pro_qual_qty}. Add "
+                f"{max(0, 9 - mach_2_pro_qual_qty)} more to trigger the Mach 2 Pro Course Discount."
+            )
+
         if mach_2_pro_qual_qty:
             st.success(
                 f"Mach 2 Pro 50th Anniversary Sale active: **-$50** × "
