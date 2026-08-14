@@ -4,6 +4,8 @@ import uuid
 import json
 import copy
 import concurrent.futures
+import queue
+import threading
 import html
 from datetime import datetime
 import requests
@@ -17,6 +19,7 @@ from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
+from streamlit.runtime.scriptrunner import add_script_run_ctx
 import gspread
 from gspread.utils import rowcol_to_a1
 
@@ -115,6 +118,7 @@ else:
     PIPEDRIVE_BASE_URL = None
 
 GOOGLE_SHEET_ID = "1oR2I5lmxYNhAc4rT1kalzVwop2UJOnGjTkY3eTVzv80"
+SHEETS_SAVE_TIMEOUT_SECONDS = float(get_env("SHEETS_SAVE_TIMEOUT_SECONDS", 8.0, float))
 
 FREIGHT_NOTE_OPTIONS = [
     "Business Address",
@@ -573,6 +577,39 @@ def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
     except Exception as e:
         st.error(f"Error saving quote to sheet: {e}")
         return False
+
+
+def save_quote_to_gsheet_with_timeout(
+    payload: dict,
+    record_type: str = "quote",
+    timeout_seconds: float = SHEETS_SAVE_TIMEOUT_SECONDS,
+) -> bool:
+    """Attempt a Sheets save without allowing it to block PDF delivery forever."""
+    result_queue = queue.Queue(maxsize=1)
+
+    def _save() -> None:
+        try:
+            result_queue.put((save_quote_to_gsheet(payload, record_type), None))
+        except BaseException as exc:
+            result_queue.put((False, exc))
+
+    worker = threading.Thread(target=_save, name="quote-sheets-save", daemon=True)
+    add_script_run_ctx(worker)
+    worker.start()
+
+    try:
+        saved, error = result_queue.get(timeout=max(float(timeout_seconds), 0.1))
+    except queue.Empty:
+        st.warning(
+            "Google Sheets did not respond in time. Your PDF is ready to download below; "
+            "download it now and check Sheets before retrying to avoid a duplicate."
+        )
+        return False
+
+    if error is not None:
+        st.error(f"Error saving quote to sheet: {error}")
+        return False
+    return bool(saved)
 
 
 def _quote_customer_search_blob(payload: dict, row: pd.Series | None = None) -> str:
@@ -2385,7 +2422,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
         container.error(f"PDF not generated: {e}")
         return
 
-    save_successful = save_quote_to_gsheet(payload, record_type=template)
+    save_successful = save_quote_to_gsheet_with_timeout(payload, record_type=template)
 
     if compact_level_used > 0:
         container.info("Single-page compact mode was applied to keep the PDF on one page.")
@@ -2395,7 +2432,8 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
             container.success(f"Quote **{doc_number}** successfully saved to **Google Sheets** and PDF generated.")
         else:
             container.warning(
-                "Quote PDF generated but **FAILED to save** to Google Sheets. Check Sheet configuration and sharing permissions."
+                "Quote PDF generated but **was not confirmed saved** to Google Sheets. "
+                "Download it below so the quote is not lost, then check Sheets before retrying."
             )
     else:
         source_quote_no = payload.get("order_meta", {}).get("source_quote_number", payload.get("quote_no", "N/A"))
