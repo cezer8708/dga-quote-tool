@@ -1847,6 +1847,19 @@ def _prepare_text_for_pdf(text: str, compact_level: int, field_type: str) -> str
     return _truncate_text((text or "").replace("\n", " "), limits[field_type])
 
 
+def _format_submitted_date(value: Any) -> str:
+    """Format the document's saved submission timestamp for its PDF header."""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+
+    text = str(value or "").strip()
+    iso_date_match = re.match(r"^(\d{4}-\d{2}-\d{2})(?:[T\s]|$)", text)
+    if iso_date_match:
+        return iso_date_match.group(1)
+
+    return get_pacific_now().strftime("%Y-%m-%d")
+
+
 def _get_pdf_page_count(pdf_bytes: bytes) -> int:
     if PdfReader is None:
         raise RuntimeError("PyPDF2 is required for single-page enforcement. Install it with: pip install PyPDF2")
@@ -1867,6 +1880,7 @@ def build_pdf(
     compact_level: int = 0,
 ):
     meta = meta or {}
+    submitted_date = _format_submitted_date(meta.get("submitted_date"))
     pdf_section_fill = colors.HexColor("#E7F0FB")
 
     if compact_level == 0:
@@ -1989,7 +2003,7 @@ def build_pdf(
             "DGA Order",
             "",
             f"Order: {doc_number}",
-            f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
+            f"Submitted: {submitted_date}",
             compact_level,
             f"Operator: {meta.get('operator', '')}",
         )
@@ -2173,7 +2187,7 @@ def build_pdf(
             "DGA Quote",
             "Pricing Subject to Change",
             f"Quote: {doc_number}",
-            f"Submitted: {get_pacific_now().strftime('%Y-%m-%d')}",
+            f"Submitted: {submitted_date}",
             compact_level,
             info_col_widths=[content_width / 2, content_width / 2],
         )
@@ -2406,6 +2420,8 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
     is_quote = template == "quote"
     file_prefix = f"{doc_number}_Quote" if is_quote else f"{doc_number}_Order"
     label = "Download Quote PDF" if is_quote else "Download Order/PO PDF"
+    pdf_meta = dict(order_meta or payload.get("order_meta") or {})
+    pdf_meta["submitted_date"] = payload.get("date")
 
     try:
         pdf_data, compact_level_used = generate_single_page_pdf(
@@ -2416,7 +2432,7 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
             doc_number,
             payload["footer_notes"],
             template=template,
-            meta=order_meta,
+            meta=pdf_meta,
         )
     except Exception as e:
         container.error(f"PDF not generated: {e}")
@@ -2462,6 +2478,9 @@ def generate_pdf_preview_data(payload: dict, template: str = "quote") -> tuple[b
         payload.get("order_meta", {}).get("order_doc_number") or payload["quote_no"]
     )
 
+    pdf_meta = dict(payload.get("order_meta") or {})
+    pdf_meta["submitted_date"] = payload.get("date")
+
     pdf_data, compact_level_used = generate_single_page_pdf(
         payload["customer"],
         payload["line_items"],
@@ -2470,7 +2489,7 @@ def generate_pdf_preview_data(payload: dict, template: str = "quote") -> tuple[b
         doc_number,
         payload["footer_notes"],
         template=template,
-        meta=payload.get("order_meta"),
+        meta=pdf_meta,
     )
     return pdf_data, compact_level_used, doc_number
 
