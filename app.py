@@ -817,6 +817,7 @@ def assign_new_quote_version():
     current_version = int(version) if version is not None else 1
     new_version = current_version + 1
     st.session_state["quote_no"] = f"{base}-V{new_version}"
+    st.session_state["document_date"] = get_pacific_now().isoformat()
     st.rerun()
 
 
@@ -901,6 +902,7 @@ def start_new_quote(preserve_freight: bool = False):
     st.session_state["order_date_received"] = ""
 
     st.session_state["quote_no"] = new_quote_number()
+    st.session_state["document_date"] = get_pacific_now().isoformat()
     st.session_state["customer_key_suffix"] += 1
 
     st.session_state["pd_matches"] = []
@@ -947,6 +949,7 @@ if "line_items" not in st.session_state:
 st.session_state.setdefault("rerun_flag", False)
 st.session_state.setdefault("customer_key_suffix", 0)
 st.session_state.setdefault("quote_no", new_quote_number())
+st.session_state.setdefault("document_date", get_pacific_now().isoformat())
 st.session_state.setdefault("footer_notes", DEFAULT_FOOTER_NOTES)
 st.session_state.setdefault("footer_notes_touched", False)
 st.session_state.setdefault("drop_fee_input", 0.0)
@@ -2632,7 +2635,7 @@ def get_current_payload(
 
     return {
         "quote_no": quote_no,
-        "date": get_pacific_now().isoformat(),
+        "date": st.session_state.get("document_date") or get_pacific_now().isoformat(),
         "customer": st.session_state["customer"],
         "line_items": st.session_state["line_items"],
         "fees": fees,
@@ -2786,6 +2789,7 @@ def search_pipedrive_callback():
 
 def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     st.session_state["quote_no"] = selected_quote_no
+    st.session_state["document_date"] = payload.get("date") or get_pacific_now().isoformat()
     st.session_state["customer"] = payload.get("customer", {})
     st.session_state["line_items"] = payload.get("line_items", [])
     for item in st.session_state["line_items"]:
@@ -3047,17 +3051,20 @@ def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
     selected_doc_no = str(query_params.get("doc", "") or "").strip()
     preview_template = str(query_params.get("preview", "") or "").strip().lower()
     pdf_only = str(query_params.get("pdf_only", "") or "").strip().lower() in {"1", "true", "yes"}
+    submitted_date = str(query_params.get("submitted_date", "") or "").strip()
 
     if not selected_doc_no or preview_template not in {"quote", "order"}:
         return False
 
-    loaded_signature = f"{selected_doc_no}:{preview_template}"
+    loaded_signature = f"{selected_doc_no}:{preview_template}:{submitted_date}"
     if st.session_state.get("query_preview_loaded") != loaded_signature:
         try:
             load_saved_document(all_quotes_df, selected_doc_no)
         except ValueError as exc:
             st.warning(str(exc))
             return False
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", submitted_date):
+            st.session_state["document_date"] = submitted_date
         st.session_state["query_preview_loaded"] = loaded_signature
 
     if pdf_only:
