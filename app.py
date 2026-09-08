@@ -3020,7 +3020,7 @@ def render_exact_pdf_preview(
 def render_builder_sidebar_preview():
     preview_is_live = st.session_state.get("show_pdf_preview", True)
     preview_status = "Live PDF" if preview_is_live else "Hidden"
-    preview_label = "‹‹‹  Preview"
+    preview_label = "Preview"
     preview_container = st.container(key="preview_popover_anchor")
     with preview_container:
         if hasattr(st, "popover"):
