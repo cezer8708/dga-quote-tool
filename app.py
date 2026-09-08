@@ -3300,9 +3300,6 @@ def main_app():
     with nav_col3:
         st.caption("Use the quote builder for new docs and the processed-orders page for order history lookup.")
 
-    if st.session_state.get("quote_workspace_view") == "builder":
-        render_builder_sidebar_preview()
-
     if st.session_state.get("quote_workspace_view") == "history":
         all_quotes_df = get_saved_quotes_snapshot()
         render_processed_orders_history(all_quotes_df)
@@ -4096,6 +4093,9 @@ def main_app():
 
     if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
         st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
+
+    if st.session_state.get("quote_workspace_view") == "builder":
+        render_builder_sidebar_preview()
 
     if st.session_state.get("new_quote_dialog_open", False):
         render_new_quote_dialog()
