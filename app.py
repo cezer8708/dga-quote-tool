@@ -3018,50 +3018,35 @@ def render_exact_pdf_preview(
 
 
 def render_builder_sidebar_preview():
-    with st.sidebar:
-        with st.container(key="sidebar_preview_controls"):
-            preview_is_live = st.session_state.get("show_pdf_preview", True)
-            preview_status = "Live PDF" if preview_is_live else "Hidden"
-            preview_status_class = "preview-toolbar-status" if preview_is_live else "preview-toolbar-status is-off"
-            st.markdown(
-                f"""
-                <div class="preview-toolbar-heading">
-                    <div>
-                        <div class="preview-toolbar-kicker">Quote Preview</div>
-                        <div class="preview-toolbar-doc">{st.session_state['quote_no']}</div>
-                    </div>
-                    <div class="{preview_status_class}">{preview_status}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+    preview_is_live = st.session_state.get("show_pdf_preview", True)
+    preview_status = "Live PDF" if preview_is_live else "Hidden"
+    with st.expander(f"Quote Preview · {st.session_state['quote_no']} · {preview_status}", expanded=False):
+        doc_col1, doc_col2 = st.columns(2)
+        if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
+            request_new_quote()
+        if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
+            assign_new_quote_version()
+
+        if hasattr(st, "toggle"):
+            st.toggle(
+                "Live preview",
+                key="show_pdf_preview",
+                on_change=handle_show_pdf_preview_toggle,
+                help="Keep the PDF preview synced while editing.",
             )
-
-            doc_col1, doc_col2 = st.columns(2)
-            if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
-                request_new_quote()
-            if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
-                assign_new_quote_version()
-
-            if hasattr(st, "toggle"):
-                st.toggle(
-                    "Live preview",
-                    key="show_pdf_preview",
-                    on_change=handle_show_pdf_preview_toggle,
-                    help="Keep the PDF preview synced while editing.",
-                )
-            else:
-                st.checkbox(
-                    "Live preview",
-                    key="show_pdf_preview",
-                    on_change=handle_show_pdf_preview_toggle,
-                    help="Keep the PDF preview synced while editing.",
-                )
+        else:
+            st.checkbox(
+                "Live preview",
+                key="show_pdf_preview",
+                on_change=handle_show_pdf_preview_toggle,
+                help="Keep the PDF preview synced while editing.",
+            )
 
         if st.session_state["show_pdf_preview"]:
             try:
                 render_exact_pdf_preview(
                     template="quote",
-                    height="calc(100vh - 310px)",
+                    height="calc(100vh - 260px)",
                     mode="image",
                     zoom_percent=100,
                 )
