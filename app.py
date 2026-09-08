@@ -3300,6 +3300,9 @@ def main_app():
     with nav_col3:
         st.caption("Use the quote builder for new docs and the processed-orders page for order history lookup.")
 
+    if st.session_state.get("quote_workspace_view") == "builder":
+        render_builder_sidebar_preview()
+
     if st.session_state.get("quote_workspace_view") == "history":
         all_quotes_df = get_saved_quotes_snapshot()
         render_processed_orders_history(all_quotes_df)
@@ -4539,8 +4542,6 @@ def main_app():
     from pipedrive_workflow_ui import render_sync
     render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
-
-    render_builder_sidebar_preview()
 
     def discount_note_valid() -> bool:
         if not st.session_state["active_discount_type"]:
