@@ -3954,16 +3954,44 @@ def main_app():
             .pdf-image-preview-shell {
                 background: #ffffff;
                 border: 1px solid rgba(255, 255, 255, 0.16);
-                border-radius: 4px;
+                border-radius: 10px;
                 box-sizing: border-box;
                 overflow: auto;
-                padding: 10px;
+                max-height: calc(100vh - 220px);
+                padding: 8px;
             }
 
             .pdf-image-preview-shell img {
                 display: block;
                 height: auto;
                 margin: 0 auto;
+                max-height: calc(100vh - 245px);
+                max-width: 100%;
+                object-fit: contain;
+            }
+
+            /* Keep the preview useful without letting it dominate the workspace. */
+            [data-testid="stSidebar"] .st-key-sidebar_preview_controls {
+                position: sticky !important;
+                top: 0.35rem !important;
+                z-index: 5 !important;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
+            [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"] {
+                display: flex !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+            }
+
+            @media (max-width: 760px) {
+                .pdf-image-preview-shell {
+                    max-height: 55vh;
+                }
+
+                .pdf-image-preview-shell img {
+                    max-height: 52vh;
+                }
             }
         </style>
         __PATENT_MARKUP__
