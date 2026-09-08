@@ -3508,11 +3508,12 @@ def main_app():
             }
 
             .st-key-preview_popover_anchor {
-                position: fixed !important;
-                top: 1rem !important;
-                right: 1.25rem !important;
-                z-index: 1100 !important;
-                width: auto !important;
+                position: relative !important;
+                z-index: 10 !important;
+                width: 100% !important;
+                display: flex !important;
+                justify-content: flex-end !important;
+                margin: 0.35rem 0 0.75rem !important;
             }
 
             .st-key-preview_popover_anchor button {
