@@ -3959,9 +3959,8 @@ def main_app():
             render_saved_quote_search_ui()
         with lookup_tabs[1]:
             render_pipedrive_lookup_ui()
-            if get_env("PIPEDRIVE_LOCAL_TEST", "") == "1":
-                from pipedrive_workflow_ui import render_intake
-                render_intake(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN)
+            from pipedrive_workflow_ui import render_intake
+            render_intake(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN)
 
     c = st.session_state["customer"]
 
@@ -4374,9 +4373,8 @@ def main_app():
         primary_discount_label,
         manager_discount_amount,
     )
-    if get_env("PIPEDRIVE_LOCAL_TEST", "") == "1":
-        from pipedrive_workflow_ui import render_sync
-        render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
+    from pipedrive_workflow_ui import render_sync
+    render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
 
     render_builder_sidebar_preview()

@@ -6,7 +6,7 @@ Start from the project directory:
 PIPEDRIVE_LOCAL_TEST=1 new_tools/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8502
 ```
 
-Open http://127.0.0.1:8502. The normal deployed UI is unchanged unless the local-test flag is enabled.
+Open http://127.0.0.1:8502. The same workflow is available in the deployed app; local testing uses the flag to keep deal writes restricted to the Cesar Quote Test contact.
 
 1. Open Lookup Tools → Pipedrive. Search for Cesar Quote Test and read the form answers.
 2. Select a basket comparison option and its mounting configuration. Confirm basket and accessory quantities. Each option contains the full requested basket count; models are not combined.
