@@ -3322,9 +3322,7 @@ def main_app():
                 position: relative;
                 z-index: 1;
                 background-color: #0d0f14;
-                background-image:
-                    linear-gradient(rgba(13, 15, 20, 0.86), rgba(13, 15, 20, 0.86)),
-                    url("__PATENT_URI__");
+                background-image: linear-gradient(rgba(13, 15, 20, 0.98), rgba(13, 15, 20, 0.98));
                 background-repeat: no-repeat;
                 background-position: center top;
                 background-size: cover;
@@ -3497,6 +3495,21 @@ def main_app():
                 max-width: 1500px !important;
                 padding-top: 1.25rem !important;
                 padding-bottom: 2.5rem !important;
+            }
+
+            /* Give the workspace a compact header instead of a hero banner. */
+            .main .block-container > div:first-child img {
+                display: block !important;
+                max-width: 250px !important;
+                max-height: 110px !important;
+                width: auto !important;
+                object-fit: contain !important;
+            }
+
+            .main .block-container h1 {
+                font-size: clamp(1.8rem, 3vw, 2.7rem) !important;
+                line-height: 1.05 !important;
+                margin: 0.8rem 0 !important;
             }
 
             .stButton > button,
