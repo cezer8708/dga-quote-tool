@@ -3020,7 +3020,15 @@ def render_exact_pdf_preview(
 def render_builder_sidebar_preview():
     preview_is_live = st.session_state.get("show_pdf_preview", True)
     preview_status = "Live PDF" if preview_is_live else "Hidden"
-    with st.expander(f"Quote Preview · {st.session_state['quote_no']} · {preview_status}", expanded=False):
+    preview_label = f"⌄  Preview · {st.session_state['quote_no']}"
+    preview_container = st.container(key="preview_popover_anchor")
+    with preview_container:
+        if hasattr(st, "popover"):
+            preview_surface = st.popover(preview_label, help="Open the full quote preview")
+        else:
+            preview_surface = st.expander(f"Quote Preview · {st.session_state['quote_no']} · {preview_status}", expanded=False)
+
+    with preview_surface:
         doc_col1, doc_col2 = st.columns(2)
         if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
             request_new_quote()
@@ -3497,6 +3505,27 @@ def main_app():
                 font-size: clamp(1.8rem, 3vw, 2.7rem) !important;
                 line-height: 1.05 !important;
                 margin: 0.8rem 0 !important;
+            }
+
+            .st-key-preview_popover_anchor {
+                position: fixed !important;
+                top: 1rem !important;
+                right: 1.25rem !important;
+                z-index: 1100 !important;
+                width: auto !important;
+            }
+
+            .st-key-preview_popover_anchor button {
+                min-height: 36px !important;
+                padding: 0.45rem 0.8rem !important;
+                border-radius: 999px !important;
+                background: rgba(22, 34, 55, 0.95) !important;
+                border: 1px solid rgba(210, 228, 255, 0.3) !important;
+            }
+
+            [data-testid="stPopover"] {
+                width: min(92vw, 980px) !important;
+                max-width: min(92vw, 980px) !important;
             }
 
             .stButton > button,
