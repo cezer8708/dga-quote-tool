@@ -39,3 +39,9 @@ tmp/
 service_account.json
 .env
 test_sheet.py
+# Local intake drafts and synchronization journal
+.local/
+output/pdf/
+
+# Project virtual environment
+new_tools/

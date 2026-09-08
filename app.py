@@ -7,6 +7,7 @@ import concurrent.futures
 import queue
 import threading
 import html
+import hmac
 from datetime import datetime
 import requests
 import re
@@ -131,8 +132,12 @@ FREIGHT_NOTE_OPTIONS = [
     "Ground Freight",
 ]
 
-MANAGER_USERNAME = "CZ"
-MANAGER_PASSWORD = "272188"
+def _constant_time_credentials_match(username: str, password: str, expected_username: str, expected_password: str) -> bool:
+    if not expected_username or not expected_password:
+        return False
+    return hmac.compare_digest(username.encode("utf-8"), expected_username.encode("utf-8")) and hmac.compare_digest(
+        password.encode("utf-8"), expected_password.encode("utf-8")
+    )
 
 
 @st.cache_resource(ttl=None)
@@ -270,8 +275,13 @@ def clear_manager_credentials():
 
 def validate_manager_credentials() -> bool:
     username = st.session_state.get("manager_username", "").strip()
-    password = st.session_state.get("manager_password", "").strip()
-    return username == MANAGER_USERNAME and password == MANAGER_PASSWORD
+    password = st.session_state.get("manager_password", "")
+    return _constant_time_credentials_match(
+        username,
+        password,
+        str(get_env("MANAGER_USERNAME", "") or ""),
+        str(get_env("MANAGER_PASSWORD", "") or ""),
+    )
 
 
 def handle_manager_pricing_toggle():
@@ -570,7 +580,7 @@ def save_quote_to_gsheet(payload: dict, record_type: str = "quote") -> bool:
 
         row_data = [row_map.get(header, "") for header in headers]
 
-        worksheet.append_row(row_data, value_input_option="USER_ENTERED")
+        worksheet.append_row(row_data, value_input_option="RAW")
         load_all_quotes.clear()
         st.session_state.pop("saved_quotes_snapshot_df", None)
         return True
@@ -818,6 +828,9 @@ def assign_new_quote_version():
     new_version = current_version + 1
     st.session_state["quote_no"] = f"{base}-V{new_version}"
     st.session_state["document_date"] = get_pacific_now().isoformat()
+    st.session_state["manager_pricing_authorized"] = False
+    st.session_state["manager_pricing_checkbox"] = False
+    clear_manager_credentials()
     st.rerun()
 
 
@@ -901,6 +914,8 @@ def start_new_quote(preserve_freight: bool = False):
     st.session_state["order_check_number"] = ""
     st.session_state["order_date_received"] = ""
 
+    st.session_state.pop("pipedrive_link", None)
+    st.session_state.pop("pd_plan", None)
     st.session_state["quote_no"] = new_quote_number()
     st.session_state["document_date"] = get_pacific_now().isoformat()
     st.session_state["customer_key_suffix"] += 1
@@ -1579,7 +1594,7 @@ def _company_right_block(styles):
         f"<b>Disc Golf Association (DGA)</b><br/>"
         f"73 Hangar Way<br/>"
         f"Watsonville, CA 95076<br/>"
-        f"Phone: {COMPANY['phone']}",
+        f"Phone: {_pdf_text(COMPANY['phone'])}",
         styles["LeftInfo"]
     )
 
@@ -1659,7 +1674,7 @@ def _build_pdf_brand_header(
         logo.hAlign = "LEFT"
         left_elements.append(logo)
     else:
-        left_elements.append(Paragraph(f"<b>{COMPANY['name']}</b>", styles["Normal"]))
+        left_elements.append(Paragraph(f"<b>{_pdf_text(COMPANY['name'])}</b>", styles["Normal"]))
 
     left_block = Table([[elem] for elem in left_elements], colWidths=[left_col_width])
     left_block.setStyle(TableStyle([
@@ -1672,7 +1687,7 @@ def _build_pdf_brand_header(
     ]))
 
     title_para = Paragraph(
-        f"<b>{title}</b>",
+        f"<b>{_pdf_text(title)}</b>",
         ParagraphStyle(
             "PdfHeaderTitle",
             parent=styles["Normal"],
@@ -1682,7 +1697,7 @@ def _build_pdf_brand_header(
         )
     )
     detail_para = Paragraph(
-        f"{detail_line_1}<br/>{detail_line_2}",
+        f"{_pdf_text(detail_line_1)}<br/>{_pdf_text(detail_line_2)}",
         ParagraphStyle(
             "PdfHeaderDetail",
             parent=styles["Normal"],
@@ -1694,7 +1709,7 @@ def _build_pdf_brand_header(
     right_rows = [[title_para]]
     if subtitle.strip():
         subtitle_para = Paragraph(
-            f'<font color="#2D6FC2"><b>{subtitle}</b></font>',
+            f'<font color="#2D6FC2"><b>{_pdf_text(subtitle)}</b></font>',
             ParagraphStyle(
                 "PdfHeaderKicker",
                 parent=styles["Normal"],
@@ -1727,7 +1742,7 @@ def _build_pdf_brand_header(
     header_table.hAlign = "LEFT"
 
     info_left_para = Paragraph(
-        f"<b>{info_left}</b>",
+        f"<b>{_pdf_text(info_left)}</b>",
         ParagraphStyle(
             "PdfHeaderInfoLeft",
             parent=styles["Normal"],
@@ -1736,7 +1751,7 @@ def _build_pdf_brand_header(
         )
     )
     info_right_para = Paragraph(
-        info_right,
+        _pdf_text(info_right),
         ParagraphStyle(
             "PdfHeaderInfoRight",
             parent=styles["Normal"],
@@ -1747,7 +1762,7 @@ def _build_pdf_brand_header(
 
     if info_third:
         info_third_para = Paragraph(
-            info_third,
+            _pdf_text(info_third),
             ParagraphStyle(
                 "PdfHeaderInfoThird",
                 parent=styles["Normal"],
@@ -1823,6 +1838,12 @@ def _truncate_text(text: str, max_len: int) -> str:
     if len(text) <= max_len:
         return text
     return text[: max_len - 3].rstrip() + "..."
+
+
+def _pdf_text(value: Any, preserve_newlines: bool = False) -> str:
+    """Convert business data to inert ReportLab Paragraph text."""
+    escaped = html.escape(str(value or ""), quote=True)
+    return escaped.replace("\n", "<br/>") if preserve_newlines else escaped
 
 
 def _prepare_items_for_pdf(items: list[dict], compact_level: int) -> list[dict]:
@@ -2012,33 +2033,33 @@ def build_pdf(
         )
 
         ship_block_order = (
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
-            f"{customer.get('ship_addr1', '')}<br/>"
-            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}"
+            f"{_pdf_text(customer.get('company', ''))}<br/>"
+            f"{_pdf_text(customer.get('name', ''))}<br/>"
+            f"{_pdf_text(customer.get('ship_addr1', ''))}<br/>"
+            f"{_pdf_text(customer.get('ship_city', ''))}, {_pdf_text(customer.get('ship_state', ''))} {_pdf_text(customer.get('ship_zip', ''))}<br/>"
+            f"{_pdf_text(customer.get('phone', ''))}<br/>"
+            f"{_pdf_text(customer.get('email', ''))}"
         )
 
         bill_block_order = (
-            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
-            f"{customer.get('bill_addr1', '')}<br/>"
-            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
-            f"{customer.get('bill_email', customer.get('email', ''))}"
+            f"{_pdf_text(customer.get('bill_company', customer.get('company', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_name', customer.get('name', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_addr1', ''))}<br/>"
+            f"{_pdf_text(customer.get('bill_city', ''))}, {_pdf_text(customer.get('bill_state', ''))} {_pdf_text(customer.get('bill_zip', ''))}<br/>"
+            f"{_pdf_text(customer.get('bill_phone', customer.get('phone', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_email', customer.get('email', '')))}"
         )
 
         po_block_order = (
-            f"P.O. Number: {meta.get('po_number', '')}<br/>"
-            f"Authorization Code: {meta.get('auth_code', '')}<br/>"
-            f"Check Number: {meta.get('check_number', '')}<br/>"
-            f"Date Received: {meta.get('date_received', '')}"
+            f"P.O. Number: {_pdf_text(meta.get('po_number', ''))}<br/>"
+            f"Authorization Code: {_pdf_text(meta.get('auth_code', ''))}<br/>"
+            f"Check Number: {_pdf_text(meta.get('check_number', ''))}<br/>"
+            f"Date Received: {_pdf_text(meta.get('date_received', ''))}"
         )
 
         commission_to = meta.get('commission_to', '').strip()
         if commission_to:
-            po_block_order += f"<br/><br/><b>Commission to:</b> {commission_to}"
+            po_block_order += f"<br/><br/><b>Commission to:</b> {_pdf_text(commission_to)}"
 
         card_col_width = content_width / 3
         addr_card_width = card_col_width
@@ -2082,7 +2103,7 @@ def build_pdf(
             if float(r.get("qty", 0)) == 0 or not is_checked:
                 continue
 
-            desc_para = Paragraph(str(r["name"]), desc_style)
+            desc_para = Paragraph(_pdf_text(r["name"]), desc_style)
             data.append([
                 str(r["qty"]),
                 desc_para,
@@ -2124,7 +2145,7 @@ def build_pdf(
             freight_notes_txt = _prepare_text_for_pdf(st.session_state["freight_notes"], compact_level, "freight").strip()
 
         if freight_notes_txt:
-            story += [Spacer(1, block_spacer_small), Paragraph(f"<b>Freight Notes:</b> {freight_notes_txt}", notes_style_2)]
+            story += [Spacer(1, block_spacer_small), Paragraph(f"<b>Freight Notes:</b> {_pdf_text(freight_notes_txt, preserve_newlines=True)}", notes_style_2)]
 
         story += [Spacer(1, block_spacer_med)]
 
@@ -2150,7 +2171,7 @@ def build_pdf(
         grand_tbl_w = 2.5 * inch
         t_grand = Table([
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
-            ["**GRAND TOTAL:**", f"**{fmt_money(totals.get('grand_total', 0.0))}**"],
+            ["GRAND TOTAL:", fmt_money(totals.get('grand_total', 0.0))],
         ], colWidths=[grand_tbl_w * 0.6, grand_tbl_w * 0.4])
         t_grand.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -2196,21 +2217,21 @@ def build_pdf(
         )
 
         ship_block = (
-            f"{customer.get('company', '')}<br/>"
-            f"{customer.get('name', '')}<br/>"
-            f"{customer.get('ship_addr1', '')}<br/>"
-            f"{customer.get('ship_city', '')}, {customer.get('ship_state', '')} {customer.get('ship_zip', '')}<br/>"
-            f"{customer.get('phone', '')}<br/>"
-            f"{customer.get('email', '')}"
+            f"{_pdf_text(customer.get('company', ''))}<br/>"
+            f"{_pdf_text(customer.get('name', ''))}<br/>"
+            f"{_pdf_text(customer.get('ship_addr1', ''))}<br/>"
+            f"{_pdf_text(customer.get('ship_city', ''))}, {_pdf_text(customer.get('ship_state', ''))} {_pdf_text(customer.get('ship_zip', ''))}<br/>"
+            f"{_pdf_text(customer.get('phone', ''))}<br/>"
+            f"{_pdf_text(customer.get('email', ''))}"
         )
 
         bill_block = (
-            f"{customer.get('bill_company', customer.get('company', ''))}<br/>"
-            f"{customer.get('bill_name', customer.get('name', ''))}<br/>"
-            f"{customer.get('bill_addr1', '')}<br/>"
-            f"{customer.get('bill_city', '')}, {customer.get('bill_state', '')} {customer.get('bill_zip', '')}<br/>"
-            f"{customer.get('bill_phone', customer.get('phone', ''))}<br/>"
-            f"{customer.get('bill_email', customer.get('email', ''))}"
+            f"{_pdf_text(customer.get('bill_company', customer.get('company', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_name', customer.get('name', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_addr1', ''))}<br/>"
+            f"{_pdf_text(customer.get('bill_city', ''))}, {_pdf_text(customer.get('bill_state', ''))} {_pdf_text(customer.get('bill_zip', ''))}<br/>"
+            f"{_pdf_text(customer.get('bill_phone', customer.get('phone', '')))}<br/>"
+            f"{_pdf_text(customer.get('bill_email', customer.get('email', '')))}"
         )
 
         addr_card_width = content_width / 2
@@ -2244,7 +2265,7 @@ def build_pdf(
             if float(r.get("qty", 0)) == 0 or not is_checked:
                 continue
 
-            desc_para = Paragraph(str(r["name"]), desc_style)
+            desc_para = Paragraph(_pdf_text(r["name"]), desc_style)
             data.append([
                 str(r["qty"]),
                 desc_para,
@@ -2285,7 +2306,7 @@ def build_pdf(
             freight_notes_txt = _prepare_text_for_pdf(st.session_state["freight_notes"], compact_level, "freight").strip()
 
         if freight_notes_txt:
-            story += [Spacer(1, block_spacer_small), Paragraph(f"<b>Freight Notes:</b> {freight_notes_txt}", notes_style_2)]
+            story += [Spacer(1, block_spacer_small), Paragraph(f"<b>Freight Notes:</b> {_pdf_text(freight_notes_txt, preserve_newlines=True)}", notes_style_2)]
             story += [Spacer(1, block_spacer_small)]
 
         acc_width = 3.5 * inch if compact_level < 2 else 0
@@ -2300,7 +2321,7 @@ def build_pdf(
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
-            ["**GRAND TOTAL:**", f"**{fmt_money(totals.get('grand_total', 0.0))}**"],
+            ["GRAND TOTAL:", fmt_money(totals.get('grand_total', 0.0))],
         ])
 
         t_totals = Table(totals_rows, colWidths=[totals_width * 0.65, totals_width * 0.35])
@@ -2374,7 +2395,7 @@ def build_pdf(
             totals_wrapper.hAlign = "LEFT"
             story += [totals_wrapper, Spacer(1, block_spacer_med)]
 
-        story += [Paragraph("<b>Notes:</b>", notes_style), Paragraph(footer_notes_text, notes_style)]
+        story += [Paragraph("<b>Notes:</b>", notes_style), Paragraph(_pdf_text(footer_notes_text, preserve_newlines=True), notes_style)]
 
     doc.build(story)
     buffer.seek(0)
@@ -2629,11 +2650,14 @@ def get_current_payload(
     discount_meta = {
         "active_discount_type": st.session_state["active_discount_type"],
         "discount_note": st.session_state["discount_note"],
-        "manager_pricing_authorized": st.session_state["manager_pricing_authorized"],
+        # Persist what was applied for historical display, never live authority.
+        "manager_pricing_applied": bool(st.session_state["manager_pricing_authorized"]),
+        "manager_pricing_authorized": False,
         "manager_pricing_note": st.session_state["manager_pricing_note"],
     }
 
     return {
+        "pipedrive_link": st.session_state.get("pipedrive_link"),
         "quote_no": quote_no,
         "date": st.session_state.get("document_date") or get_pacific_now().isoformat(),
         "customer": st.session_state["customer"],
@@ -2788,6 +2812,8 @@ def search_pipedrive_callback():
 
 
 def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
+    st.session_state["pipedrive_link"] = payload.get("pipedrive_link")
+    st.session_state.pop("pd_plan", None)
     st.session_state["quote_no"] = selected_quote_no
     st.session_state["document_date"] = payload.get("date") or get_pacific_now().isoformat()
     st.session_state["customer"] = payload.get("customer", {})
@@ -2815,9 +2841,10 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
         discount_note = active_discount_type.title()
     st.session_state["discount_note"] = discount_note
 
-    manager_authorized = bool(discount_meta.get("manager_pricing_authorized", False))
-    st.session_state["manager_pricing_authorized"] = manager_authorized
-    st.session_state["manager_pricing_checkbox"] = manager_authorized
+    # Persisted business data may describe a prior approval, but it must never
+    # grant authority in a new session or after loading a document.
+    st.session_state["manager_pricing_authorized"] = False
+    st.session_state["manager_pricing_checkbox"] = False
     st.session_state["manager_pricing_note"] = discount_meta.get("manager_pricing_note", "")
     st.session_state["manager_clear_credentials_on_rerun"] = False
     clear_manager_credentials()
@@ -3932,6 +3959,9 @@ def main_app():
             render_saved_quote_search_ui()
         with lookup_tabs[1]:
             render_pipedrive_lookup_ui()
+            if get_env("PIPEDRIVE_LOCAL_TEST", "") == "1":
+                from pipedrive_workflow_ui import render_intake
+                render_intake(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN)
 
     c = st.session_state["customer"]
 
@@ -4344,6 +4374,9 @@ def main_app():
         primary_discount_label,
         manager_discount_amount,
     )
+    if get_env("PIPEDRIVE_LOCAL_TEST", "") == "1":
+        from pipedrive_workflow_ui import render_sync
+        render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
 
     render_builder_sidebar_preview()
