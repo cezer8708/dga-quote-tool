@@ -4003,6 +4003,45 @@ def main_app():
                 pointer-events: auto !important;
             }
 
+            /* Expanded preview becomes a readable document viewer. */
+            [data-testid="stSidebar"][aria-expanded="true"] {
+                position: fixed !important;
+                inset: 0 0 0 auto !important;
+                z-index: 1000 !important;
+                flex-basis: min(92vw, 980px) !important;
+                width: min(92vw, 980px) !important;
+                max-width: min(92vw, 980px) !important;
+                min-width: min(92vw, 980px) !important;
+                box-shadow: -18px 0 40px rgba(0, 0, 0, 0.5) !important;
+            }
+
+            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarUserContent"] {
+                padding: 1rem 1.25rem 2rem !important;
+            }
+
+            [data-testid="stSidebar"][aria-expanded="true"] .pdf-image-preview-shell {
+                height: calc(100vh - 205px) !important;
+                max-height: none !important;
+                overflow: auto !important;
+                padding: 1rem !important;
+            }
+
+            [data-testid="stSidebar"][aria-expanded="true"] .pdf-image-preview-shell img {
+                width: 100% !important;
+                max-width: 100% !important;
+                max-height: none !important;
+                height: auto !important;
+            }
+
+            @media (max-width: 760px) {
+                [data-testid="stSidebar"][aria-expanded="true"] {
+                    inset: 0 !important;
+                    width: 100vw !important;
+                    max-width: 100vw !important;
+                    min-width: 100vw !important;
+                }
+            }
+
             @media (max-width: 760px) {
                 .pdf-image-preview-shell {
                     max-height: 55vh;
