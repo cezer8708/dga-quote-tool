@@ -34,7 +34,7 @@ try:
 except ImportError:
     fitz = None
 
-st.set_page_config(page_title="DGA Quoting Tool", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="DGA Quoting Tool", layout="wide", initial_sidebar_state="collapsed")
 
 
 def is_health_check_request() -> bool:
