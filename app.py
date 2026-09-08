@@ -3020,7 +3020,7 @@ def render_exact_pdf_preview(
 def render_builder_sidebar_preview():
     preview_is_live = st.session_state.get("show_pdf_preview", True)
     preview_status = "Live PDF" if preview_is_live else "Hidden"
-    preview_label = f"⌄  Preview · {st.session_state['quote_no']}"
+    preview_label = "‹‹‹  Preview"
     preview_container = st.container(key="preview_popover_anchor")
     with preview_container:
         if hasattr(st, "popover"):
@@ -3508,20 +3508,26 @@ def main_app():
             }
 
             .st-key-preview_popover_anchor {
-                position: relative !important;
-                z-index: 10 !important;
-                width: 100% !important;
-                display: flex !important;
-                justify-content: flex-end !important;
-                margin: 0.35rem 0 0.75rem !important;
+                position: static !important;
+                width: 0 !important;
+                height: 0 !important;
+                margin: 0 !important;
             }
 
             .st-key-preview_popover_anchor button {
-                min-height: 36px !important;
-                padding: 0.45rem 0.8rem !important;
-                border-radius: 999px !important;
+                position: fixed !important;
+                top: 50% !important;
+                right: 0 !important;
+                transform: translateY(-50%) !important;
+                z-index: 1200 !important;
+                min-height: 112px !important;
+                width: 42px !important;
+                padding: 0.5rem 0.3rem !important;
+                border-radius: 12px 0 0 12px !important;
                 background: rgba(22, 34, 55, 0.95) !important;
                 border: 1px solid rgba(210, 228, 255, 0.3) !important;
+                writing-mode: vertical-rl !important;
+                text-orientation: mixed !important;
             }
 
             [data-testid="stPopover"] {
