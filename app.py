@@ -4019,8 +4019,17 @@ def main_app():
                 padding: 1rem 1.25rem 2rem !important;
             }
 
+            [data-testid="stSidebar"][aria-expanded="true"] > div,
+            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarContent"],
+            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarUserContent"] {
+                width: 100% !important;
+                max-width: none !important;
+                min-width: 0 !important;
+            }
+
             [data-testid="stSidebar"][aria-expanded="true"] .pdf-image-preview-shell {
                 height: calc(100vh - 205px) !important;
+                width: 100% !important;
                 max-height: none !important;
                 overflow: auto !important;
                 padding: 1rem !important;
