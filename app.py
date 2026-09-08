@@ -3322,7 +3322,9 @@ def main_app():
                 position: relative;
                 z-index: 1;
                 background-color: #0d0f14;
-                background-image: linear-gradient(rgba(13, 15, 20, 0.98), rgba(13, 15, 20, 0.98));
+                background-image:
+                    linear-gradient(rgba(13, 15, 20, 0.86), rgba(13, 15, 20, 0.86)),
+                    url("__PATENT_URI__");
                 background-repeat: no-repeat;
                 background-position: center top;
                 background-size: cover;
@@ -3344,11 +3346,11 @@ def main_app():
             section[data-testid="stSidebar"] > div,
             .stApp [data-testid="stSidebar"],
             .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 360px !important;
+                flex-basis: 320px !important;
                 flex-shrink: 0 !important;
-                max-width: 360px !important;
+                max-width: 320px !important;
                 min-width: 280px !important;
-                width: 360px !important;
+                width: 320px !important;
             }
 
             [data-testid="stSidebarUserContent"] {
@@ -3473,10 +3475,10 @@ def main_app():
                 section[data-testid="stSidebar"] > div,
                 .stApp [data-testid="stSidebar"],
                 .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(86vw, 360px) !important;
-                    max-width: min(86vw, 360px) !important;
-                    min-width: min(86vw, 360px) !important;
-                    width: min(86vw, 360px) !important;
+                    flex-basis: min(86vw, 320px) !important;
+                    max-width: min(86vw, 320px) !important;
+                    min-width: min(86vw, 320px) !important;
+                    width: min(86vw, 320px) !important;
                 }
 
                 .main .block-container {
@@ -3970,17 +3972,21 @@ def main_app():
                 border-radius: 10px;
                 box-sizing: border-box;
                 overflow: auto;
-                max-height: calc(100vh - 220px);
-                padding: 8px;
+                max-height: calc(100vh - 250px);
+                padding: 6px;
             }
 
             .pdf-image-preview-shell img {
                 display: block;
                 height: auto;
                 margin: 0 auto;
-                max-height: calc(100vh - 245px);
+                max-height: calc(100vh - 275px);
                 max-width: 100%;
                 object-fit: contain;
+            }
+
+            [data-testid="stSidebar"] .pdf-image-preview-shell {
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
             }
 
             /* Keep the preview useful without letting it dominate the workspace. */
