@@ -3346,11 +3346,11 @@ def main_app():
             section[data-testid="stSidebar"] > div,
             .stApp [data-testid="stSidebar"],
             .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 600px !important;
+                flex-basis: 360px !important;
                 flex-shrink: 0 !important;
-                max-width: 600px !important;
-                min-width: 600px !important;
-                width: 600px !important;
+                max-width: 360px !important;
+                min-width: 280px !important;
+                width: 360px !important;
             }
 
             [data-testid="stSidebarUserContent"] {
@@ -3360,13 +3360,6 @@ def main_app():
 
             [data-testid="stSidebar"] {
                 background: #20242f !important;
-            }
-
-            [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"],
-            [data-testid="stExpandSidebarButton"] {
-                display: none !important;
-                visibility: hidden !important;
-                pointer-events: none !important;
             }
 
             .st-key-sidebar_preview_controls {
@@ -3482,10 +3475,71 @@ def main_app():
                 section[data-testid="stSidebar"] > div,
                 .stApp [data-testid="stSidebar"],
                 .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(92vw, 600px) !important;
-                    max-width: min(92vw, 600px) !important;
-                    min-width: min(92vw, 600px) !important;
-                    width: min(92vw, 600px) !important;
+                    flex-basis: min(86vw, 360px) !important;
+                    max-width: min(86vw, 360px) !important;
+                    min-width: min(86vw, 360px) !important;
+                    width: min(86vw, 360px) !important;
+                }
+
+                .main .block-container {
+                    max-width: 100% !important;
+                    padding-left: 1rem !important;
+                    padding-right: 1rem !important;
+                }
+
+                .stApp [data-testid="stHorizontalBlock"] {
+                    gap: 0.75rem !important;
+                }
+            }
+
+            /* Shared sizing keeps the form calm and touch-friendly. */
+            .main .block-container {
+                max-width: 1500px !important;
+                padding-top: 1.25rem !important;
+                padding-bottom: 2.5rem !important;
+            }
+
+            .stButton > button,
+            .stDownloadButton > button,
+            [data-testid="stLinkButton"] > a {
+                min-height: 42px !important;
+                height: auto !important;
+                padding: 0.6rem 0.9rem !important;
+                border-radius: 10px !important;
+                font-size: 0.92rem !important;
+                font-weight: 750 !important;
+                line-height: 1.2 !important;
+                white-space: normal !important;
+            }
+
+            input, textarea, [data-baseweb="select"] > div {
+                min-height: 42px !important;
+                border-radius: 9px !important;
+            }
+
+            [data-testid="stWidgetLabel"] label {
+                font-size: 0.8rem !important;
+                font-weight: 750 !important;
+                letter-spacing: 0.01em !important;
+            }
+
+            div[data-testid="stVerticalBlockBorderWrapper"] {
+                margin-bottom: 0.9rem !important;
+            }
+
+            @media (max-width: 760px) {
+                .stApp [data-testid="stHorizontalBlock"] {
+                    flex-wrap: wrap !important;
+                }
+
+                .stApp [data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+                    min-width: min(100%, 18rem) !important;
+                    flex: 1 1 18rem !important;
+                }
+
+                .st-key-generate_pdf_panel .stButton > button,
+                .st-key-generate_pdf_panel .stDownloadButton > button {
+                    min-height: 48px !important;
                 }
             }
 
