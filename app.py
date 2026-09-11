@@ -886,6 +886,8 @@ def start_new_quote(preserve_freight: bool = False):
     st.session_state["billing_same_as_shipping"] = False
 
     st.session_state["line_items"] = []
+    st.session_state["apply_course_discount"] = True
+    st.session_state["apply_anniversary_discount"] = True
     st.session_state["drop_fee_input"] = 0.0
     st.session_state["freight_fee_input"] = 0.0
     st.session_state["freight_notes"] = ""
@@ -975,6 +977,8 @@ for label in FREIGHT_NOTE_OPTIONS:
     st.session_state.setdefault(_freight_note_key(label), False)
 restore_pending_freight_state()
 
+st.session_state.setdefault("apply_course_discount", True)
+st.session_state.setdefault("apply_anniversary_discount", True)
 st.session_state.setdefault("active_discount_type", "")
 st.session_state.setdefault("discount_checkbox", False)
 st.session_state.setdefault("discount_note", "")
@@ -1560,27 +1564,30 @@ def ensure_discount_line(items: list[dict], discount_sku: str, qty: int, unit: f
     return False
 
 
-def ensure_course_discount(items: list[dict]) -> bool:
+def ensure_course_discount(items: list[dict], discount_meta: dict = None) -> bool:
+    settings = st.session_state if discount_meta is None else discount_meta
+    course_enabled = settings.get("apply_course_discount", True)
+    anniversary_enabled = settings.get("apply_anniversary_discount", True)
     qty = eligible_qty_for_discount(items)
     mach_2_pro_qty = eligible_mach_2_pro_qty_for_discount(items)
     modified = ensure_discount_line(
-        items, "CD", qty, -100.0,
+        items, "CD", qty if course_enabled else 0, -100.0,
         "Course Discount (-$100 per qualifying basket)",
         "Auto-applied for 9+ Mach 5/7/X baskets",
     )
     modified = ensure_discount_line(
-        items, ANNIVERSARY_DISCOUNT_SKU, qty, -125.0,
+        items, ANNIVERSARY_DISCOUNT_SKU, qty if anniversary_enabled else 0, -125.0,
         "50th Anniversary Sale - Mach 5 / Mach 7 / Mach X / Mach X Pro",
         "Ends Oct 31st",
         minimum_qty=1,
     ) or modified
     modified = ensure_discount_line(
-        items, MACH_2_PRO_COURSE_DISCOUNT_SKU, mach_2_pro_qty, -50.0,
+        items, MACH_2_PRO_COURSE_DISCOUNT_SKU, mach_2_pro_qty if course_enabled else 0, -50.0,
         "Mach 2 Pro Course Discount (-$50 per qualifying basket)",
         "Auto-applied for 9+ Mach 2 Pro baskets",
     ) or modified
     modified = ensure_discount_line(
-        items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty, -50.0,
+        items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty if anniversary_enabled else 0, -50.0,
         "50th Anniversary Sale - Mach 2 Pro",
         "Ends Oct 31st",
         minimum_qty=1,
@@ -2648,6 +2655,8 @@ def get_current_payload(
         "sc_county_checkbox": st.session_state["sc_county_checkbox"],
     }
     discount_meta = {
+        "apply_course_discount": st.session_state.get("apply_course_discount", True),
+        "apply_anniversary_discount": st.session_state.get("apply_anniversary_discount", True),
         "active_discount_type": st.session_state["active_discount_type"],
         "discount_note": st.session_state["discount_note"],
         # Persist what was applied for historical display, never live authority.
@@ -2701,6 +2710,13 @@ def move_item_down(item_id: str):
 
 
 def remove_item(item_id):
+    for item in st.session_state["line_items"]:
+        if item["id"] == item_id:
+            if item.get("sku") in {"CD", MACH_2_PRO_COURSE_DISCOUNT_SKU}:
+                st.session_state["apply_course_discount"] = False
+            elif item.get("sku") in {ANNIVERSARY_DISCOUNT_SKU, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU}:
+                st.session_state["apply_anniversary_discount"] = False
+            break
     line_items_before = len(st.session_state["line_items"])
     st.session_state["line_items"] = [
         item for item in st.session_state["line_items"] if item["id"] != item_id
@@ -2832,6 +2848,8 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
 
     discount_meta = payload.get("discount_meta", {})
+    st.session_state["apply_course_discount"] = discount_meta.get("apply_course_discount", True)
+    st.session_state["apply_anniversary_discount"] = discount_meta.get("apply_anniversary_discount", True)
     active_discount_type = discount_meta.get("active_discount_type", "")
     if not active_discount_type and discount_meta.get("apply_10_discount", False):
         active_discount_type = "team"
@@ -4219,6 +4237,9 @@ def main_app():
 
     with st.container(border=True, key="line_items_panel"):
         st.subheader("Line Items")
+        st.checkbox("Apply Course Discount", key="apply_course_discount")
+        st.checkbox("Apply 50th Anniversary Sale", key="apply_anniversary_discount")
+        st.caption("Uncheck to remove that discount from all baskets on this quote. Recheck to restore it.")
         st.button("Add Line Item", key="btn_add_line_top", on_click=add_item_callback)
 
         sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
@@ -4504,32 +4525,36 @@ def main_app():
             st.metric("Grand Total", f"${grand_total:,.2f}")
 
         qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
-        if qual_qty >= 9:
+        if not st.session_state["apply_course_discount"]:
+            st.info("Course discounts removed for this quote.")
+        elif qual_qty >= 9:
             st.success(f"Course Discount active: **-$100** × {qual_qty} qualifying baskets.")
         else:
             st.info(
                 f"Qualifying baskets: {qual_qty}. Add {max(0, 9 - qual_qty)} more Mach 5/7/X (Std/Portable/No Frills) to trigger the Course Discount."
             )
 
-        if qual_qty:
+        if not st.session_state["apply_anniversary_discount"]:
+            st.info("50th Anniversary Sale discounts removed for this quote.")
+        elif qual_qty:
             st.success(
                 f"Mach 5/7/X 50th Anniversary Sale active: **-$125** × "
                 f"{qual_qty} qualifying baskets."
             )
 
         mach_2_pro_qual_qty = eligible_mach_2_pro_qty_for_discount(st.session_state["line_items"])
-        if mach_2_pro_qual_qty >= 9:
+        if mach_2_pro_qual_qty >= 9 and st.session_state["apply_course_discount"]:
             st.success(
                 f"Mach 2 Pro Course Discount active: **-$50** × "
                 f"{mach_2_pro_qual_qty} qualifying baskets."
             )
-        else:
+        elif st.session_state["apply_course_discount"]:
             st.info(
                 f"Qualifying Mach 2 Pro baskets: {mach_2_pro_qual_qty}. Add "
                 f"{max(0, 9 - mach_2_pro_qual_qty)} more to trigger the Mach 2 Pro Course Discount."
             )
 
-        if mach_2_pro_qual_qty:
+        if mach_2_pro_qual_qty and st.session_state["apply_anniversary_discount"]:
             st.success(
                 f"Mach 2 Pro 50th Anniversary Sale active: **-$50** × "
                 f"{mach_2_pro_qual_qty} qualifying baskets."

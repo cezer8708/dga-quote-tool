@@ -38,7 +38,7 @@ def comparison_payloads(api, source, selections, reference):
             row.update(sku=product['SKU'], prev_sku=product['SKU'], name=product['Name'],
                        unit=float(product['UnitPrice']), Notes=str(product.get('Notes') or ''))
         row['total'] = round(row['qty'] * row['unit'], 2)
-        api['ensure_course_discount'](items)
+        api['ensure_course_discount'](items, payload['discount_meta'])
         subtotal = sum(float(r['total']) for r in items if r.get('previewChecked', True))
         meta = payload['discount_meta']
         primary = api['calculate_primary_discount'](items, meta.get('active_discount_type', ''))

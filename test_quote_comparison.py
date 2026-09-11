@@ -33,6 +33,33 @@ class ComparisonTests(unittest.TestCase):
             self.assertEqual('CD-M2P' in codes,i==0)
             self.assertEqual('CD' in codes,i!=0)
 
+    def test_manual_discount_removal_survives_recalculation_and_reload(self):
+        for sku, setting, removed, retained in [
+            ('M5STD', 'apply_course_discount', 'CD', '50th'),
+            ('M5STD', 'apply_anniversary_discount', '50th', 'CD'),
+            ('M2IG', 'apply_course_discount', 'CD-M2P', '50thM2'),
+            ('M2IG', 'apply_anniversary_discount', '50thM2', 'CD-M2P'),
+        ]:
+            with self.subTest(sku=sku, setting=setting):
+                source = self.source()
+                result = comparison_payloads(vars(app), source, [{'sku':sku, 'freight':0}], '0908-1507')[0]
+                app.load_quote_payload_into_session(result, result['quote_no'])
+                discount = next(r for r in app.st.session_state['line_items'] if r['sku'] == removed)
+                app.remove_item(discount['id'])
+                self.assertFalse(app.st.session_state[setting])
+                app.ensure_course_discount(app.st.session_state['line_items'])
+                codes = {r['sku'] for r in app.st.session_state['line_items']}
+                self.assertNotIn(removed, codes)
+                self.assertIn(retained, codes)
+                saved = app.get_current_payload(0, 0, 0, 0, 0, 0, 0, '', 0)
+                app.load_quote_payload_into_session(saved, result['quote_no'])
+                self.assertFalse(app.st.session_state[setting])
+                compared = comparison_payloads(vars(app), saved, [{'sku':sku, 'freight':0}], '0908-1507')[0]
+                self.assertNotIn(removed, {r['sku'] for r in compared['line_items']})
+                app.st.session_state[setting] = True
+                app.ensure_course_discount(app.st.session_state['line_items'])
+                self.assertIn(removed, {r['sku'] for r in app.st.session_state['line_items']})
+
     def test_one_complete_page_per_option(self):
         results=comparison_payloads(vars(app),self.source(),
                     [{'sku':s,'freight':0} for s in ['M2IG','M5STD','M7STD','MXSTD']],'0908-1507')
