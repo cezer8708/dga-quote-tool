@@ -820,6 +820,7 @@ def restore_pending_freight_state():
 
 
 def assign_new_quote_version():
+    # Button callbacks run before widgets render, so their state can be reset safely.
     preserve_freight_for_next_rerun()
     current_quote_no = st.session_state["quote_no"]
     match = re.match(r"(.+?)(?:-V(\d+))?$", current_quote_no)
@@ -831,7 +832,6 @@ def assign_new_quote_version():
     st.session_state["manager_pricing_authorized"] = False
     st.session_state["manager_pricing_checkbox"] = False
     clear_manager_credentials()
-    st.rerun()
 
 
 def capture_freight_state() -> dict:
@@ -3057,8 +3057,8 @@ def render_builder_sidebar_preview():
             doc_col1, doc_col2 = st.columns(2)
             if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
                 request_new_quote()
-            if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
-                assign_new_quote_version()
+            doc_col2.button("New Version", key="sidebar_new_version", type="primary",
+                            use_container_width=True, on_click=assign_new_quote_version)
 
             if hasattr(st, "toggle"):
                 st.toggle(
@@ -4042,9 +4042,9 @@ def main_app():
 
     with lookup_col3:
         st.markdown("<div style='min-height: 27px;'></div>", unsafe_allow_html=True)
-        if st.button("New Version", key="top_new_version", use_container_width=True, type="primary",
-                     help="Create a new version number based on the current quote."):
-            assign_new_quote_version()
+        st.button("New Version", key="top_new_version", use_container_width=True, type="primary",
+                  help="Create a new version number based on the current quote.",
+                  on_click=assign_new_quote_version)
 
     with st.container(border=True, key="lookup_tools_panel"):
         st.subheader("Lookup Tools")
@@ -4501,8 +4501,8 @@ def main_app():
             if st.button("New Quote", key="bottom_new_quote", type="secondary", use_container_width=True):
                 request_new_quote()
         with action_col3:
-            if st.button("New Version", key="bottom_new_version", type="primary", use_container_width=True):
-                assign_new_quote_version()
+            st.button("New Version", key="bottom_new_version", type="primary",
+                      use_container_width=True, on_click=assign_new_quote_version)
 
         st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
 
