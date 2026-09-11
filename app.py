@@ -34,7 +34,7 @@ try:
 except ImportError:
     fitz = None
 
-st.set_page_config(page_title="DGA Quoting Tool", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="DGA Quoting Tool", layout="wide", initial_sidebar_state="expanded")
 
 
 def is_health_check_request() -> bool:
@@ -3036,43 +3036,50 @@ def render_exact_pdf_preview(
 
 
 def render_builder_sidebar_preview():
-    preview_is_live = st.session_state.get("show_pdf_preview", True)
-    preview_status = "Live PDF" if preview_is_live else "Hidden"
-    preview_label = "Preview"
-    preview_container = st.container(key="preview_popover_anchor")
-    with preview_container:
-        if hasattr(st, "popover"):
-            preview_surface = st.popover(preview_label, help="Open the full quote preview")
-        else:
-            preview_surface = st.expander(f"Quote Preview · {st.session_state['quote_no']} · {preview_status}", expanded=False)
-
-    with preview_surface:
-        doc_col1, doc_col2 = st.columns(2)
-        if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
-            request_new_quote()
-        if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
-            assign_new_quote_version()
-
-        if hasattr(st, "toggle"):
-            st.toggle(
-                "Live preview",
-                key="show_pdf_preview",
-                on_change=handle_show_pdf_preview_toggle,
-                help="Keep the PDF preview synced while editing.",
+    with st.sidebar:
+        with st.container(key="sidebar_preview_controls"):
+            preview_is_live = st.session_state.get("show_pdf_preview", True)
+            preview_status = "Live PDF" if preview_is_live else "Hidden"
+            preview_status_class = "preview-toolbar-status" if preview_is_live else "preview-toolbar-status is-off"
+            st.markdown(
+                f"""
+                <div class="preview-toolbar-heading">
+                    <div>
+                        <div class="preview-toolbar-kicker">Quote Preview</div>
+                        <div class="preview-toolbar-doc">{st.session_state['quote_no']}</div>
+                    </div>
+                    <div class="{preview_status_class}">{preview_status}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-        else:
-            st.checkbox(
-                "Live preview",
-                key="show_pdf_preview",
-                on_change=handle_show_pdf_preview_toggle,
-                help="Keep the PDF preview synced while editing.",
-            )
+
+            doc_col1, doc_col2 = st.columns(2)
+            if doc_col1.button("New Quote", key="sidebar_new_quote", use_container_width=True):
+                request_new_quote()
+            if doc_col2.button("New Version", key="sidebar_new_version", type="primary", use_container_width=True):
+                assign_new_quote_version()
+
+            if hasattr(st, "toggle"):
+                st.toggle(
+                    "Live preview",
+                    key="show_pdf_preview",
+                    on_change=handle_show_pdf_preview_toggle,
+                    help="Keep the PDF preview synced while editing.",
+                )
+            else:
+                st.checkbox(
+                    "Live preview",
+                    key="show_pdf_preview",
+                    on_change=handle_show_pdf_preview_toggle,
+                    help="Keep the PDF preview synced while editing.",
+                )
 
         if st.session_state["show_pdf_preview"]:
             try:
                 render_exact_pdf_preview(
                     template="quote",
-                    height="calc(100vh - 260px)",
+                    height="calc(100vh - 310px)",
                     mode="image",
                     zoom_percent=100,
                 )
@@ -3357,11 +3364,11 @@ def main_app():
             section[data-testid="stSidebar"] > div,
             .stApp [data-testid="stSidebar"],
             .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 320px !important;
+                flex-basis: 600px !important;
                 flex-shrink: 0 !important;
-                max-width: 320px !important;
-                min-width: 280px !important;
-                width: 320px !important;
+                max-width: 600px !important;
+                min-width: 600px !important;
+                width: 600px !important;
             }
 
             [data-testid="stSidebarUserContent"] {
@@ -3371,6 +3378,13 @@ def main_app():
 
             [data-testid="stSidebar"] {
                 background: #20242f !important;
+            }
+
+            [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"],
+            [data-testid="stExpandSidebarButton"] {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
             }
 
             .st-key-sidebar_preview_controls {
@@ -3486,10 +3500,10 @@ def main_app():
                 section[data-testid="stSidebar"] > div,
                 .stApp [data-testid="stSidebar"],
                 .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(86vw, 320px) !important;
-                    max-width: min(86vw, 320px) !important;
-                    min-width: min(86vw, 320px) !important;
-                    width: min(86vw, 320px) !important;
+                    flex-basis: min(92vw, 600px) !important;
+                    max-width: min(92vw, 600px) !important;
+                    min-width: min(92vw, 600px) !important;
+                    width: min(92vw, 600px) !important;
                 }
 
                 .main .block-container {
@@ -3523,34 +3537,6 @@ def main_app():
                 font-size: clamp(1.8rem, 3vw, 2.7rem) !important;
                 line-height: 1.05 !important;
                 margin: 0.8rem 0 !important;
-            }
-
-            .st-key-preview_popover_anchor {
-                position: static !important;
-                width: 0 !important;
-                height: 0 !important;
-                margin: 0 !important;
-            }
-
-            .st-key-preview_popover_anchor button {
-                position: fixed !important;
-                top: 50% !important;
-                right: 0 !important;
-                transform: translateY(-50%) !important;
-                z-index: 1200 !important;
-                min-height: 112px !important;
-                width: 42px !important;
-                padding: 0.5rem 0.3rem !important;
-                border-radius: 12px 0 0 12px !important;
-                background: rgba(22, 34, 55, 0.95) !important;
-                border: 1px solid rgba(210, 228, 255, 0.3) !important;
-                writing-mode: vertical-rl !important;
-                text-orientation: mixed !important;
-            }
-
-            [data-testid="stPopover"] {
-                width: min(92vw, 980px) !important;
-                max-width: min(92vw, 980px) !important;
             }
 
             .stButton > button,
@@ -4008,96 +3994,16 @@ def main_app():
             .pdf-image-preview-shell {
                 background: #ffffff;
                 border: 1px solid rgba(255, 255, 255, 0.16);
-                border-radius: 10px;
+                border-radius: 4px;
                 box-sizing: border-box;
                 overflow: auto;
-                max-height: calc(100vh - 250px);
-                padding: 6px;
+                padding: 10px;
             }
 
             .pdf-image-preview-shell img {
                 display: block;
                 height: auto;
                 margin: 0 auto;
-                max-height: calc(100vh - 275px);
-                max-width: 100%;
-                object-fit: contain;
-            }
-
-            [data-testid="stSidebar"] .pdf-image-preview-shell {
-                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
-            }
-
-            /* Keep the preview useful without letting it dominate the workspace. */
-            [data-testid="stSidebar"] .st-key-sidebar_preview_controls {
-                position: sticky !important;
-                top: 0.35rem !important;
-                z-index: 5 !important;
-            }
-
-            [data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"],
-            [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"] {
-                display: flex !important;
-                visibility: visible !important;
-                pointer-events: auto !important;
-            }
-
-            /* Expanded preview becomes a readable document viewer. */
-            [data-testid="stSidebar"][aria-expanded="true"] {
-                position: fixed !important;
-                inset: 0 0 0 auto !important;
-                z-index: 1000 !important;
-                flex-basis: min(92vw, 980px) !important;
-                width: min(92vw, 980px) !important;
-                max-width: min(92vw, 980px) !important;
-                min-width: min(92vw, 980px) !important;
-                box-shadow: -18px 0 40px rgba(0, 0, 0, 0.5) !important;
-            }
-
-            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarUserContent"] {
-                padding: 1rem 1.25rem 2rem !important;
-            }
-
-            [data-testid="stSidebar"][aria-expanded="true"] > div,
-            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarContent"],
-            [data-testid="stSidebar"][aria-expanded="true"] [data-testid="stSidebarUserContent"] {
-                width: 100% !important;
-                max-width: none !important;
-                min-width: 0 !important;
-            }
-
-            [data-testid="stSidebar"][aria-expanded="true"] .pdf-image-preview-shell {
-                height: calc(100vh - 205px) !important;
-                width: 100% !important;
-                max-height: none !important;
-                overflow: auto !important;
-                padding: 1rem !important;
-            }
-
-            [data-testid="stSidebar"][aria-expanded="true"] .pdf-image-preview-shell img {
-                width: 100% !important;
-                max-width: 100% !important;
-                max-height: none !important;
-                height: auto !important;
-            }
-
-            @media (max-width: 760px) {
-                [data-testid="stSidebar"][aria-expanded="true"] {
-                    inset: 0 !important;
-                    width: 100vw !important;
-                    max-width: 100vw !important;
-                    min-width: 100vw !important;
-                }
-            }
-
-            @media (max-width: 760px) {
-                .pdf-image-preview-shell {
-                    max-height: 55vh;
-                }
-
-                .pdf-image-preview-shell img {
-                    max-height: 52vh;
-                }
             }
         </style>
         __PATENT_MARKUP__
@@ -4118,9 +4024,6 @@ def main_app():
 
     if not st.session_state.get("footer_notes_touched", False) and not st.session_state.get("footer_notes", "").strip():
         st.session_state["footer_notes"] = DEFAULT_FOOTER_NOTES
-
-    if st.session_state.get("quote_workspace_view") == "builder":
-        render_builder_sidebar_preview()
 
     if st.session_state.get("new_quote_dialog_open", False):
         render_new_quote_dialog()
@@ -4574,6 +4477,8 @@ def main_app():
     from pipedrive_workflow_ui import render_sync
     render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
+
+    render_builder_sidebar_preview()
 
     def discount_note_valid() -> bool:
         if not st.session_state["active_discount_type"]:
