@@ -25,7 +25,7 @@ def pd_search_persons(term):
 def pd_get_person(person_id):
     return {"name": "Test Customer", "email": [{"value": "test@example.invalid"}], "phone": []}
 def get_saved_quotes_snapshot():
-    return pd.DataFrame([{"Doc #": "0901-1000-V2", "Quote #": "0901-1000-V2", "Name": "Legacy", "Company": "Legacy", "Email": "", "Date": "2026-09-01", "Payload": {"customer": {"name": "Legacy", "ship_addr1": "Line one\\nLine two"}, "line_items": [{"id": "legacy-custom", "sku": "", "name": "Saved custom product", "qty": 2, "unit": 12.5, "total": 25, "Notes": "Saved configuration"}], "fees": {"freight": 42}, "freight_notes": "UPS", "footer_notes": "Legacy footer"}}])
+    return pd.DataFrame([{"Doc #": "0901-1000-V2", "Quote #": "0901-1000-V2", "Name": "Legacy", "Company": "Legacy", "Email": "", "Date": "2026-09-01", "Payload": {"customer": {"name": "Legacy", "ship_addr2": "Legacy Suite", "ship_addr1": "Line one\\nLine two"}, "line_items": [{"id": "legacy-custom", "sku": "", "name": "Saved custom product", "qty": 2, "unit": 12.5, "total": 25, "Notes": "Saved configuration"}], "fees": {"freight": 42}, "freight_notes": "UPS", "footer_notes": "Legacy footer"}}])
 def handle_pdf_generation(payload, doc_number, template, container, order_meta=None):
     pdf, _, _ = generate_pdf_preview_data(payload, template)
     st.session_state["_test_pdf"] = pdf
@@ -66,6 +66,28 @@ def validate_manager_credentials():
         self.assertEqual(a.text_input(key='bill_company_0').value, 'Billing Co')
         self.rerun(a.button(key='top_new_quote'))
         self.assertEqual(self.payload()['customer']['bill_company'], '')
+
+    def test_second_address_lines_sync_restore_and_render(self):
+        a = self.at
+        self.assertEqual(a.text_area(key='ship_addr1_0').label, 'Address #1')
+        self.assertEqual(a.text_input(key='ship_addr2_0').label, 'Address #2')
+        self.rerun(a.text_input(key='ship_addr2_0'), 'Suite 200 & Receiving')
+        self.rerun(a.text_input(key='bill_addr2_0'), 'Accounts Suite 300')
+        self.rerun(a.checkbox(key='billing_same_as_shipping'), True)
+        self.assertEqual(self.payload()['customer']['bill_addr2'], 'Suite 200 & Receiving')
+        self.rerun(a.checkbox(key='billing_same_as_shipping'), False)
+        self.assertEqual(a.text_input(key='bill_addr2_0').value, 'Accounts Suite 300')
+        for key in ('generate_quote_pdf', 'process_order_po'):
+            self.rerun(a.button(key=key))
+            saved = a.session_state['_test_saved_payload']
+            self.assertEqual(saved['customer']['ship_addr2'], 'Suite 200 & Receiving')
+            self.assertEqual(saved['customer']['bill_addr2'], 'Accounts Suite 300')
+            text = '\n'.join(page.extract_text() for page in PdfReader(io.BytesIO(a.session_state['_test_pdf'])).pages)
+            self.assertIn('Suite 200 & Receiving', text)
+            self.assertIn('Accounts Suite 300', text)
+        self.rerun(a.button(key='top_new_quote'))
+        self.assertEqual(self.payload()['customer']['ship_addr2'], '')
+        self.assertEqual(self.payload()['customer']['bill_addr2'], '')
 
     def test_items_discounts_fees_notes_preview_and_pdf(self):
         a = self.at
@@ -135,6 +157,8 @@ def validate_manager_credentials():
         self.assertEqual(a.text_area(key='Notes_input_legacy-custom').value, 'Saved configuration')
         self.assertEqual(self.payload()['line_items'][0]['total'], 25)
         self.assertEqual(self.payload()['customer']['ship_addr1'], 'Line one\nLine two')
+        self.assertEqual(self.payload()['customer']['ship_addr2'], 'Legacy Suite')
+        self.assertEqual(self.payload()['customer']['bill_addr2'], '')
 
     def test_custom_name_only_when_applicable(self):
         a = self.at

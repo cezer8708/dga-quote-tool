@@ -878,9 +878,9 @@ def start_new_quote(preserve_freight: bool = False):
 
     st.session_state["customer"] = {
         "company": "", "name": "", "email": "", "phone": "",
-        "ship_addr1": "", "ship_city": "", "ship_state": "", "ship_zip": "",
+        "ship_addr1": "", "ship_addr2": "", "ship_city": "", "ship_state": "", "ship_zip": "",
         "bill_company": "", "bill_name": "", "bill_email": "", "bill_phone": "",
-        "bill_addr1": "", "bill_city": "", "bill_state": "", "bill_zip": "",
+        "bill_addr1": "", "bill_addr2": "", "bill_city": "", "bill_state": "", "bill_zip": "",
     }
     st.session_state["billing_same_as_shipping"] = False
 
@@ -1025,6 +1025,7 @@ def sync_billing_from_shipping(customer: dict, cust_key_suffix: int) -> None:
         "bill_phone": "phone",
         "bill_email": "email",
         "bill_addr1": "ship_addr1",
+        "bill_addr2": "ship_addr2",
         "bill_city": "ship_city",
         "bill_state": "ship_state",
         "bill_zip": "ship_zip",
@@ -1035,6 +1036,7 @@ def sync_billing_from_shipping(customer: dict, cust_key_suffix: int) -> None:
         "bill_phone": f"bill_phone_{cust_key_suffix}",
         "bill_email": f"bill_email_{cust_key_suffix}",
         "bill_addr1": f"bill_addr1_{cust_key_suffix}",
+        "bill_addr2": f"bill_addr2_{cust_key_suffix}",
         "bill_city": f"bill_city_input_{cust_key_suffix}",
         "bill_state": f"bill_state_input_{cust_key_suffix}",
         "bill_zip": f"bill_zip_input_{cust_key_suffix}",
@@ -1049,7 +1051,7 @@ def sync_billing_from_shipping(customer: dict, cust_key_suffix: int) -> None:
 def handle_billing_same_as_shipping() -> None:
     customer = st.session_state["customer"]
     suffix = st.session_state["customer_key_suffix"]
-    fields = ("bill_company", "bill_name", "bill_phone", "bill_email", "bill_addr1", "bill_city", "bill_state", "bill_zip")
+    fields = ("bill_company", "bill_name", "bill_phone", "bill_email", "bill_addr1", "bill_addr2", "bill_city", "bill_state", "bill_zip")
     if st.session_state["billing_same_as_shipping"]:
         st.session_state["_billing_address_backup"] = (suffix, {field: customer.get(field, "") for field in fields})
     else:
@@ -1450,12 +1452,12 @@ def pd_person_to_customer(person: dict, org: dict | None = None) -> dict:
         "name": name,
         "email": email,
         "phone": phone,
-        "ship_addr1": ship_addr1, "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
+        "ship_addr1": ship_addr1, "ship_addr2": "", "ship_city": ship_city, "ship_state": ship_state, "ship_zip": ship_zip,
         "bill_company": bill_company,
         "bill_name": bill_name,
         "bill_email": bill_email,
         "bill_phone": bill_phone,
-        "bill_addr1": bill_addr1, "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
+        "bill_addr1": bill_addr1, "bill_addr2": "", "bill_city": bill_city, "bill_state": bill_state, "bill_zip": bill_zip,
     }
 
 
@@ -2057,6 +2059,7 @@ def build_pdf(
             f"{_pdf_text(customer.get('company', ''))}<br/>"
             f"{_pdf_text(customer.get('name', ''))}<br/>"
             f"{_pdf_text(customer.get('ship_addr1', ''))}<br/>"
+            f"{(_pdf_text(customer.get('ship_addr2', '')) + '<br/>') if customer.get('ship_addr2') else ''}"
             f"{_pdf_text(customer.get('ship_city', ''))}, {_pdf_text(customer.get('ship_state', ''))} {_pdf_text(customer.get('ship_zip', ''))}<br/>"
             f"{_pdf_text(customer.get('phone', ''))}<br/>"
             f"{_pdf_text(customer.get('email', ''))}"
@@ -2066,6 +2069,7 @@ def build_pdf(
             f"{_pdf_text(customer.get('bill_company', customer.get('company', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_name', customer.get('name', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_addr1', ''))}<br/>"
+            f"{(_pdf_text(customer.get('bill_addr2', '')) + '<br/>') if customer.get('bill_addr2') else ''}"
             f"{_pdf_text(customer.get('bill_city', ''))}, {_pdf_text(customer.get('bill_state', ''))} {_pdf_text(customer.get('bill_zip', ''))}<br/>"
             f"{_pdf_text(customer.get('bill_phone', customer.get('phone', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_email', customer.get('email', '')))}"
@@ -2241,6 +2245,7 @@ def build_pdf(
             f"{_pdf_text(customer.get('company', ''))}<br/>"
             f"{_pdf_text(customer.get('name', ''))}<br/>"
             f"{_pdf_text(customer.get('ship_addr1', ''))}<br/>"
+            f"{(_pdf_text(customer.get('ship_addr2', '')) + '<br/>') if customer.get('ship_addr2') else ''}"
             f"{_pdf_text(customer.get('ship_city', ''))}, {_pdf_text(customer.get('ship_state', ''))} {_pdf_text(customer.get('ship_zip', ''))}<br/>"
             f"{_pdf_text(customer.get('phone', ''))}<br/>"
             f"{_pdf_text(customer.get('email', ''))}"
@@ -2250,6 +2255,7 @@ def build_pdf(
             f"{_pdf_text(customer.get('bill_company', customer.get('company', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_name', customer.get('name', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_addr1', ''))}<br/>"
+            f"{(_pdf_text(customer.get('bill_addr2', '')) + '<br/>') if customer.get('bill_addr2') else ''}"
             f"{_pdf_text(customer.get('bill_city', ''))}, {_pdf_text(customer.get('bill_state', ''))} {_pdf_text(customer.get('bill_zip', ''))}<br/>"
             f"{_pdf_text(customer.get('bill_phone', customer.get('phone', '')))}<br/>"
             f"{_pdf_text(customer.get('bill_email', customer.get('email', '')))}"
@@ -4166,7 +4172,8 @@ def main_app():
                  ("Name", "name", "ship_contact_name", "bill_name", "bill_name_input", 50)],
                 [("Phone", "phone", "ship_phone", "bill_phone", "bill_phone", 35),
                  ("Email", "email", "ship_email", "bill_email", "bill_email", 65)],
-                [("Address", "ship_addr1", "ship_addr1", "bill_addr1", "bill_addr1", 100)],
+                [("Address #1", "ship_addr1", "ship_addr1", "bill_addr1", "bill_addr1", 100)],
+                [("Address #2", "ship_addr2", "ship_addr2", "bill_addr2", "bill_addr2", 100)],
                 [("City", "ship_city", "ship_city_input", "bill_city", "bill_city_input", 50),
                  ("State", "ship_state", "ship_state_input", "bill_state", "bill_state_input", 20),
                  ("ZIP", "ship_zip", "ship_zip_input", "bill_zip", "bill_zip_input", 30)],

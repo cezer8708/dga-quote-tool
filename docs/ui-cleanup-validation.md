@@ -12,7 +12,7 @@ Desktop and 390 × 844 mobile browser checks cover alignment, Details, and overf
 
 ## Regression checks
 
-All 26 tests pass with:
+All 27 tests pass with:
 
 ```sh
 python -m unittest test_document_dates test_ui_workflow test_quote_version_widgets test_pipedrive_workflow test_quote_comparison test_security_controls
@@ -29,3 +29,7 @@ Earlier cleanup work also moved manager authorization to a callback to retain do
 ## Order submission date follow-up
 
 Processing an order now copies the payload and stamps its date with the current Pacific timestamp before generating the PDF and saving the order record. The source quote payload/session date is preserved. Quote generation continues to use its existing document date. A regression test covers both paths, matching PDF metadata to the saved record and checking source-payload immutability, including a Pacific late-night timestamp. This is an intentional behavior change after the presentation-only pass.
+
+## Second address line follow-up
+
+Shipping and Billing now expose Address #1 and Address #2. Optional `ship_addr2` and `bill_addr2` customer fields persist within the existing JSON payload; older records default to blank. Same-as-shipping copies/restores both lines. Quote and order PDFs include line 2 only when populated. Browser checks confirm matching widths and Y positions; interaction tests cover entry, saved loading, billing sync/restoration, both PDF templates, and new-quote reset.
