@@ -30,7 +30,7 @@ class QuoteVersionWidgetTests(unittest.TestCase):
             }:
                 node.func.value = ast.Name(id="st", ctx=ast.Load())
                 buttons[key.value] = ast.unparse(node)
-        self.assertEqual(len(buttons), 3)
+        self.assertEqual(set(buttons), {"top_new_version"})
         for key, button in buttons.items():
             with self.subTest(button=key):
                 script = '''
