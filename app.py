@@ -2196,7 +2196,7 @@ def build_pdf(
         grand_tbl_w = 2.5 * inch
         t_grand = Table([
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
-            ["GRAND TOTAL:", fmt_money(totals.get('grand_total', 0.0))],
+            ["Grand Total USD:", fmt_money(totals.get('grand_total', 0.0))],
         ], colWidths=[grand_tbl_w * 0.6, grand_tbl_w * 0.4])
         t_grand.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
@@ -2348,7 +2348,7 @@ def build_pdf(
             ["Drop-Ship Fee:", fmt_money(fees.get("drop_ship_fee", 0.0))],
             ["Freight:", fmt_money(fees.get("freight", 0.0))],
             [f"Sales Tax ({totals.get('tax_rate_pct', 0.0) * 100:.2f}%):", fmt_money(totals.get("sales_tax", 0.0))],
-            ["GRAND TOTAL:", fmt_money(totals.get('grand_total', 0.0))],
+            ["Grand Total USD:", fmt_money(totals.get('grand_total', 0.0))],
         ])
 
         t_totals = Table(totals_rows, colWidths=[totals_width * 0.65, totals_width * 0.35])
@@ -3263,7 +3263,7 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
         with meta_right:
             st.write(f"**Email:** {customer.get('email') or customer.get('bill_email') or selected_row.get('Email') or 'N/A'}")
             st.write(f"**Date:** {str(selected_row.get('Date', '') or '')[:10] or 'N/A'}")
-            st.write(f"**Grand Total:** {fmt_money(float(totals.get('grand_total', 0.0) or 0.0))}")
+            st.write(f"**Grand Total USD:** {fmt_money(float(totals.get('grand_total', 0.0) or 0.0))}")
             st.write(f"**Line Items:** {len(line_items)}")
 
         st.markdown("#### Warehouse Update")
@@ -4495,7 +4495,7 @@ def main_app():
             f"<div><span>{html.escape(label)}</span><strong>{'-' if amount < 0 else ''}${abs(amount):,.2f}</strong></div>"
             for label, amount in summary_rows
         )
-        st.markdown(f'<div class="quote-summary">{summary_html}<div class="grand-total"><span>GRAND TOTAL</span><strong>${grand_total:,.2f}</strong></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="quote-summary">{summary_html}<div class="grand-total"><span>Grand Total USD:</span><strong>${grand_total:,.2f}</strong></div></div>', unsafe_allow_html=True)
 
     with discount_status_slot:
         applied_discounts = []
