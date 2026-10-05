@@ -34,7 +34,7 @@ try:
 except ImportError:
     fitz = None
 
-st.set_page_config(page_title="DGA Quoting Tool", layout="centered", initial_sidebar_state="expanded")
+st.set_page_config(page_title="DGA Quoting Tool", layout="centered", initial_sidebar_state="collapsed")
 
 
 def is_health_check_request() -> bool:
@@ -3060,52 +3060,6 @@ def render_exact_pdf_preview(
     )
 
 
-def render_builder_sidebar_preview():
-    with st.sidebar:
-        with st.container(key="sidebar_preview_controls"):
-            preview_is_live = st.session_state.get("show_pdf_preview", True)
-            preview_status = "Live PDF" if preview_is_live else "Hidden"
-            preview_status_class = "preview-toolbar-status" if preview_is_live else "preview-toolbar-status is-off"
-            st.markdown(
-                f"""
-                <div class="preview-toolbar-heading">
-                    <div>
-                        <div class="preview-toolbar-kicker">Quote Preview</div>
-                        <div class="preview-toolbar-doc">{st.session_state['quote_no']}</div>
-                    </div>
-                    <div class="{preview_status_class}">{preview_status}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            if hasattr(st, "toggle"):
-                st.toggle(
-                    "Live preview",
-                    key="show_pdf_preview",
-                    on_change=handle_show_pdf_preview_toggle,
-                    help="Keep the PDF preview synced while editing.",
-                )
-            else:
-                st.checkbox(
-                    "Live preview",
-                    key="show_pdf_preview",
-                    on_change=handle_show_pdf_preview_toggle,
-                    help="Keep the PDF preview synced while editing.",
-                )
-
-        if st.session_state["show_pdf_preview"]:
-            try:
-                render_exact_pdf_preview(
-                    template="quote",
-                    height="calc(100vh - 185px)",
-                    mode="image",
-                    zoom_percent=100,
-                )
-            except Exception as e:
-                st.error(f"Preview unavailable: {e}")
-
-
 def maybe_render_query_preview(all_quotes_df: pd.DataFrame) -> bool:
     try:
         query_params = st.query_params
@@ -3355,156 +3309,10 @@ def main_app():
                 background-attachment: fixed;
             }
 
-            .main .block-container,
-            .stApp [data-testid="stSidebar"] {
-                position: relative;
-                z-index: 2;
+            [data-testid="stMainBlockContainer"] {
+                max-width: 760px !important; margin: 0 auto;
             }
-
-            [data-testid="stSidebar"],
-            [data-testid="stSidebar"][aria-expanded="true"],
-            [data-testid="stSidebar"] > div,
-            [data-testid="stSidebarContent"],
-            [data-testid="stSidebarUserContent"],
-            section[data-testid="stSidebar"],
-            section[data-testid="stSidebar"] > div,
-            .stApp [data-testid="stSidebar"],
-            .stApp [data-testid="stSidebar"] > div:first-child {
-                flex-basis: 600px !important;
-                flex-shrink: 0 !important;
-                max-width: 600px !important;
-                min-width: 600px !important;
-                width: 600px !important;
-            }
-
-            [data-testid="stSidebarUserContent"] {
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
-            }
-
-            [data-testid="stSidebar"] {
-                background: #20242f !important;
-            }
-
-            .st-key-sidebar_preview_controls {
-                margin: 0.35rem 0 0.95rem !important;
-                padding: 0.8rem !important;
-                border: 1px solid rgba(210, 228, 255, 0.14) !important;
-                border-radius: 10px !important;
-                background: rgba(13, 18, 29, 0.42) !important;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
-            }
-
-            .st-key-sidebar_preview_controls,
-            .st-key-sidebar_preview_controls * {
-                background-image: none !important;
-            }
-
-            .preview-toolbar-heading {
-                display: flex;
-                align-items: flex-start;
-                justify-content: space-between;
-                gap: 0.75rem;
-                margin-bottom: 0.7rem;
-            }
-
-            .preview-toolbar-kicker {
-                color: rgba(246, 248, 251, 0.62);
-                font-size: 0.74rem;
-                font-weight: 800;
-                letter-spacing: 0;
-                line-height: 1.1;
-                text-transform: uppercase;
-            }
-
-            .preview-toolbar-doc {
-                color: #f6f8fb;
-                font-size: 1.05rem;
-                font-weight: 800;
-                line-height: 1.25;
-                margin-top: 0.18rem;
-            }
-
-            .preview-toolbar-status {
-                flex: 0 0 auto;
-                border: 1px solid rgba(134, 232, 171, 0.36);
-                border-radius: 999px;
-                color: #c8f8d8;
-                background: rgba(31, 138, 76, 0.18) !important;
-                font-size: 0.72rem;
-                font-weight: 800;
-                line-height: 1;
-                padding: 0.36rem 0.5rem;
-            }
-
-            .preview-toolbar-status.is-off {
-                border-color: rgba(210, 228, 255, 0.18);
-                color: rgba(246, 248, 251, 0.62);
-                background: rgba(210, 228, 255, 0.08) !important;
-            }
-
-            .st-key-sidebar_preview_controls div[data-testid="stHorizontalBlock"] {
-                gap: 0.55rem !important;
-                margin-bottom: 0.45rem !important;
-            }
-
-            .st-key-sidebar_preview_controls .stButton > button {
-                height: 34px !important;
-                border-radius: 7px !important;
-                font-size: 13px !important;
-                font-weight: 800 !important;
-            }
-
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"],
-            .st-key-sidebar_preview_controls div[data-testid="stToggle"] {
-                border-top: 1px solid rgba(210, 228, 255, 0.12) !important;
-                margin-top: 0.55rem !important;
-                padding-top: 0.65rem !important;
-            }
-
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label,
-            .st-key-sidebar_preview_controls div[data-testid="stToggle"] label {
-                align-items: center !important;
-                color: rgba(246, 248, 251, 0.9) !important;
-                font-weight: 800 !important;
-            }
-
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label[data-baseweb="checkbox"]:has(input:checked) > div:first-child {
-                background: #1f8a4c !important;
-                border-color: rgba(165, 244, 190, 0.75) !important;
-                box-shadow: 0 0 0 1px rgba(74, 222, 128, 0.26) !important;
-            }
-
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] label[data-baseweb="checkbox"] input + div,
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] [data-testid="stWidgetLabel"],
-            .st-key-sidebar_preview_controls div[data-testid="stCheckbox"] [data-testid="stWidgetLabel"] * {
-                background: transparent !important;
-                background-color: transparent !important;
-            }
-
-            [data-testid="stSidebar"] iframe,
-            [data-testid="stSidebar"] [data-testid="stIFrame"],
-            [data-testid="stSidebar"] [data-testid="stPdf"] {
-                width: 100% !important;
-                max-width: 100% !important;
-            }
-
             @media (max-width: 900px) {
-                [data-testid="stSidebar"],
-                [data-testid="stSidebar"][aria-expanded="true"],
-                [data-testid="stSidebar"] > div,
-                [data-testid="stSidebarContent"],
-                [data-testid="stSidebarUserContent"],
-                section[data-testid="stSidebar"],
-                section[data-testid="stSidebar"] > div,
-                .stApp [data-testid="stSidebar"],
-                .stApp [data-testid="stSidebar"] > div:first-child {
-                    flex-basis: min(92vw, 600px) !important;
-                    max-width: min(92vw, 600px) !important;
-                    min-width: min(92vw, 600px) !important;
-                    width: min(92vw, 600px) !important;
-                }
-
                 .stApp [data-testid="stHorizontalBlock"] {
                     gap: 0.75rem !important;
                 }
@@ -3985,6 +3793,7 @@ def main_app():
             [data-testid="stMain"] .st-key-quote_action_bar .stButton button {height: 32px !important; min-height: 32px !important;}
             .st-key-quote_action_bar .stMarkdown p {white-space: nowrap;}
 
+
             .st-key-lookup_tools_panel, .st-key-customer_information_panel,
             .st-key-line_items_panel, .st-key-fees_tax_totals_panel,
             .st-key-generate_pdf_panel, [class*="st-key-line_item_panel_"] {
@@ -4000,7 +3809,6 @@ def main_app():
             .st-key-lookup_tools_panel [data-baseweb="tab-list"] {gap: 16px;}
             .st-key-lookup_tools_panel [data-baseweb="tab"] {height: 28px !important; padding: 0 !important; font-size: 13px !important;}
             .st-key-lookup_tools_panel [data-baseweb="tab-panel"] {padding-top: 6px !important;}
-            .st-key-sidebar_preview_controls {padding: 8px !important; margin: 0 0 8px !important;}
             div[data-testid="stVerticalBlockBorderWrapper"] {margin-bottom: 0 !important;}
             div[data-testid="stExpander"] {border: 0 !important; border-radius: 5px !important;}
             div[data-testid="stExpander"] details {border: 1px solid rgba(160,196,255,0.15) !important; border-radius: 5px !important;}
@@ -4012,7 +3820,14 @@ def main_app():
             div[data-testid="stExpander"] summary:hover {background: #243c59 !important;}
             .st-key-customer_information_panel, .st-key-line_items_panel,
             .st-key-fees_tax_totals_panel, .st-key-generate_pdf_panel {background: rgba(15,24,38,0.82) !important;}
-            [data-testid="stMain"] .st-key-generate_pdf_panel {gap: 2px !important;}
+            [data-testid="stMain"] .st-key-fees_tax_totals_panel,
+            [data-testid="stMain"] .st-key-generate_pdf_panel {
+                padding: 14px !important; gap: 12px !important; margin-top: 8px !important;
+            }
+            [data-testid="stMain"] .st-key-fees_tax_totals_panel [data-testid="stVerticalBlock"],
+            [data-testid="stMain"] .st-key-generate_pdf_panel [data-testid="stVerticalBlock"] {gap: 10px !important;}
+            [data-testid="stMain"] .st-key-fees_tax_totals_panel [data-testid="stHorizontalBlock"],
+            [data-testid="stMain"] .st-key-generate_pdf_panel [data-testid="stHorizontalBlock"] {gap: 12px !important;}
             [data-testid="stMain"] .st-key-generate_pdf_panel h3 {line-height: 20px !important;}
             .st-key-generate_quote_pdf, .st-key-process_order_po {width: 100% !important;}
             :is(.st-key-generate_quote_pdf, .st-key-process_order_po) .stButton {
@@ -4081,39 +3896,6 @@ def main_app():
             @media (max-width: 600px) {
                 .st-key-quote_action_bar {flex-wrap: wrap !important;}
                 .st-key-quote_action_bar > [data-testid="stElementContainer"]:has(.stMarkdown) {flex-basis: 100% !important;}
-            }
-            @media (min-width: 901px) {
-                [data-testid="stSidebar"], [data-testid="stSidebar"][aria-expanded="true"],
-                [data-testid="stSidebar"] > div, [data-testid="stSidebarContent"],
-                [data-testid="stSidebarUserContent"], section[data-testid="stSidebar"],
-                section[data-testid="stSidebar"] > div, .stApp [data-testid="stSidebar"],
-                .stApp [data-testid="stSidebar"] > div:first-child {
-                    box-sizing: border-box !important;
-                    width: clamp(330px, 32vw, 520px) !important;
-                    min-width: clamp(330px, 32vw, 520px) !important;
-                    max-width: clamp(330px, 32vw, 520px) !important;
-                    flex-basis: clamp(330px, 32vw, 520px) !important;
-                }
-            }
-            @media (max-width: 900px) {
-                [data-testid="stSidebar"] [data-testid="stBaseButton-headerNoPadding"],
-                [data-testid="stExpandSidebarButton"] {display: flex !important; visibility: visible !important; pointer-events: auto !important;}
-            }
-            .stApp [data-testid="stSidebar"] > div:first-child,
-            .stApp [data-testid="stSidebar"] [data-testid="stSidebarContent"],
-            .stApp [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
-                width: 100% !important; min-width: 0 !important; max-width: 100% !important;
-                flex-basis: auto !important; box-sizing: border-box !important;
-            }
-            .stApp [data-testid="stSidebar"][aria-expanded="false"] {
-                visibility: hidden !important; width: 0 !important; min-width: 0 !important;
-                max-width: 0 !important; flex-basis: 0 !important; margin-left: 0 !important;
-            }
-            @media (max-width: 900px) {
-                .stApp [data-testid="stSidebar"][aria-expanded="true"] {
-                    position: fixed !important; top: 3.75rem !important; left: 0 !important;
-                    height: calc(100dvh - 3.75rem) !important; z-index: 1000 !important;
-                }
             }
             @media (max-width: 760px) {
                 div:has(> .st-key-quote_action_bar) {position: static;}
@@ -4520,6 +4302,9 @@ def main_app():
             # HTML-escape literal amounts: Markdown dollar pairs trigger LaTeX math.
             st.markdown(f'<div class="discount-summary">{html.escape(" · ".join(summary))}</div>', unsafe_allow_html=True)
 
+    if not st.session_state.get("order_doc_number_pdf"):
+        st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
+
     payload = get_current_payload(
         subtotal,
         drop_ship_fee,
@@ -4535,7 +4320,12 @@ def main_app():
     render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
 
-    render_builder_sidebar_preview()
+    with st.sidebar:
+        st.markdown(f"**Quote Preview · {html.escape(str(st.session_state['quote_no']))}**")
+        try:
+            render_pdf_preview_from_payload(payload, template="quote", height="78vh")
+        except Exception as e:
+            st.error(f"Preview unavailable: {e}")
 
     def discount_note_valid() -> bool:
         if not st.session_state["active_discount_type"]:
@@ -4554,9 +4344,6 @@ def main_app():
             st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
 
         with st.expander("Order/PO Details (for Order PDF)", expanded=False):
-            if not st.session_state.get("order_doc_number_pdf"):
-                st.session_state["order_doc_number_pdf"] = st.session_state["quote_no"]
-
             order_col1, order_col2 = st.columns(2)
             with order_col1:
                 st.text_input("Order/PO Document # (Used for Order PDF Header/File Name)", key="order_doc_number_pdf")

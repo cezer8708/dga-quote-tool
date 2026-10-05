@@ -132,14 +132,34 @@ def validate_manager_credentials():
         text = ''.join(p.extract_text() for p in document.pages)
         for expected in ['Custom footer', 'Call ahead', 'Blue configuration', 'Lift Gate Needed']:
             self.assertIn(expected, text)
-        self.rerun(a.toggle(key='show_pdf_preview'), False)
-        self.rerun(a.toggle(key='show_pdf_preview'), True)
+        self.assertTrue(any("data:application/pdf;base64," in m.value for m in a.sidebar.markdown))
+        self.assertNotIn('show_pdf_preview', [w.key for w in a.toggle])
         self.rerun(a.button(key='top_new_version'))
         self.assertTrue(a.session_state['quote_no'].endswith('-V2'))
         self.assertEqual(a.number_input(key='freight_fee_input').value, 100)
         self.assertEqual(a.text_area(key='footer_notes').value, 'Custom footer')
         self.rerun(a.button(key=f'btn_rm_{item}'))
         self.assertEqual(a.session_state['line_items'], [])
+
+    def test_sidebar_preview_updates_with_current_quote(self):
+        import base64
+        import re
+        a = self.at
+        self.rerun(a.button(key='btn_add_line_top'))
+        item = a.session_state['line_items'][0]['id']
+        select = a.selectbox(key=f'sku_select_{item}')
+        self.rerun(select, next(v for v in select.options if v.startswith('M5STD —')))
+        self.rerun(a.number_input(key=f'qty_input_{item}'), 3)
+        self.rerun(a.text_input(key='ship_company_0'), 'Preview Customer')
+        self.rerun(a.number_input(key='freight_fee_input'), 85)
+        self.rerun(a.text_area(key='footer_notes'), 'Preview review notes')
+        markup = next(m.value for m in a.sidebar.markdown if 'data:application/pdf;base64,' in m.value)
+        encoded = re.search(r'data:application/pdf;base64,([^#"]+)', markup).group(1)
+        text = ''.join(p.extract_text() for p in PdfReader(io.BytesIO(base64.b64decode(encoded))).pages)
+        for expected in ['Preview Customer', 'Preview review notes', '85.00', a.session_state['quote_no']]:
+            self.assertIn(expected, text)
+        self.assertNotIn('top_preview_quote', [w.key for w in a.button])
+        self.assertEqual(a.number_input(key=f'qty_input_{item}').value, 3)
 
     def test_saved_lookup_and_pipedrive_apply(self):
         a = self.at
