@@ -1,0 +1,244 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e11]:
+    - generic [ref=f1e13]:
+      - generic [ref=f1e17]:
+        - generic [ref=f1e18]:
+          - generic [ref=f1e19]: Quote Preview
+          - generic [ref=f1e20]: 0924-1356
+        - generic [ref=f1e21]: Live PDF
+      - generic [ref=f1e24] [cursor=pointer]:
+        - checkbox "Live preview" [checked]
+        - paragraph [ref=f1e30]: Live preview
+    - img "PDF preview" [ref=f1e41]
+  - generic [ref=f1e3]:
+    - banner [ref=f1e44]:
+      - generic [ref=f1e47]:
+        - button "Deploy" [ref=f1e49] [cursor=pointer]
+        - button [ref=f1e53] [cursor=pointer]
+    - generic [ref=f1e57]:
+      - generic [ref=f1e61]:
+        - generic [ref=f1e66]:
+          - button "Fullscreen" [ref=f1e71] [cursor=pointer]
+          - img "0" [ref=f1e77]
+        - heading "DGA Quoting Tool" [level=2] [ref=f1e84]
+        - link [ref=f1e90]:
+          - /url: https://dga-operations.streamlit.app
+          - paragraph [ref=f1e92]: Open Operations Hub
+        - link [ref=f1e97]:
+          - /url: https://it-tickets-jigv.onrender.com?hub_area=Quote%20Tool
+          - paragraph [ref=f1e99]: Submit IT Ticket
+      - generic [ref=f1e101]:
+        - button [ref=f1e104] [cursor=pointer]:
+          - paragraph [ref=f1e106]: Quote Builder
+        - button [ref=f1e109] [cursor=pointer]:
+          - paragraph [ref=f1e111]: Processed Orders
+      - generic [ref=f1e113]:
+        - paragraph [ref=f1e117]:
+          - strong [ref=f1e118]: "Current Quote: 0924-1356"
+        - button [ref=f1e121] [cursor=pointer]:
+          - paragraph [ref=f1e123]: New Quote
+        - button [ref=f1e129] [cursor=pointer]:
+          - paragraph [ref=f1e131]: New Version
+      - generic [ref=f1e133]:
+        - paragraph [ref=f1e137]:
+          - strong [ref=f1e138]: LOOKUP
+        - generic [ref=f1e140]:
+          - tablist [ref=f1e142]:
+            - tab [selected] [ref=f1e143] [cursor=pointer]:
+              - paragraph [ref=f1e145]: Saved Quotes
+            - tab [ref=f1e146] [cursor=pointer]:
+              - paragraph [ref=f1e148]: Pipedrive
+          - tabpanel "Saved Quotes" [ref=f1e151]:
+            - textbox "Search saved quotes" [ref=f1e157]:
+              - /placeholder: e.g. 0107, Cesar Zermeno, discgolf.com, cesar@discgolf.com
+      - generic [ref=f1e159]:
+        - paragraph [ref=f1e163]:
+          - strong [ref=f1e164]: CUSTOMER
+        - generic [ref=f1e166]:
+          - generic [ref=f1e168]:
+            - paragraph [ref=f1e174]:
+              - strong [ref=f1e175]: SHIPPING
+            - generic [ref=f1e179]:
+              - paragraph [ref=f1e183]:
+                - strong [ref=f1e184]: BILLING
+              - generic [ref=f1e187] [cursor=pointer]:
+                - checkbox "Same as shipping"
+                - paragraph [ref=f1e192]: Same as shipping
+          - generic [ref=f1e202]:
+            - generic [ref=f1e206]:
+              - generic [ref=f1e212]:
+                - paragraph [ref=f1e215]: Company
+                - textbox "Company" [ref=f1e218]:
+                  - /placeholder: ""
+              - generic [ref=f1e224]:
+                - paragraph [ref=f1e227]: Name
+                - textbox "Name" [ref=f1e230]:
+                  - /placeholder: ""
+            - generic [ref=f1e234]:
+              - generic [ref=f1e240]:
+                - paragraph [ref=f1e243]: Company
+                - textbox "Company" [ref=f1e246]:
+                  - /placeholder: ""
+              - generic [ref=f1e252]:
+                - paragraph [ref=f1e255]: Name
+                - textbox "Name" [ref=f1e258]:
+                  - /placeholder: ""
+          - generic [ref=f1e262]:
+            - generic [ref=f1e266]:
+              - generic [ref=f1e272]:
+                - paragraph [ref=f1e275]: Phone
+                - textbox "Phone" [ref=f1e278]:
+                  - /placeholder: ""
+              - generic [ref=f1e284]:
+                - paragraph [ref=f1e287]: Email
+                - textbox "Email" [ref=f1e290]:
+                  - /placeholder: ""
+            - generic [ref=f1e294]:
+              - generic [ref=f1e300]:
+                - paragraph [ref=f1e303]: Phone
+                - textbox "Phone" [ref=f1e306]:
+                  - /placeholder: ""
+              - generic [ref=f1e312]:
+                - paragraph [ref=f1e315]: Email
+                - textbox "Email" [ref=f1e318]:
+                  - /placeholder: ""
+          - generic [ref=f1e322]:
+            - generic [ref=f1e332]:
+              - paragraph [ref=f1e335]: Address
+              - textbox "Address" [ref=f1e338]:
+                - /placeholder: ""
+            - generic [ref=f1e348]:
+              - paragraph [ref=f1e351]: Address
+              - textbox "Address" [ref=f1e354]:
+                - /placeholder: ""
+          - generic [ref=f1e358]:
+            - generic [ref=f1e362]:
+              - generic [ref=f1e368]:
+                - paragraph [ref=f1e371]: City
+                - textbox "City" [ref=f1e374]:
+                  - /placeholder: ""
+              - generic [ref=f1e380]:
+                - paragraph [ref=f1e383]: State
+                - textbox "State" [ref=f1e386]:
+                  - /placeholder: ""
+              - generic [ref=f1e392]:
+                - paragraph [ref=f1e395]: ZIP
+                - textbox "ZIP" [ref=f1e398]:
+                  - /placeholder: ""
+            - generic [ref=f1e402]:
+              - generic [ref=f1e408]:
+                - paragraph [ref=f1e411]: City
+                - textbox "City" [ref=f1e414]:
+                  - /placeholder: ""
+              - generic [ref=f1e420]:
+                - paragraph [ref=f1e423]: State
+                - textbox "State" [ref=f1e426]:
+                  - /placeholder: ""
+              - generic [ref=f1e432]:
+                - paragraph [ref=f1e435]: ZIP
+                - textbox "ZIP" [ref=f1e438]:
+                  - /placeholder: ""
+      - generic [ref=f1e440]:
+        - generic [ref=f1e442]:
+          - heading "Line Items" [level=3] [ref=f1e447]
+          - button [ref=f1e451] [cursor=pointer]:
+            - paragraph [ref=f1e453]: ＋ Add Item
+        - generic [ref=f1e455]:
+          - paragraph [ref=f1e459]: "Discounts: Course ✓ · 50th Anniversary ✓"
+          - button [ref=f1e466] [cursor=pointer]:
+            - paragraph [ref=f1e468]: Manage
+        - generic [ref=f1e631]:
+          - generic [ref=f1e632]: Product
+          - generic [ref=f1e638]: Qty
+          - generic [ref=f1e644]: Unit
+          - generic [ref=f1e650]: Total
+        - generic [ref=f1e659]:
+          - generic [ref=f1e660]: ITEM 1
+          - generic [ref=f1e667]:
+            - generic [ref=f1e673]:
+              - generic [ref=f1e674]:
+                - combobox "Product Description" [ref=f1e676]
+                - generic [ref=f1e677]: Start typing to find a product, or choose (custom)
+              - img "open" [ref=f1e679] [cursor=pointer]
+            - spinbutton "Qty" [ref=f1e688]: "1"
+            - spinbutton "Unit Price" [ref=f1e696]: "0.00"
+            - strong [ref=f1e703]: $0.00
+            - button [ref=f1e711] [cursor=pointer]:
+              - paragraph [ref=f1e713]: 🗑️
+          - generic [ref=f1e715]:
+            - generic "Custom item · Preview ✓" [ref=f1e719]
+            - button [ref=f1e723] [cursor=pointer]:
+              - paragraph [ref=f1e725]: Details
+      - generic [ref=f1e474]:
+        - heading "Shipping, Fees & Tax" [level=3] [ref=f1e479]
+        - generic [ref=f1e482]:
+          - generic [ref=f1e486]:
+            - paragraph [ref=f1e489]: Drop-Ship Fee
+            - generic [ref=f1e490]:
+              - spinbutton "Drop-Ship Fee" [ref=f1e493]: "0.00"
+              - generic [ref=f1e494]:
+                - button [disabled] [ref=f1e495]
+                - button [ref=f1e498] [cursor=pointer]
+          - generic [ref=f1e504]:
+            - paragraph [ref=f1e507]: Freight
+            - generic [ref=f1e508]:
+              - spinbutton "Freight" [ref=f1e511]: "0.00"
+              - generic [ref=f1e512]:
+                - button [disabled] [ref=f1e513]
+                - button [ref=f1e516] [cursor=pointer]
+          - generic [ref=f1e522]:
+            - paragraph [ref=f1e525]: Sales Tax Rate (%)
+            - generic [ref=f1e526]:
+              - spinbutton "Sales Tax Rate (%)" [ref=f1e529]: "0.00"
+              - generic [ref=f1e530]:
+                - button [disabled] [ref=f1e531]
+                - button [ref=f1e534] [cursor=pointer]
+        - group [ref=f1e539]:
+          - generic "keyboard_arrow_right Pricing Options / Santa Cruz Tax" [ref=f1e540] [cursor=pointer]:
+            - generic [ref=f1e541]:
+              - generic [ref=f1e542]: keyboard_arrow_right
+              - paragraph [ref=f1e546]: Pricing Options / Santa Cruz Tax
+        - group [ref=f1e549]:
+          - generic "keyboard_arrow_right Shipping Details" [ref=f1e550] [cursor=pointer]:
+            - generic [ref=f1e551]:
+              - generic [ref=f1e552]: keyboard_arrow_right
+              - paragraph [ref=f1e556]: Shipping Details
+        - generic [ref=f1e562]:
+          - generic [ref=f1e563]:
+            - generic [ref=f1e564]: Subtotal
+            - strong [ref=f1e565]: $0.00
+          - generic [ref=f1e566]:
+            - generic [ref=f1e567]: Primary Discount
+            - strong [ref=f1e568]: $0.00
+          - generic [ref=f1e569]:
+            - generic [ref=f1e570]: Manager Pricing
+            - strong [ref=f1e571]: $0.00
+          - generic [ref=f1e572]:
+            - generic [ref=f1e573]: Drop-Ship Fee
+            - strong [ref=f1e574]: $0.00
+          - generic [ref=f1e575]:
+            - generic [ref=f1e576]: Freight
+            - strong [ref=f1e577]: $0.00
+          - generic [ref=f1e578]:
+            - generic [ref=f1e579]: Tax
+            - strong [ref=f1e580]: $0.00
+          - generic [ref=f1e581]:
+            - generic [ref=f1e582]: GRAND TOTAL
+            - strong [ref=f1e583]: $0.00
+      - generic [ref=f1e585]:
+        - heading "Finalize Quote" [level=3] [ref=f1e590]
+        - group [ref=f1e594]:
+          - generic "keyboard_arrow_right Footer Notes · Edit · Pricing subject to change. Please review all details carefully. International custome" [ref=f1e595] [cursor=pointer]:
+            - generic [ref=f1e596]:
+              - generic [ref=f1e597]: keyboard_arrow_right
+              - paragraph [ref=f1e601]: Footer Notes · Edit · Pricing subject to change. Please review all details carefully. International custome
+        - group [ref=f1e604]:
+          - generic "keyboard_arrow_right Order/PO Details (for Order PDF)" [ref=f1e605] [cursor=pointer]:
+            - generic [ref=f1e606]:
+              - generic [ref=f1e607]: keyboard_arrow_right
+              - paragraph [ref=f1e611]: Order/PO Details (for Order PDF)
+        - generic [ref=f1e613]:
+          - button [ref=f1e618] [cursor=pointer]:
+            - paragraph [ref=f1e620]: Generate & SAVE Quote PDF
+          - button [ref=f1e625] [cursor=pointer]:
+            - paragraph [ref=f1e627]: Process as Order / PO

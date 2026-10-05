@@ -3,6 +3,7 @@ import io
 import uuid
 import json
 import copy
+from contextlib import contextmanager
 import concurrent.futures
 import queue
 import threading
@@ -3257,6 +3258,14 @@ def render_processed_orders_history(all_quotes_df: pd.DataFrame) -> None:
             st.markdown(f"[Open Warehouse Queue / Inventory]({WAREHOUSE_QUEUE_URL})")
 
 
+@contextmanager
+def quote_builder_section(label: str, key: str):
+    """Native expanders keep controls mounted and values available when closed."""
+    with st.container(key=key):
+        with st.expander(label, expanded=True):
+            yield
+
+
 def main_app():
     all_quotes_df = get_saved_quotes_snapshot() if has_query_preview_request() else empty_saved_quotes_df()
     if maybe_render_query_preview(all_quotes_df):
@@ -3877,6 +3886,18 @@ def main_app():
                 min-height: 26px !important; height: 26px !important; padding: 2px 8px !important;
                 font-size: 13px !important; line-height: 20px !important; background: #18263c;
             }
+            :is(.st-key-lookup_tools_panel, .st-key-customer_information_panel,
+                .st-key-line_items_panel, .st-key-fees_tax_totals_panel,
+                .st-key-generate_pdf_panel) > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"] > details > summary {
+                padding: 8px 10px !important; min-height: 38px !important;
+                background: transparent !important;
+            }
+            :is(.st-key-lookup_tools_panel, .st-key-customer_information_panel,
+                .st-key-line_items_panel, .st-key-fees_tax_totals_panel,
+                .st-key-generate_pdf_panel) > [data-testid="stLayoutWrapper"] > [data-testid="stExpander"] > details > summary p {
+                font-size: 15px !important; font-weight: 700 !important;
+            }
+            .st-key-line_items_header {justify-content: flex-end;}
             .st-key-line_items_header {flex-wrap: nowrap !important;}
             .st-key-line_items_header > [data-testid="stElementContainer"]:has([data-testid="stHeading"]) {flex: 1 1 0 !important; min-width: 0 !important;}
             .st-key-line_items_header > [data-testid="stElementContainer"]:has(.stButton) {flex: 0 0 auto !important; width: auto !important;}
@@ -3932,8 +3953,7 @@ def main_app():
                   help="Create a new version number based on the current quote.",
                   on_click=assign_new_quote_version)
 
-    with st.container(border=True, key="lookup_tools_panel"):
-        st.markdown("**LOOKUP**")
+    with quote_builder_section("Lookup", "lookup_tools_panel"):
         lookup_tabs = st.tabs(["Saved Quotes", "Pipedrive"])
         with lookup_tabs[0]:
             render_saved_quote_search_ui()
@@ -3945,8 +3965,7 @@ def main_app():
 
     c = st.session_state["customer"]
 
-    with st.container(border=True, key="customer_information_panel"):
-        st.markdown("**CUSTOMER**")
+    with quote_builder_section("Customer", "customer_information_panel"):
         with st.container(key="customer_grid"):
             # Both address sides use the same row definitions and label geometry.
             address_rows = [
@@ -3993,9 +4012,8 @@ def main_app():
             if billing_same_as_shipping:
                 sync_billing_from_shipping(c, cust_key_suffix)
 
-    with st.container(border=True, key="line_items_panel"):
+    with quote_builder_section("Line Items", "line_items_panel"):
         with st.container(key="line_items_header", horizontal=True, vertical_alignment="center"):
-            st.subheader("Line Items")
             st.button("＋ Add Item", key="btn_add_line_top", on_click=add_item_callback)
         with st.container(key="automatic_discount_toolbar", horizontal=True, vertical_alignment="center"):
             st.markdown("Discounts: Course " + ("✓" if st.session_state["apply_course_discount"] else "off")
@@ -4189,8 +4207,7 @@ def main_app():
 
 
 
-    with st.container(border=True, key="fees_tax_totals_panel"):
-        st.subheader("Shipping, Fees & Tax")
+    with quote_builder_section("Shipping, Fees & Tax", "fees_tax_totals_panel"):
         cc1, cc2, cc3 = st.columns([30, 35, 35])
         with cc1:
             drop_ship_fee = st.number_input("Drop-Ship Fee", min_value=0.0, step=1.0, key="drop_fee_input")
@@ -4337,8 +4354,7 @@ def main_app():
             return True
         return bool(st.session_state.get("manager_pricing_note", "").strip())
 
-    with st.container(border=True, key="generate_pdf_panel"):
-        st.subheader("Finalize Quote")
+    with quote_builder_section("Finalize Quote", "generate_pdf_panel"):
         quote_no = st.session_state["quote_no"]
         with st.expander("Footer Notes · Edit", expanded=False):
             st.text_area("Footer Notes (shown on PDF)", key="footer_notes", on_change=handle_footer_notes_change)
