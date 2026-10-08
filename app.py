@@ -308,21 +308,32 @@ def reset_course_minimum_override():
 
 
 def authorize_course_minimum_override():
-    reset_authority = not st.session_state.get("course_minimum_override_note", "").strip()
-    approved = not reset_authority and _constant_time_credentials_match(
-        st.session_state.get("course_override_username", "").strip(),
-        st.session_state.get("course_override_password", ""),
-        str(get_env("MANAGER_USERNAME", "") or ""),
-        str(get_env("MANAGER_PASSWORD", "") or ""),
+    reason = st.session_state.get("course_minimum_override_note", "").strip()
+    username = st.session_state.get("course_override_username", "").strip()
+    password = st.session_state.get("course_override_password", "")
+    expected_username = str(get_env("MANAGER_USERNAME", "") or "")
+    expected_password = str(get_env("MANAGER_PASSWORD", "") or "")
+    approved = bool(reason) and _constant_time_credentials_match(
+        username, password, expected_username, expected_password,
     )
     reset_course_minimum_override()
     st.session_state["course_minimum_override_authorized"] = approved
     if not approved:
-        st.session_state["course_minimum_override_error"] = (
-            "Enter a reason for the course discount override." if reset_authority else
-            "Manager approval failed. Check the manager username and password. "
-            "The course discount has not been applied."
-        )
+        st.session_state["course_override_username"] = username
+        if not reason:
+            error = "Enter a reason for the course discount override."
+        elif not expected_username or not expected_password:
+            error = (
+                "Manager approval is not configured on this deployment. "
+                "Set MANAGER_USERNAME and MANAGER_PASSWORD in the app's Streamlit secrets. "
+                "The course discount has not been applied."
+            )
+        else:
+            error = (
+                "Manager approval failed: the entered credentials do not match the configured "
+                "manager account. The course discount has not been applied."
+            )
+        st.session_state["course_minimum_override_error"] = error
 
 
 def render_course_minimum_override():

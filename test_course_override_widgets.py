@@ -6,7 +6,7 @@ from streamlit.testing.v1 import AppTest
 
 
 class CourseOverrideWidgetTests(unittest.TestCase):
-    def make_app(self):
+    def make_app(self, configured=True):
         names = {
             'reset_course_minimum_override', 'authorize_course_minimum_override',
             'render_course_minimum_override', 'course_minimum_override_active',
@@ -36,7 +36,19 @@ render_course_minimum_override()
 ensure_course_discount(st.session_state["line_items"])
 st.button("Unrelated rerun")
 '''
+        if not configured:
+            script = script.replace('{"MANAGER_USERNAME": "manager", "MANAGER_PASSWORD": "secret"}', '{}')
         return AppTest.from_string(script).run()
+
+    def test_missing_manager_configuration_is_reported(self):
+        app = self.make_app(configured=False)
+        app.text_input(key='course_minimum_override_note').set_value('Designer Discount')
+        app.text_input(key='course_override_username').set_value('manager')
+        app.text_input(key='course_override_password').set_value('secret')
+        app.button[0].click().run()
+        self.assertIn('not configured', app.error[0].value)
+        self.assertEqual(app.text_input(key='course_override_username').value, 'manager')
+        self.assertFalse(app.session_state['course_minimum_override_authorized'])
 
     def test_single_submission_applies_course_and_preserves_anniversary(self):
         app = self.make_app()
