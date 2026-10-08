@@ -25,19 +25,20 @@ class CourseMinimumOverrideTests(unittest.TestCase):
                     app.ensure_course_discount(items, meta)
                     self.assertEqual(any(i.get('sku') == code for i in items), qty >= 9 and enabled)
 
-    def test_approval_requires_credentials_and_reason_and_clears_password(self):
-        for valid, reason in [(True, 'Replacement'), (False, 'Replacement'), (True, '')]:
-            app.st.session_state['course_override_username'] = 'manager'
-            app.st.session_state['course_override_password'] = 'password'
-            app.st.session_state['course_minimum_override_note'] = reason
-            with patch.object(app, '_constant_time_credentials_match', return_value=valid):
-                app.authorize_course_minimum_override()
-            self.assertEqual(app.course_minimum_override_active(), bool(valid and reason))
-            self.assertEqual(app.st.session_state['course_override_password'], '')
-        app.reset_course_minimum_override()
-
-    def test_saved_approval_does_not_grant_live_authority(self):
+    def test_checkbox_needs_no_credentials_or_reason(self):
         app.st.session_state['course_minimum_override_applied'] = True
-        app.st.session_state['course_minimum_override_note'] = 'Prior approval'
+        self.assertTrue(app.course_minimum_override_active())
         app.reset_course_minimum_override()
+        self.assertFalse(app.course_minimum_override_active())
+
+    def test_saved_quote_restores_override(self):
+        payload = {'customer': {}, 'line_items': [], 'fees': {}, 'tax_meta': {},
+                   'discount_meta': {'course_minimum_override_applied': True},
+                   'order_meta': {}}
+        with patch.object(app, 'clear_manager_credentials'):
+            app.load_quote_payload_into_session(payload, '1008-0842')
+        self.assertTrue(app.course_minimum_override_active())
+        payload['discount_meta'] = {}
+        with patch.object(app, 'clear_manager_credentials'):
+            app.load_quote_payload_into_session(payload, '1008-0842')
         self.assertFalse(app.course_minimum_override_active())

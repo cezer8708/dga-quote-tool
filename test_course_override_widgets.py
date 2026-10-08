@@ -1,4 +1,4 @@
-"""Verify approval through real Streamlit form submission and reruns."""
+"""Verify the course minimum checkbox through Streamlit interactions."""
 import ast
 from pathlib import Path
 import unittest
@@ -6,9 +6,9 @@ from streamlit.testing.v1 import AppTest
 
 
 class CourseOverrideWidgetTests(unittest.TestCase):
-    def make_app(self, configured=True):
+    def make_app(self):
         names = {
-            'reset_course_minimum_override', 'authorize_course_minimum_override',
+            'reset_course_minimum_override',
             'render_course_minimum_override', 'course_minimum_override_active',
             '_constant_time_credentials_match', 'ensure_course_discount',
             'ensure_discount_line', 'ensure_course_discount_position',
@@ -36,48 +36,18 @@ render_course_minimum_override()
 ensure_course_discount(st.session_state["line_items"])
 st.button("Unrelated rerun")
 '''
-        if not configured:
-            script = script.replace('{"MANAGER_USERNAME": "manager", "MANAGER_PASSWORD": "secret"}', '{}')
         return AppTest.from_string(script).run()
 
-    def test_missing_manager_configuration_is_reported(self):
-        app = self.make_app(configured=False)
-        app.text_input(key='course_minimum_override_note').set_value('Designer Discount')
-        app.text_input(key='course_override_username').set_value('manager')
-        app.text_input(key='course_override_password').set_value('secret')
-        app.button[0].click().run()
-        self.assertIn('not configured', app.error[0].value)
-        self.assertEqual(app.text_input(key='course_override_username').value, 'manager')
-        self.assertFalse(app.session_state['course_minimum_override_authorized'])
-
-    def test_single_submission_applies_course_and_preserves_anniversary(self):
+    def test_checkbox_applies_course_and_preserves_anniversary(self):
         app = self.make_app()
         self.assertEqual([i['sku'] for i in app.session_state['line_items']], ['MXPRSTD', '50th'])
-        app.text_input(key='course_minimum_override_note').set_value('Designer Discount')
-        app.text_input(key='course_override_username').set_value('manager')
-        app.text_input(key='course_override_password').set_value('secret')
-        app.button[0].click().run()
+        self.assertEqual(len(app.text_input), 0)
+        app.checkbox(key='course_minimum_override_applied').check().run()
         self.assertEqual(len(app.exception), 0)
-        self.assertEqual(len(app.success), 1)
         totals = {i['sku']: i['total'] for i in app.session_state['line_items'] if 'total' in i}
         self.assertEqual(totals, {'CD': -300, '50th': -375})
-        app.button[1].click().run()
+        app.button[0].click().run()
         self.assertEqual(len(app.exception), 0)
-        self.assertTrue(app.session_state['course_minimum_override_authorized'])
-        app.button[0].click().run()
-        self.assertFalse(app.session_state['course_minimum_override_authorized'])
+        self.assertTrue(app.session_state['course_minimum_override_applied'])
+        app.checkbox(key='course_minimum_override_applied').uncheck().run()
         self.assertEqual([i['sku'] for i in app.session_state['line_items']], ['MXPRSTD', '50th'])
-
-    def test_invalid_credentials_show_error_and_can_retry(self):
-        app = self.make_app()
-        app.text_input(key='course_minimum_override_note').set_value('Designer Discount')
-        app.text_input(key='course_override_username').set_value('manager')
-        app.text_input(key='course_override_password').set_value('wrong')
-        app.button[0].click().run()
-        self.assertEqual(len(app.error), 1)
-        self.assertFalse(app.session_state['course_minimum_override_authorized'])
-        app.text_input(key='course_override_username').set_value('manager')
-        app.text_input(key='course_override_password').set_value('secret')
-        app.button[0].click().run()
-        self.assertEqual(len(app.success), 1)
-        self.assertEqual(len(app.error), 0)
