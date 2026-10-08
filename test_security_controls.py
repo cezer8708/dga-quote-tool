@@ -28,6 +28,17 @@ class SecurityControlTests(unittest.TestCase):
             Paragraph(app._pdf_text(payload), getSampleStyleSheet()["Normal"])
         image_reader.assert_not_called()
 
+    def test_manager_pricing_toggle_applies_without_credentials(self):
+        app.st.session_state["manager_pricing_checkbox"] = True
+        app.handle_manager_pricing_toggle()
+        self.assertTrue(app.st.session_state["manager_pricing_authorized"])
+        self.assertGreater(app.calculate_manager_discount(100, True), 0)
+        app.st.session_state["manager_pricing_note"] = "Special pricing"
+        app.st.session_state["manager_pricing_checkbox"] = False
+        app.handle_manager_pricing_toggle()
+        self.assertFalse(app.st.session_state["manager_pricing_authorized"])
+        self.assertEqual(app.st.session_state["manager_pricing_note"], "")
+
     @patch.object(app.load_all_quotes, "clear")
     def test_sheet_save_uses_raw_cell_semantics(self, _clear_mock):
         worksheet = MagicMock()

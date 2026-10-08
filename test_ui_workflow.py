@@ -30,8 +30,6 @@ def handle_pdf_generation(payload, doc_number, template, container, order_meta=N
     pdf, _, _ = generate_pdf_preview_data(payload, template)
     st.session_state["_test_pdf"] = pdf
     st.session_state["_test_saved_payload"] = copy.deepcopy(payload)
-def validate_manager_credentials():
-    return st.session_state.get("manager_username") == "test" and st.session_state.get("manager_password") == "test"
 '''
         source = source.replace('if __name__ == "__main__":', fixtures + '\nif __name__ == "__main__":')
         self.at = AppTest.from_string(source, default_timeout=30).run()
@@ -123,9 +121,9 @@ def validate_manager_credentials():
         self.assertEqual(self.payload()['totals']['tax_rate_pct'], .0975)
         self.rerun(a.checkbox(key='manager_pricing_checkbox'), True)
         self.rerun(a.text_input(key='manager_pricing_note'), 'Test pricing')
-        self.rerun(a.text_input(key='manager_username'), 'test')
-        self.rerun(a.text_input(key='manager_password'), 'test')
-        self.rerun(a.button(key='btn_authorize_manager'))
+        self.assertNotIn('manager_username', [w.key for w in a.text_input])
+        self.assertNotIn('manager_password', [w.key for w in a.text_input])
+        self.assertNotIn('btn_authorize_manager', [w.key for w in a.button])
         self.assertGreater(self.payload()['totals']['manager_discount'], 0)
         self.rerun(a.button(key='generate_quote_pdf'))
         document = PdfReader(io.BytesIO(a.session_state['_test_pdf']))

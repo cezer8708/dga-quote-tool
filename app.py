@@ -274,30 +274,13 @@ def clear_manager_credentials():
     st.session_state["manager_password"] = ""
 
 
-def validate_manager_credentials() -> bool:
-    username = st.session_state.get("manager_username", "").strip()
-    password = st.session_state.get("manager_password", "")
-    return _constant_time_credentials_match(
-        username,
-        password,
-        str(get_env("MANAGER_USERNAME", "") or ""),
-        str(get_env("MANAGER_PASSWORD", "") or ""),
-    )
-
-
 def handle_manager_pricing_toggle():
-    if not st.session_state.get("manager_pricing_checkbox", False):
-        st.session_state["manager_pricing_authorized"] = False
+    # Manager Pricing is now an explicit quote option, without a credential gate.
+    enabled = bool(st.session_state.get("manager_pricing_checkbox", False))
+    st.session_state["manager_pricing_authorized"] = enabled
+    if not enabled:
         st.session_state["manager_pricing_note"] = ""
-        clear_manager_credentials()
-
-
-def authorize_manager_pricing():
-    if validate_manager_credentials():
-        st.session_state["manager_pricing_authorized"] = True
-        st.session_state["manager_clear_credentials_on_rerun"] = True
-    else:
-        st.session_state["manager_pricing_authorized"] = False
+    clear_manager_credentials()
 
 
 def reset_course_minimum_override():
@@ -4256,18 +4239,6 @@ def main_app():
                     key="manager_pricing_note",
                     placeholder="Required reason for manager pricing"
                 )
-                if not st.session_state["manager_pricing_authorized"]:
-                    mp1, mp2, mp3 = st.columns([1, 1, 0.8])
-                    with mp1:
-                        st.text_input("Manager Username", key="manager_username")
-                    with mp2:
-                        st.text_input("Manager Password", key="manager_password", type="password")
-                    with mp3:
-                        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                        st.button("Authorize Manager Pricing", key="btn_authorize_manager",
-                                  on_click=authorize_manager_pricing)
-                else:
-                    st.success("Manager pricing authorized.")
 
         with st.expander("Shipping Details", expanded=False):
             fn1, fn2, fn3, fn4 = st.columns(4)
@@ -4409,7 +4380,7 @@ def main_app():
             if not discount_note_valid():
                 pdf_col1.error("Discount Reason is required when Discount is selected.")
             elif not manager_pricing_note_valid():
-                pdf_col1.error("Manager Pricing Reason is required when Manager Pricing is authorized.")
+                pdf_col1.error("Manager Pricing Reason is required when Manager Pricing is selected.")
             else:
                 handle_pdf_generation(payload, quote_no, "quote", pdf_col1)
 
@@ -4417,7 +4388,7 @@ def main_app():
             if not discount_note_valid():
                 pdf_col2.error("Discount Reason is required when Discount is selected.")
             elif not manager_pricing_note_valid():
-                pdf_col2.error("Manager Pricing Reason is required when Manager Pricing is authorized.")
+                pdf_col2.error("Manager Pricing Reason is required when Manager Pricing is selected.")
             else:
                 order_doc_number = st.session_state["order_doc_number_pdf"]
                 handle_pdf_generation(payload, order_doc_number, "order", pdf_col2, order_meta=order_meta)
