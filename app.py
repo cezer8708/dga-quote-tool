@@ -300,6 +300,33 @@ def authorize_manager_pricing():
         st.session_state["manager_pricing_authorized"] = False
 
 
+def reset_course_minimum_override():
+    st.session_state["course_minimum_override_authorized"] = False
+    st.session_state["course_override_username"] = ""
+    st.session_state["course_override_password"] = ""
+
+
+def authorize_course_minimum_override():
+    reset_authority = not st.session_state.get("course_minimum_override_note", "").strip()
+    approved = not reset_authority and _constant_time_credentials_match(
+        st.session_state.get("course_override_username", "").strip(),
+        st.session_state.get("course_override_password", ""),
+        str(get_env("MANAGER_USERNAME", "") or ""),
+        str(get_env("MANAGER_PASSWORD", "") or ""),
+    )
+    reset_course_minimum_override()
+    st.session_state["course_minimum_override_authorized"] = approved
+
+
+def course_minimum_override_active(settings=None):
+    if settings is None:
+        settings = st.session_state
+        approved = settings.get("course_minimum_override_authorized", False)
+    else:
+        approved = settings.get("course_minimum_override_applied", False)
+    return bool(approved and settings.get("course_minimum_override_note", "").strip())
+
+
 def calculate_discountable_subtotal(items: list[dict]) -> float:
     total = 0.0
     for item in items:
@@ -831,6 +858,7 @@ def assign_new_quote_version():
     st.session_state["document_date"] = get_pacific_now().isoformat()
     st.session_state["manager_pricing_authorized"] = False
     st.session_state["manager_pricing_checkbox"] = False
+    reset_course_minimum_override()
     clear_manager_credentials()
 
 
@@ -886,6 +914,7 @@ def start_new_quote(preserve_freight: bool = False):
     st.session_state["billing_same_as_shipping"] = False
 
     st.session_state["line_items"] = []
+    st.session_state["course_minimum_override_note"] = ""
     st.session_state["apply_course_discount"] = True
     st.session_state["apply_anniversary_discount"] = True
     st.session_state["drop_fee_input"] = 0.0
@@ -898,6 +927,7 @@ def start_new_quote(preserve_freight: bool = False):
     sync_discount_checkboxes_from_type("")
     st.session_state["discount_note"] = ""
     st.session_state["manager_pricing_checkbox"] = False
+    reset_course_minimum_override()
     st.session_state["manager_pricing_authorized"] = False
     st.session_state["manager_pricing_note"] = ""
     st.session_state["manager_clear_credentials_on_rerun"] = False
@@ -977,6 +1007,8 @@ for label in FREIGHT_NOTE_OPTIONS:
     st.session_state.setdefault(_freight_note_key(label), False)
 restore_pending_freight_state()
 
+st.session_state.setdefault("course_minimum_override_authorized", False)
+st.session_state.setdefault("course_minimum_override_note", "")
 st.session_state.setdefault("apply_course_discount", True)
 st.session_state.setdefault("apply_anniversary_discount", True)
 st.session_state.setdefault("active_discount_type", "")
@@ -1585,12 +1617,16 @@ def ensure_course_discount(items: list[dict], discount_meta: dict = None) -> boo
     settings = st.session_state if discount_meta is None else discount_meta
     course_enabled = settings.get("apply_course_discount", True)
     anniversary_enabled = settings.get("apply_anniversary_discount", True)
+    override = course_minimum_override_active(discount_meta)
+    minimum_qty = 1 if override else 9
+    override_note = "Manager-approved minimum override: " + settings.get("course_minimum_override_note", "").strip()
     qty = eligible_qty_for_discount(items)
     mach_2_pro_qty = eligible_mach_2_pro_qty_for_discount(items)
     modified = ensure_discount_line(
         items, "CD", qty if course_enabled else 0, -100.0,
         "Course Discount (-$100 per qualifying basket)",
-        "Auto-applied for 9+ Mach 5/7/X baskets",
+        override_note if override else "Auto-applied for 9+ Mach 5/7/X baskets",
+        minimum_qty=minimum_qty,
     )
     modified = ensure_discount_line(
         items, ANNIVERSARY_DISCOUNT_SKU, qty if anniversary_enabled else 0, -125.0,
@@ -1601,7 +1637,8 @@ def ensure_course_discount(items: list[dict], discount_meta: dict = None) -> boo
     modified = ensure_discount_line(
         items, MACH_2_PRO_COURSE_DISCOUNT_SKU, mach_2_pro_qty if course_enabled else 0, -50.0,
         "Mach 2 Pro Course Discount (-$50 per qualifying basket)",
-        "Auto-applied for 9+ Mach 2 Pro baskets",
+        override_note if override else "Auto-applied for 9+ Mach 2 Pro baskets",
+        minimum_qty=minimum_qty,
     ) or modified
     modified = ensure_discount_line(
         items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty if anniversary_enabled else 0, -50.0,
@@ -2679,6 +2716,8 @@ def get_current_payload(
         "sc_county_checkbox": st.session_state["sc_county_checkbox"],
     }
     discount_meta = {
+        "course_minimum_override_applied": course_minimum_override_active(),
+        "course_minimum_override_note": st.session_state.get("course_minimum_override_note", ""),
         "apply_course_discount": st.session_state.get("apply_course_discount", True),
         "apply_anniversary_discount": st.session_state.get("apply_anniversary_discount", True),
         "active_discount_type": st.session_state["active_discount_type"],
@@ -2872,6 +2911,7 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     st.session_state["sc_county_checkbox"] = bool(tax_meta.get("sc_county_checkbox", False))
 
     discount_meta = payload.get("discount_meta", {})
+    st.session_state["course_minimum_override_note"] = discount_meta.get("course_minimum_override_note", "")
     st.session_state["apply_course_discount"] = discount_meta.get("apply_course_discount", True)
     st.session_state["apply_anniversary_discount"] = discount_meta.get("apply_anniversary_discount", True)
     active_discount_type = discount_meta.get("active_discount_type", "")
@@ -2887,6 +2927,7 @@ def load_quote_payload_into_session(payload: dict, selected_quote_no: str):
     # grant authority in a new session or after loading a document.
     st.session_state["manager_pricing_authorized"] = False
     st.session_state["manager_pricing_checkbox"] = False
+    reset_course_minimum_override()
     st.session_state["manager_pricing_note"] = discount_meta.get("manager_pricing_note", "")
     st.session_state["manager_clear_credentials_on_rerun"] = False
     clear_manager_credentials()
@@ -4022,6 +4063,19 @@ def main_app():
                 dc1, dc2 = st.columns(2)
                 dc1.checkbox("Apply Course Discount", key="apply_course_discount")
                 dc2.checkbox("Apply 50th Anniversary Sale", key="apply_anniversary_discount")
+                st.markdown("**Override 9-basket course minimum**")
+                st.caption("Requires manager approval. Applies only to qualifying baskets.")
+                st.text_input("Override reason (required)", key="course_minimum_override_note",
+                              on_change=reset_course_minimum_override)
+                if course_minimum_override_active():
+                    st.success("Course minimum override authorized.")
+                    st.button("Remove minimum override", on_click=reset_course_minimum_override)
+                else:
+                    st.text_input("Manager Username", key="course_override_username")
+                    st.text_input("Manager Password", key="course_override_password", type="password")
+                    st.button("Authorize minimum override", on_click=authorize_course_minimum_override)
+                    st.caption("Approval requires a reason and valid manager credentials.")
+
         discount_status_slot = st.container()
 
         sku_to_name = PRODUCTS.set_index("SKU")["Name"].to_dict()
@@ -4309,7 +4363,9 @@ def main_app():
         guidance = []
         qual_qty = eligible_qty_for_discount(st.session_state["line_items"])
         mach_2_pro_qual_qty = eligible_mach_2_pro_qty_for_discount(st.session_state["line_items"])
-        if st.session_state["apply_course_discount"]:
+        if course_minimum_override_active():
+            guidance.append("Course minimum waived with manager approval")
+        if st.session_state["apply_course_discount"] and not course_minimum_override_active():
             if 0 < qual_qty < 9:
                 guidance.append(f"{9 - qual_qty} more qualifying baskets unlock Course")
             if 0 < mach_2_pro_qual_qty < 9:

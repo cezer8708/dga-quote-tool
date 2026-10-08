@@ -10,7 +10,7 @@ class QuoteVersionWidgetTests(unittest.TestCase):
     def test_each_version_button_resets_rendered_manager_widgets(self):
         tree = ast.parse(Path(__file__).with_name("app.py").read_text())
         names = {
-            "assign_new_quote_version", "clear_manager_credentials",
+            "assign_new_quote_version", "clear_manager_credentials", "reset_course_minimum_override",
             "preserve_freight_for_next_rerun", "restore_pending_freight_state",
             "capture_freight_state", "restore_freight_state",
         }
