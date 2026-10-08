@@ -302,6 +302,7 @@ def authorize_manager_pricing():
 
 def reset_course_minimum_override():
     st.session_state["course_minimum_override_authorized"] = False
+    st.session_state["course_minimum_override_error"] = ""
     st.session_state["course_override_username"] = ""
     st.session_state["course_override_password"] = ""
 
@@ -316,6 +317,32 @@ def authorize_course_minimum_override():
     )
     reset_course_minimum_override()
     st.session_state["course_minimum_override_authorized"] = approved
+    if not approved:
+        st.session_state["course_minimum_override_error"] = (
+            "Enter a reason for the course discount override." if reset_authority else
+            "Manager approval failed. Check the manager username and password. "
+            "The course discount has not been applied."
+        )
+
+
+def render_course_minimum_override():
+    st.markdown("**Apply Course Discount below 9 baskets**")
+    st.caption("Manager approval waives only the course minimum. The 50th Anniversary sale needs no approval.")
+    if course_minimum_override_active():
+        st.success("Course Discount approved for fewer than 9 qualifying baskets.")
+        st.caption("Reason: " + st.session_state["course_minimum_override_note"])
+        st.button("Remove minimum override", on_click=reset_course_minimum_override)
+    else:
+        # Submit reason and credentials together. A text-input change callback
+        # must not clear credentials submitted with the approval button.
+        with st.form("course_minimum_override_form"):
+            st.text_input("Override reason (required)", key="course_minimum_override_note")
+            st.text_input("Manager Username", key="course_override_username")
+            st.text_input("Manager Password", key="course_override_password", type="password")
+            st.form_submit_button("Approve and apply Course Discount",
+                                  on_click=authorize_course_minimum_override)
+        if st.session_state.get("course_minimum_override_error"):
+            st.error(st.session_state["course_minimum_override_error"])
 
 
 def course_minimum_override_active(settings=None):
@@ -4063,18 +4090,7 @@ def main_app():
                 dc1, dc2 = st.columns(2)
                 dc1.checkbox("Apply Course Discount", key="apply_course_discount")
                 dc2.checkbox("Apply 50th Anniversary Sale", key="apply_anniversary_discount")
-                st.markdown("**Override 9-basket course minimum**")
-                st.caption("Requires manager approval. Applies only to qualifying baskets.")
-                st.text_input("Override reason (required)", key="course_minimum_override_note",
-                              on_change=reset_course_minimum_override)
-                if course_minimum_override_active():
-                    st.success("Course minimum override authorized.")
-                    st.button("Remove minimum override", on_click=reset_course_minimum_override)
-                else:
-                    st.text_input("Manager Username", key="course_override_username")
-                    st.text_input("Manager Password", key="course_override_password", type="password")
-                    st.button("Authorize minimum override", on_click=authorize_course_minimum_override)
-                    st.caption("Approval requires a reason and valid manager credentials.")
+                render_course_minimum_override()
 
         discount_status_slot = st.container()
 
