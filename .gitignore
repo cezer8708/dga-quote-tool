@@ -45,3 +45,6 @@ output/pdf/
 
 # Project virtual environment
 new_tools/
+
+# Generated browser test logs and snapshots
+.playwright-cli/
