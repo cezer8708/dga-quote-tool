@@ -20,6 +20,11 @@ class CompactWorkflowTests(unittest.TestCase):
         # calculations, preview and PDF generation run unchanged.
         fixtures = '''
 PIPEDRIVE_API_TOKEN = "test-token"
+_original_get_current_payload = get_current_payload
+def get_current_payload(*args, **kwargs):
+    payload = _original_get_current_payload(*args, **kwargs)
+    st.session_state["_test_current_payload"] = copy.deepcopy(payload)
+    return payload
 def pd_search_persons(term):
     return [{"id": 1, "name": "Test Customer", "email": "test@example.invalid"}]
 def pd_get_person(person_id):
@@ -49,7 +54,17 @@ def handle_pdf_generation(payload, doc_number, template, container, order_meta=N
         self.healthy()
 
     def payload(self):
-        return copy.deepcopy(self.sync.call_args.args[-1])
+        return copy.deepcopy(self.at.session_state['_test_current_payload'])
+
+    def test_paused_intake_and_sync_stay_hidden_for_linked_quotes(self):
+        self.at.session_state['pipedrive_link'] = {'lead_id': 'existing-lead', 'title': 'Existing intake'}
+        self.at.run()
+        self.healthy()
+        self.intake.assert_not_called()
+        self.sync.assert_not_called()
+        self.assertNotIn('Submitted quote forms', [e.label for e in self.at.expander])
+        self.assertIn('pd_term', [w.key for w in self.at.text_input])
+        self.assertEqual(self.payload()['pipedrive_link']['lead_id'], 'existing-lead')
 
     def test_billing_restores_and_new_quote_clears_customer(self):
         a = self.at

@@ -114,6 +114,11 @@ US_STATE_ABBREVIATIONS = {
 PIPEDRIVE_DOMAIN = get_env("PIPEDRIVE_API_URL")
 PIPEDRIVE_API_TOKEN = get_env("PIPEDRIVE_API_TOKEN")
 
+# Paused while the intake workflow is refined. Keep contact lookup independent.
+# Opt back in through environment variables or Streamlit secrets when ready.
+PIPEDRIVE_FORM_IMPORT_ENABLED = str(get_env("PIPEDRIVE_FORM_IMPORT_ENABLED", "false")).strip().lower() in {"1", "true", "yes"}
+PIPEDRIVE_DEAL_SYNC_ENABLED = str(get_env("PIPEDRIVE_DEAL_SYNC_ENABLED", "false")).strip().lower() in {"1", "true", "yes"}
+
 if PIPEDRIVE_DOMAIN:
     PIPEDRIVE_BASE_URL = PIPEDRIVE_DOMAIN.rstrip("/") + "/v1"
 else:
@@ -3966,9 +3971,10 @@ def main_app():
             render_saved_quote_search_ui()
         with lookup_tabs[1]:
             render_pipedrive_lookup_ui()
-            from pipedrive_workflow_ui import render_intake
-            with st.expander("Submitted quote forms", expanded=False):
-                render_intake(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN)
+            if PIPEDRIVE_FORM_IMPORT_ENABLED:
+                from pipedrive_workflow_ui import render_intake
+                with st.expander("Submitted quote forms", expanded=False):
+                    render_intake(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN)
 
     c = st.session_state["customer"]
 
@@ -4332,8 +4338,9 @@ def main_app():
         primary_discount_label,
         manager_discount_amount,
     )
-    from pipedrive_workflow_ui import render_sync
-    render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
+    if PIPEDRIVE_DEAL_SYNC_ENABLED:
+        from pipedrive_workflow_ui import render_sync
+        render_sync(globals(), PIPEDRIVE_DOMAIN, PIPEDRIVE_API_TOKEN, payload)
     order_meta = payload["order_meta"]
 
     with st.sidebar:

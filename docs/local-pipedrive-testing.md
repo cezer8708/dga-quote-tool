@@ -1,9 +1,16 @@
 # Local Pipedrive intake testing
 
+Form import and lead-to-deal sync are currently paused and hidden by default.
+Their implementation and saved intake links remain available. Regular Pipedrive
+contact lookup is unaffected. To restore either feature after workshopping it,
+set `PIPEDRIVE_FORM_IMPORT_ENABLED=true` and/or `PIPEDRIVE_DEAL_SYNC_ENABLED=true`
+in the environment or Streamlit secrets, then restart the app. Leave these unset
+or set to `false` to keep the features disabled, including on linked saved quotes.
+
 Start from the project directory:
 
 ```sh
-PIPEDRIVE_LOCAL_TEST=1 new_tools/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8502
+PIPEDRIVE_FORM_IMPORT_ENABLED=true PIPEDRIVE_DEAL_SYNC_ENABLED=true PIPEDRIVE_LOCAL_TEST=1 new_tools/bin/python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8502
 ```
 
 Open http://127.0.0.1:8502. The same workflow is available in the deployed app; local testing uses the flag to keep deal writes restricted to the Cesar Quote Test contact.
