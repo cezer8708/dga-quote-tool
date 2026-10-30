@@ -9,6 +9,7 @@ import queue
 import threading
 import html
 import hmac
+import hashlib
 from datetime import datetime
 import requests
 import re
@@ -188,7 +189,7 @@ def _get_app_logo_path(default_path: str = "assets/dga_logo_white.png") -> str |
 
 APP_LOGO_PATH = _get_app_logo_path()
 HUB_HEADER_LOGO_PATH = "assets/dga_logo_white.png" if os.path.exists("assets/dga_logo_white.png") else APP_LOGO_PATH
-QUOTE_PATENT_TILE_PATH = "assets/ahhhh-whit.png"
+QUOTE_PATENT_TILE_PATH = "static/quote-background.png"
 WAREHOUSE_QUEUE_URL = get_env("WAREHOUSE_QUEUE_URL", "https://dga-warehouse-inventory.netlify.app")
 CUSTOM_DISC_ORDERING_URL = get_env("CUSTOM_DISC_ORDERING_URL", "https://dga-custom-disc-ordering.onrender.com")
 ARTWORK_GENERATOR_URL = get_env("ARTWORK_GENERATOR_URL", "https://dga-artwork-preview-generator.streamlit.app")
@@ -367,6 +368,14 @@ def get_gsheet_client():
         return None
 
 
+@st.cache_resource(ttl=3600, show_spinner=False)
+def get_saved_quotes_worksheet():
+    client = get_gsheet_client()
+    if client is None:
+        raise RuntimeError("Google Sheets connection is unavailable.")
+    return client.open_by_key(GOOGLE_SHEET_ID).get_worksheet(0)
+
+
 @st.cache_data(ttl=300)
 def load_all_quotes() -> pd.DataFrame:
     client = get_gsheet_client()
@@ -374,8 +383,7 @@ def load_all_quotes() -> pd.DataFrame:
         return empty_saved_quotes_df()
 
     def _fetch_quotes() -> pd.DataFrame:
-        sh = client.open_by_key(GOOGLE_SHEET_ID)
-        worksheet = sh.get_worksheet(0)
+        worksheet = get_saved_quotes_worksheet()
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         return normalize_saved_quotes_df(df)
@@ -550,6 +558,9 @@ def normalize_saved_quotes_df(df: pd.DataFrame) -> pd.DataFrame:
         axis=1,
     )
 
+    working_df["Search Blob"] = working_df.apply(
+        lambda row: _quote_customer_search_blob(row.get("Payload"), row), axis=1
+    )
     return working_df
 
 
@@ -654,8 +665,9 @@ def search_saved_quotes(df: pd.DataFrame, term: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     working_df = df.copy()
-    working_df["Search Blob"] = working_df.apply(lambda row: _quote_customer_search_blob(row.get("Payload"), row), axis=1)
-    matches = working_df[working_df["Search Blob"].str.contains(search_term, na=False)].copy()
+    if "Search Blob" not in working_df.columns:
+        working_df["Search Blob"] = working_df.apply(lambda row: _quote_customer_search_blob(row.get("Payload"), row), axis=1)
+    matches = working_df[working_df["Search Blob"].str.contains(search_term, na=False, regex=False)].copy()
 
     if "Date" in matches.columns:
         matches = matches.sort_values(by="Date", ascending=False, na_position="last")
@@ -2539,6 +2551,10 @@ def handle_pdf_generation(payload: dict, doc_number: str, template: str, contain
 
 
 def generate_pdf_preview_data(payload: dict, template: str = "quote") -> tuple[bytes, int, str]:
+    # Keep customer data in this session and reuse only an identical preview.
+    cached = st.session_state.get("_last_pdf_preview")
+    if cached and cached[0] == payload and cached[1] == template:
+        return cached[2]
     doc_number = payload["quote_no"] if template == "quote" else (
         payload.get("order_meta", {}).get("order_doc_number") or payload["quote_no"]
     )
@@ -2556,7 +2572,9 @@ def generate_pdf_preview_data(payload: dict, template: str = "quote") -> tuple[b
         template=template,
         meta=pdf_meta,
     )
-    return pdf_data, compact_level_used, doc_number
+    result = (pdf_data, compact_level_used, doc_number)
+    st.session_state["_last_pdf_preview"] = (copy.deepcopy(payload), template, result)
+    return result
 
 
 def _preview_height_to_pixels(height: str) -> int:
@@ -2605,7 +2623,7 @@ def _render_pdf_image_preview(pdf_data: bytes, height: str, zoom_percent: int):
 
 def _render_pdf_native_browser_preview(pdf_data: bytes, height: str):
     base64_pdf = base64.b64encode(pdf_data).decode("utf-8")
-    preview_nonce = uuid.uuid4().hex
+    preview_nonce = hashlib.sha256(pdf_data).hexdigest()
     pdf_display = f"""
     <div class="pdf-iframe-container" style="height: {height};">
         <iframe
@@ -3311,7 +3329,7 @@ def main_app():
         render_processed_orders_history(all_quotes_df)
         return
 
-    combined_patent_uri = _asset_data_uri(QUOTE_PATENT_TILE_PATH, "image/png")
+    combined_patent_uri = f"app/{QUOTE_PATENT_TILE_PATH}"
     patent_markup = ""
 
     quote_view_css = """
