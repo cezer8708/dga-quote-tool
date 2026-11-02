@@ -3386,8 +3386,9 @@ def main_app():
                 border-radius: 16px !important;
                 overflow: hidden !important;
                 background-clip: padding-box !important;
-                backdrop-filter: blur(6px) !important;
-                -webkit-backdrop-filter: blur(6px) !important;
+                /* Avoid nested backdrop surfaces on the full quote form. */
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
             }
 
             .st-key-lookup_tools_panel,
@@ -3399,8 +3400,8 @@ def main_app():
                 background: rgba(15, 24, 38, 0.46) !important;
                 background-image: none !important;
                 box-shadow: inset 0 0 0 9999px rgba(15, 24, 38, 0.46) !important;
-                backdrop-filter: blur(6px) !important;
-                -webkit-backdrop-filter: blur(6px) !important;
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
             }
 
             div[data-testid="stVerticalBlockBorderWrapper"]:has(.st-key-lookup_tools_panel) > div,
