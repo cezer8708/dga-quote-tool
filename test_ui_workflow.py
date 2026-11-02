@@ -30,6 +30,7 @@ def pd_search_persons(term):
 def pd_get_person(person_id):
     return {"name": "Test Customer", "email": [{"value": "test@example.invalid"}], "phone": []}
 def get_saved_quotes_snapshot():
+    st.session_state['_test_history_reads'] = st.session_state.get('_test_history_reads', 0) + 1
     return pd.DataFrame([{"Doc #": "0901-1000-V2", "Quote #": "0901-1000-V2", "Name": "Legacy", "Company": "Legacy", "Email": "", "Date": "2026-09-01", "Payload": {"customer": {"name": "Legacy", "ship_addr2": "Legacy Suite", "ship_addr1": "Line one\\nLine two"}, "line_items": [{"id": "legacy-custom", "sku": "", "name": "Saved custom product", "qty": 2, "unit": 12.5, "total": 25, "Notes": "Saved configuration"}], "fees": {"freight": 42}, "freight_notes": "UPS", "footer_notes": "Legacy footer"}}])
 def handle_pdf_generation(payload, doc_number, template, container, order_meta=None):
     pdf, _, _ = generate_pdf_preview_data(payload, template)
@@ -55,6 +56,20 @@ def handle_pdf_generation(payload, doc_number, template, container, order_meta=N
 
     def payload(self):
         return copy.deepcopy(self.at.session_state['_test_current_payload'])
+
+    def test_fresh_quote_add_items_avoids_history_and_native_pdf_viewer(self):
+        a = self.at
+        for _ in range(3):
+            self.rerun(a.button(key='btn_add_line_top'))
+        self.assertEqual(len(a.session_state['line_items']), 3)
+        self.assertEqual(a.session_state.filtered_state.get('_test_history_reads', 0), 0)
+        markup = '\n'.join(element.value for element in a.markdown)
+        self.assertIn('data:image/png;base64,', markup)
+        self.assertNotIn('data:application/pdf;base64,', markup)
+        self.rerun(a.button(key='top_new_quote'))
+        self.rerun(a.button(key='btn_add_line_top'))
+        self.assertEqual(len(a.session_state['line_items']), 1)
+        self.assertEqual(a.session_state.filtered_state.get('_test_history_reads', 0), 0)
 
     def test_paused_intake_and_sync_stay_hidden_for_linked_quotes(self):
         self.at.session_state['pipedrive_link'] = {'lead_id': 'existing-lead', 'title': 'Existing intake'}
@@ -145,7 +160,7 @@ def handle_pdf_generation(payload, doc_number, template, container, order_meta=N
         text = ''.join(p.extract_text() for p in document.pages)
         for expected in ['Custom footer', 'Call ahead', 'Blue configuration', 'Lift Gate Needed']:
             self.assertIn(expected, text)
-        self.assertTrue(any("data:application/pdf;base64," in m.value for m in a.sidebar.markdown))
+        self.assertTrue(any("data:image/png;base64," in m.value for m in a.sidebar.markdown))
         self.assertNotIn('show_pdf_preview', [w.key for w in a.toggle])
         self.rerun(a.button(key='top_new_version'))
         self.assertTrue(a.session_state['quote_no'].endswith('-V2'))
@@ -166,13 +181,24 @@ def handle_pdf_generation(payload, doc_number, template, container, order_meta=N
         self.rerun(a.text_input(key='ship_company_0'), 'Preview Customer')
         self.rerun(a.number_input(key='freight_fee_input'), 85)
         self.rerun(a.text_area(key='footer_notes'), 'Preview review notes')
-        markup = next(m.value for m in a.sidebar.markdown if 'data:application/pdf;base64,' in m.value)
-        encoded = re.search(r'data:application/pdf;base64,([^#"]+)', markup).group(1)
-        text = ''.join(p.extract_text() for p in PdfReader(io.BytesIO(base64.b64decode(encoded))).pages)
+        markup = next(m.value for m in a.sidebar.markdown if 'data:image/png;base64,' in m.value)
+        encoded = re.search(r'data:image/png;base64,([^"]+)', markup).group(1)
+        pdf = a.session_state['_last_pdf_preview'][2][0]
+        import fitz
+        with fitz.open(stream=pdf, filetype='pdf') as document:
+            expected_png = document[0].get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False).tobytes('png')
+        self.assertEqual(base64.b64decode(encoded), expected_png)
+        text = ''.join(p.extract_text() for p in PdfReader(io.BytesIO(pdf)).pages)
         for expected in ['Preview Customer', 'Preview review notes', '85.00', a.session_state['quote_no']]:
             self.assertIn(expected, text)
         self.assertNotIn('top_preview_quote', [w.key for w in a.button])
         self.assertEqual(a.number_input(key=f'qty_input_{item}').value, 3)
+        self.assertIn('object-fit: contain', markup)
+        self.assertEqual(a.selectbox(key='sidebar_preview_zoom').value, 'Fit page')
+        self.assertFalse(any(b.label == 'Download PDF' for b in a.sidebar.get('download_button')))
+        self.rerun(a.selectbox(key='sidebar_preview_zoom'), '150%')
+        self.assertTrue(any('width: 150%' in m.value for m in a.sidebar.markdown))
+        self.assertEqual(a.session_state['_last_pdf_preview'][2][0], pdf)
 
     def test_saved_lookup_and_pipedrive_apply(self):
         a = self.at

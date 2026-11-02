@@ -2592,7 +2592,7 @@ def _preview_height_to_pixels(height: str) -> int:
     return 680
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, max_entries=8)
 def _pdf_preview_png_data_uri(pdf_data: bytes, render_scale: float = 2.5) -> str:
     if fitz is None:
         raise RuntimeError("PyMuPDF is required for fitted live previews. Install it with: pip install PyMuPDF")
@@ -2611,10 +2611,12 @@ def _pdf_preview_png_data_uri(pdf_data: bytes, render_scale: float = 2.5) -> str
 def _render_pdf_image_preview(pdf_data: bytes, height: str, zoom_percent: int):
     image_uri = _pdf_preview_png_data_uri(pdf_data)
     zoom = max(100, int(zoom_percent))
+    image_style = ("width: 100%; height: 100%; object-fit: contain;" if zoom == 100
+                   else f"width: {zoom}%; max-width: none; height: auto;")
     st.markdown(
         f"""
         <div class="pdf-image-preview-shell" style="height: {height};">
-            <img src="{image_uri}" alt="PDF preview" style="width: {zoom}%; min-width: 100%;">
+            <img src="{image_uri}" alt="PDF preview" style="{image_style}">
         </div>
         """,
         unsafe_allow_html=True,
@@ -3757,7 +3759,7 @@ def main_app():
             }
 
             .pdf-image-preview-shell {
-                background: #ffffff;
+                background: #243247;
                 border: 1px solid rgba(255, 255, 255, 0.16);
                 border-radius: 4px;
                 box-sizing: border-box;
@@ -4363,8 +4365,17 @@ def main_app():
 
     with st.sidebar:
         st.markdown(f"**Quote Preview · {html.escape(str(st.session_state['quote_no']))}**")
+        preview_zoom = st.selectbox(
+            "Preview zoom", ["Fit page", "125%", "150%", "200%"],
+            key="sidebar_preview_zoom", label_visibility="collapsed",
+        )
         try:
-            render_pdf_preview_from_payload(payload, template="quote", height="78vh")
+            # Updating a native PDF iframe on every edit can stall macOS browsers.
+            # Rasterize the same generated PDF for the live sidebar instead.
+            render_pdf_preview_from_payload(
+                payload, template="quote", height="68vh", mode="image",
+                zoom_percent=100 if preview_zoom == "Fit page" else int(preview_zoom.rstrip("%")),
+            )
         except Exception as e:
             st.error(f"Preview unavailable: {e}")
 
