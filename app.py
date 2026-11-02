@@ -1616,7 +1616,7 @@ def ensure_course_discount(items: list[dict], discount_meta: dict = None) -> boo
     modified = ensure_discount_line(
         items, ANNIVERSARY_DISCOUNT_SKU, qty if anniversary_enabled else 0, -125.0,
         "50th Anniversary Sale - Mach 5 / Mach 7 / Mach X / Mach X Pro",
-        "Ends Oct 31st",
+        "Ends Dec 31st",
         minimum_qty=1,
     ) or modified
     modified = ensure_discount_line(
@@ -1628,7 +1628,7 @@ def ensure_course_discount(items: list[dict], discount_meta: dict = None) -> boo
     modified = ensure_discount_line(
         items, MACH_2_PRO_ANNIVERSARY_DISCOUNT_SKU, mach_2_pro_qty if anniversary_enabled else 0, -50.0,
         "50th Anniversary Sale - Mach 2 Pro",
-        "Ends Oct 31st",
+        "Ends Dec 31st",
         minimum_qty=1,
     ) or modified
     ensure_course_discount_position(items)
